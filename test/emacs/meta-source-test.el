@@ -114,6 +114,19 @@ that isn't a qualified keyword is left to other backends."
   (with-current-buffer (meta-source-test--at "src/shop/spec.clj" "string?")
     (should-not (meta-source--keyword-at-point))))
 
+(ert-deftest meta-source-keyword-at-point ()
+  "::name and ::alias/name are written out as the reader resolves them;
+an unqualified keyword (a re-frame id) is kept."
+  (skip-unless (featurep 'clojure-mode))
+  (with-temp-buffer
+    (clojurescript-mode)
+    (insert "(ns shop.views\n  (:require [re-frame.core :as rf]\n            [shop.events :as events]))\n"
+            "(rf/dispatch [::events/checkout]) (rf/subscribe [::total]) (rf/dispatch [:initialize])")
+    (cl-flet ((at (s) (goto-char (point-min)) (search-forward s) (backward-char 2) (meta-source--keyword-at-point)))
+      (should (equal (at "::events/checkout") ":shop.events/checkout"))
+      (should (equal (at "::total") ":shop.views/total"))
+      (should (equal (at ":initialize") ":initialize")))))
+
 (ert-deftest meta-source-xref ()
   "M-. offers the config that declares it and the defmethods that implement
 it (variant configs are listed in the entry, :integrant/config-in); M-? what

@@ -21,6 +21,7 @@
             [meta-source.merge :as merge]
             [meta-source.pack.integrant :as integrant]
             [meta-source.pack.pathom :as pathom]
+            [meta-source.pack.re-frame :as re-frame]
             [meta-source.pack.schema :as schema]
             [meta-source.read :as read]))
 
@@ -98,7 +99,7 @@
   ([lines row col own-ns aliases read-opts]
    (let [line (nth lines (dec row) nil)]
      (when (and line (>= col 2) (= \( (nth line (- col 2) nil)))
-       (try (binding [*read-eval* false]
+       (try (binding [*read-eval* false *default-data-reader-fn* tagged-literal]
               (let [text (resolve-keywords (str/join "\n" (cons (subs line (- col 2)) (drop row lines)))
                                            own-ns aliases)]
                 (if read-opts (read-string read-opts text) (read-string text))))
@@ -129,7 +130,9 @@
 ;;                          file's sites; file is {:form-at (fn [row col])
 ;;                          :read (fn [text]) :own-ns :aliases}, form-at reading
 ;;                          the form at a position as data, read reading text
-;;                          with the file's ::keywords resolved
+;;                          with the file's ::keywords resolved. A result
+;;                          with :refers true is a place that refers to the
+;;                          id (a dispatch): never its primary definition
 ;;   :pack/checks           (fn [view]) → problems; view is {:entities
 ;;                          :of-kinds :data-key? :loc :flow :opts}
 ;;   :pack/inline-data-keys (fn [entities]) → data keys its entities define
@@ -161,7 +164,7 @@
 ;; cached per file, so it must be data. A pack needs :pack/find and
 ;; :pack/read, or :pack/data-files and :pack/read-data, or both.
 
-(def builtin-packs [schema/pack pathom/pack integrant/pack])
+(def builtin-packs [schema/pack pathom/pack integrant/pack re-frame/pack])
 
 (defn enabled-packs
   "The packs `packs-config` (meta-source.edn's :packs) enables: each
@@ -342,7 +345,7 @@
   (let [config {:root (canonical root) :registry (vec registry) :src (vec src)
                 :packs (or packs {}) :dataflow dataflow :merge (:merge opts) :id-key id-key}
         edn-files (vec (files-under root registry [".edn"]))
-        src-files (files-under root src [".clj" ".cljc"])
+        src-files (files-under root src [".clj" ".cljc" ".cljs"])
         cached (cond
                  (and previous (= config (:config previous))) previous
                  cache (read-cache cache config))
@@ -384,30 +387,33 @@
                     :lines (update-vals located :line) :entities (update-vals located :entry)})
                  ;; packs: one source per entry a pack reads, from code or data files
                  ;; :dropped, the props a pack read as code rather than data
-                 (for [{:keys [file row kind dev-id entry dropped]}
+                 (for [{:keys [file row kind dev-id entry dropped refers]}
                        (concat (for [[f {:keys [pack-results]}] code
                                      [_ results] (sort-by key pack-results)
                                      r results]
                                  (assoc r :file f))
                                data-results)
                        :when dev-id]
-                   {:label (str file ":" row ":" dev-id) :file file :kind kind :dropped dropped
+                   {:label (str file ":" row ":" dev-id) :file file :kind kind :dropped dropped :refers refers
                     :lines {dev-id row} :entities {dev-id entry}}))
         by-label (into {} (map (juxt :label identity)) sources)
         data-key-kinds (set (mapcat :pack/kinds (filter :pack/data-keys? packs)))
         merged (merge/merge-sources (for [{:keys [label entities]} sources] {:source label :entities entities})
                                     (merge-policy config packs))
         definition (fn [id label]
-                     (let [{:keys [file kind lines dropped]} (by-label label)]
+                     (let [{:keys [file kind lines dropped refers]} (by-label label)]
                        (cond-> {:file file :line (get lines id) :kind kind
                                 :keys (vec (sort (for [[k ls] (get-in merged [:provenance id]) :when (contains? ls label)] k)))}
-                         (seq dropped) (assoc :dropped dropped))))
+                         (seq dropped) (assoc :dropped dropped)
+                         refers (assoc :refers true))))
         static (into {} (for [[id entry] (:entities merged)
                               :let [defs (mapv #(definition id %) (merge/sources-of (:provenance merged) id))
                                     ;; what a pack declares (a component, a resolver, a
-                                    ;; data key's schema) before what EDN adds to it
+                                    ;; data key's schema) before what EDN adds to it,
+                                    ;; and both before a place that only refers to it
                                     primary (or (first (filter #(data-key-kinds (:kind %)) defs))
-                                                (first (remove #(= :edn (:kind %)) defs))
+                                                (first (remove #(or (= :edn (:kind %)) (:refers %)) defs))
+                                                (first (remove :refers defs))
                                                 (first defs))]]
                           [id (assoc primary :entry entry :definitions defs)]))
         ;; packs' runtime snapshots: fill what static reading couldn't read,
@@ -530,14 +536,16 @@
    :definition is its primary source; :sources lists every source that gave
    it something (a registry file, a pack's form, a running process's
    snapshot) and which keys, with the props a pack read as code rather than
-   data under :dropped. :impl is the var carrying the meta key."
+   data under :dropped, and :refers true on a place that only refers to it
+   (a re-frame dispatch). :impl is the var carrying the meta key."
   [idx id]
   (when-let [e (get-in idx [:entities id])]
     {:dev-id id
      :definition (loc idx e)
      :impl (some->> (impl-of idx id) (loc idx))
      :sources (mapv (fn [d] (cond-> (assoc (loc idx d) :keys (:keys d))
-                              (:dropped d) (assoc :dropped (:dropped d))))
+                              (:dropped d) (assoc :dropped (:dropped d))
+                              (:refers d) (assoc :refers true)))
                     (:definitions e))
      :entry (:entry e)}))
 
