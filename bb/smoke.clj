@@ -361,6 +361,41 @@
                  (every? #(= :warning (:severity %)) (vals ds))))
         (finally (fs/delete-tree dir))))
 
+    ;; ---- function contracts the code writes: test/fixtures/contracts, s/fdef and m/=>
+    (let [fc (index/build (assoc (edn/read-string (slurp "test/fixtures/contracts/meta-source.edn"))
+                                 :root "test/fixtures/contracts"))
+          outside (into {} (map (juxt :dev-id :keys)) (problems fc :keys-outside-contract))]
+      (check "an s/fdef: an entity keyed by its var, its :args and :ret keys what it consumes and produces"
+             (= #:spec{:args "(s/cat :order :shop.checkout/order)" :args-keys [:shop.checkout/order]
+                       :ret ":shop.checkout/receipt" :ret-keys [:shop.checkout/receipt]}
+                (:entry (index/where fc :shop.checkout/total))))
+      (check "its var implements it, with no meta key"
+             (= 'shop.checkout/total (:var (:impl (index/where fc :shop.checkout/total)))))
+      (check "an m/=>: the keys of its :=> input and output"
+             (= [:order/discount :order/id] (:malli/args-keys (:entry (index/where fc :shop.checkout/line-count)))))
+      (check "a key of an :args spec's s/keys is within the contract; a key outside it is reported"
+             (= {:shop.checkout/total [:user/loyalty-tier] :shop.checkout/line-count [:order/lines]
+                 :shop.checkout/paid? [:order/state] :shop.checkout/tier-discount [:user/loyalty-tier]}
+                outside))
+      (check "a defn's {:malli/schema ...} metadata, read from clj-kondo's analysis"
+             (= #:malli{:fn "[:=> [:cat [:map :order/id :order/total]] :boolean]" :args-keys [:order/id :order/total]}
+                (:entry (index/where fc :shop.checkout/paid?))))
+      (check "mx/defn's :- annotations, as [:=> [:cat ...] ret]; clj-kondo knows it defines the var"
+             (and (= #:malli{:fn "[:=> [:cat [:map :order/total]] :order/discount]"
+                             :args-keys [:order/total] :ret-keys [:order/discount]}
+                     (:entry (index/where fc :shop.checkout/tier-discount)))
+                  (= 'shop.checkout/tier-discount (:var (:impl (index/where fc :shop.checkout/tier-discount))))))
+      (check "a function is not a data key, and consumes the spec its :args names"
+             (= [:shop.checkout/discounted? :shop.checkout/total]
+                (map :dev-id (:consumers (index/data-key fc :shop.checkout/order)))))
+      (check "a spec named in s/valid? is not a key read; an s/alt tag is not a spec the fn consumes"
+             (and (not (contains? outside :shop.checkout/gold?))
+                  (nil? (:spec/args-keys (:entry (index/where fc :shop.checkout/gold?))))))
+      (check "a schema named in a call to a fn :schema-fns lists is not a key read"
+             (not (contains? outside :shop.checkout/receipt?)))
+      (check "the hover shows the fdef"
+             (str/includes? (:eldoc (hover/lookup fc :shop.checkout/total)) "fn  (s/cat :order :shop.checkout/order) → :shop.checkout/receipt")))
+
     ;; ---- the project's clj-kondo config: test/fixtures/kondo-config, read from here, not its root
     (let [show #(first (filter (comp #{'show} :name) (mapcat :vars (vals (:code %)))))
           kws #(set (map :name (mapcat :keywords (vals (:code %)))))

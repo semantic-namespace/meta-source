@@ -1,0 +1,5 @@
+;; Plain functions whose contracts the code already writes: s/fdef, m/=>, a
+;; defn's :malli/schema and mx/defn. No meta key, no EDN contract.
+{:src ["src"]
+ :packs {:spec {}
+         :malli {:schema-fns [shop.checkout/conforms?]}}}

@@ -152,8 +152,10 @@ library's imported config) is read as what it defines.
 - **What runs can be compared with what is written.** A running Pathom
   environment can write a snapshot; meta-source fills in what the code
   doesn't say and reports where the two disagree.
-- **Plain functions opt in** with one meta key and a contract in your own
-  vocabulary. [docs/reference.md](docs/reference.md)
+- **Plain functions** with an `s/fdef` or a malli `m/=>` are checked against
+  it: code reading a key the contract's specs don't list is reported. Others
+  opt in with one meta key and a contract in your own vocabulary.
+  [docs/reference.md](docs/reference.md)
 
 ## Why it's built this way
 
@@ -173,10 +175,10 @@ cross-reference, and it keeps the cross-reference true.
 
 ## Status
 
-Working today: the integrant, spec/malli, Pathom and re-frame packs, `check`,
-the queries, the Emacs package, and a project's own packs. Next: invariants
-of your own, written as data (`{:when {...} :require [...]}`) over the same
-index, and more packs (function contracts from `s/fdef` and malli, reitit,
+Working today: the integrant, spec/malli (with `s/fdef` and `m/=>`), Pathom
+and re-frame packs, `check`, the queries, the Emacs package, and a project's
+own packs. Next: invariants of your own, written as data
+(`{:when {...} :require [...]}`) over the same index, and more packs (reitit,
 Datomic schemas).
 
 ## More

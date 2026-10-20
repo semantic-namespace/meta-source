@@ -19,6 +19,7 @@
             [clojure.java.io :as io]
             [clojure.string :as str]
             [meta-source.merge :as merge]
+            [meta-source.pack.fn-schema :as fn-schema]
             [meta-source.pack.integrant :as integrant]
             [meta-source.pack.pathom :as pathom]
             [meta-source.pack.re-frame :as re-frame]
@@ -27,7 +28,7 @@
 
 (def ^:private bb? (some? (System/getProperty "babashka.version")))
 
-(def cache-version 1)
+(def cache-version 3)
 
 (def default-id-key
   "The meta key a plain var carries to say which id it implements. A
@@ -132,7 +133,9 @@
 ;;                          the form at a position as data, read reading text
 ;;                          with the file's ::keywords resolved. A result
 ;;                          with :refers true is a place that refers to the
-;;                          id (a dispatch): never its primary definition
+;;                          id (a dispatch): never its primary definition.
+;;                          One with :var ns/name says that var implements
+;;                          the id, as the meta key does (an s/fdef's)
 ;;   :pack/checks           (fn [view]) → problems; view is {:entities
 ;;                          :of-kinds :data-key? :loc :flow :opts}
 ;;   :pack/inline-data-keys (fn [entities]) → data keys its entities define
@@ -151,6 +154,10 @@
 ;;                          reads them with each key's line)
 ;;   :pack/runtime-fill     (fn [entry runtime]) → entry with what static reading
 ;;                          couldn't read taken from the running process's entry
+;;   :pack/var-meta         meta keys whose values clj-kondo's analysis gives on
+;;                          each var definition (:meta), for :pack/find
+;;   :pack/kondo-config     clj-kondo config the analysis adds ({:lint-as ...}),
+;;                          as the library's own exported config would
 ;;   :pack/runtime-diff     (fn [entry runtime]) → where code and the running
 ;;                          process disagree, or nil
 ;;
@@ -164,7 +171,7 @@
 ;; cached per file, so it must be data. A pack needs :pack/find and
 ;; :pack/read, or :pack/data-files and :pack/read-data, or both.
 
-(def builtin-packs [schema/pack pathom/pack integrant/pack re-frame/pack])
+(def builtin-packs [schema/pack fn-schema/pack pathom/pack integrant/pack re-frame/pack])
 
 (defn enabled-packs
   "The packs `packs-config` (meta-source.edn's :packs) enables: each
@@ -297,10 +304,12 @@
   (if (empty? files)
     {}
     (let [{:keys [analysis]} (@kondo (cond-> {:lint (vec files)
-                                              :config {:output {:canonical-paths true}
-                                                       :linters ^:replace {}
-                                                       :analysis {:var-definitions {:meta [id-key]}
-                                                                  :keywords true}}}
+                                              :config (merge-with merge
+                                                                  (apply merge-with merge (keep :pack/kondo-config packs))
+                                                                  {:output {:canonical-paths true}
+                                                                   :linters ^:replace {}
+                                                                   :analysis {:var-definitions {:meta (vec (distinct (cons id-key (mapcat :pack/var-meta packs))))}
+                                                                              :keywords true}})}
                                        (kondo-config-dir root) (assoc :config-dir (kondo-config-dir root))))
           by-file (fn [k xf] (group-by :filename (into [] xf (get analysis k))))
           vars (by-file :var-definitions
@@ -309,7 +318,7 @@
                                  (get meta id-key) (assoc :dev-id (get meta id-key))))))
           calls (by-file :var-usages
                          (comp (filter :from-var)
-                               (map #(select-keys % [:filename :from :from-var :to :name :row]))))
+                               (map #(select-keys % [:filename :from :from-var :to :name :row :col :end-row :end-col]))))
           own-ns (into {} (for [{:keys [filename name]} (:namespace-definitions analysis)] [filename (str name)]))
           aliases (update-vals (group-by :filename (filter :alias (:namespace-usages analysis)))
                                #(into {} (for [{:keys [alias to]} %] [(str alias) (str to)])))
@@ -318,7 +327,7 @@
           found (vec (for [p packs :when (:pack/find p)] [p (group-by :filename ((:pack/find p) for-packs packs-config))]))
           kws (by-file :keywords
                        (comp (filter #(and (:from-var %) (:ns %)))
-                             (map #(select-keys % [:filename :from :from-var :ns :name :row]))))]
+                             (map #(select-keys % [:filename :from :from-var :ns :name :row :col]))))]
       (into {} (for [f files :let [f (canonical f)]]
                  [f {:vars (vec (get vars f)) :calls (vec (get calls f)) :keywords (vec (get kws f))
                      :pack-results (let [here (for [[p by-file] found :let [sites (get by-file f)] :when (seq sites)] [p sites])]
@@ -411,14 +420,14 @@
                     :lines (update-vals located :line) :entities (update-vals located :entry)})
                  ;; packs: one source per entry a pack reads, from code or data files
                  ;; :dropped, the props a pack read as code rather than data
-                 (for [{:keys [file row kind dev-id entry dropped refers]}
+                 (for [{:keys [file row kind dev-id entry dropped refers var]}
                        (concat (for [[f {:keys [pack-results]}] code
                                      [_ results] (sort-by key pack-results)
                                      r results]
                                  (assoc r :file f))
                                data-results)
                        :when dev-id]
-                   {:label (str file ":" row ":" dev-id) :file file :kind kind :dropped dropped :refers refers
+                   {:label (str file ":" row ":" dev-id) :file file :kind kind :dropped dropped :refers refers :var var
                     :lines {dev-id row} :entities {dev-id entry}}))
         by-label (into {} (map (juxt :label identity)) sources)
         data-key-kinds (set (mapcat :pack/kinds (filter :pack/data-keys? packs)))
@@ -475,6 +484,8 @@
      :edn-stamps edn-stamps
      :edn edn
      :entities (merge bindings static)
+     ;; vars a pack says implement an id: {ns/name dev-id}
+     :pack-links (into {} (for [{:keys [var entities]} sources :when var] [var (key (first entities))]))
      :code code
      :analysed (count stale)
      :pack-snapshots (mapv #(-> % (dissoc :entities) (assoc :ids (set (keys (:entities %))))) snapshots)
@@ -491,9 +502,18 @@
 (defn- all-vars [idx] (mapcat :vars (vals (:code idx))))
 
 (defn linked-vars
-  "{dev-id [var-definition ...]} for the vars that name a dev-id."
+  "{dev-id [var-definition ...]} for the vars that name a dev-id: by the
+   meta key, or because a pack says the var implements it (an s/fdef names
+   its var). A var may implement both."
   [idx]
-  (group-by :dev-id (filter :dev-id (all-vars idx))))
+  (let [links (:pack-links idx)]
+    (group-by :dev-id (concat (filter :dev-id (all-vars idx))
+                              ;; one var per name: a (declare f) before the defn is not a second var
+                              (for [[sym vs] (group-by #(symbol (str (:ns %)) (str (:name %))) (all-vars idx))
+                                    :let [id (get links sym)
+                                          v (or (last (remove #(= 'clojure.core/declare (:defined-by %)) vs)) (last vs))]
+                                    :when (and id (not= id (:dev-id v)))]
+                                (assoc v :dev-id id :linked-by :pack))))))
 
 (defn- impl-of [idx id] (first (get (linked-vars idx) id)))
 
@@ -638,24 +658,46 @@
 ;; =============================================================================
 
 (defn- undeclared-calls
-  "A linked var calling another linked var whose entity its entry doesn't name."
+  "A var linked by the meta key calling another linked var whose entity its
+   entry doesn't name. A var a pack links (an s/fdef's) declares no calls."
   [idx]
-  (let [var->id (into {} (for [[k [v]] (linked-vars idx)] [[(:ns v) (:name v)] k]))]
+  (let [linked (for [[k [v]] (linked-vars idx)] [[(:ns v) (:name v)] k v])
+        var->id (into {} (map (juxt first second)) linked)
+        declaring (into {} (for [[nv k v] linked :when (not= :pack (:linked-by v))] [nv k]))]
     (for [c (mapcat :calls (vals (:code idx)))
-          :let [from (var->id [(:from c) (:from-var c)])
+          :let [from (declaring [(:from c) (:from-var c)])
                 to (var->id [(:to c) (:name c)])]
           :when (and from to (not= from to)
                      (not (some #(= to (second %)) (references idx (get-in idx [:entities from :entry])))))]
       {:severity :warning :problem :undeclared-call :dev-id from :calls to
        :file (relative (:root idx) (:filename c)) :line (:row c)})))
 
+(defn- with-members
+  "`ks` and, transitively, the keys the schemas among them are made of
+   (an s/keys spec's keys, a malli :map's)."
+  [idx ks]
+  (let [members (fn [k] (when-let [e (get-in idx [:entities k])]
+                          (mapcat #(when-let [m (:pack/members %)] (m (:entry e))) (:packs idx))))]
+    (loop [seen (set ks) todo (seq ks)]
+      (if-let [[k & more] todo]
+        (let [new (remove seen (members k))]
+          (recur (into seen new) (seq (concat more new))))
+        seen))))
+
+(def ^:private schema-nses '#{clojure.spec.alpha cljs.spec.alpha malli.core})
+
 (defn- keys-outside-contract
   "Data keys a linked var mentions that are neither in what it consumes or
-   produces nor in what an entity it names produces. Only keys that appear
+   produces nor in what an entity it names produces, nor (the keys of the
+   schemas among those), leaving out keys written inside a clojure.spec or
+   malli call, or a call to a fn :spec or :malli lists under :schema-fns
+   (a project's own validate), which name a schema rather than read a key. Only keys that appear
    in some entity's contract, or that a pack shapes, count as data keys. A
    binding-only entity has declared no contract, so it has none to keep."
   [idx]
   (let [contracts (into {} (for [[id e] (:entities idx)] [id (contract-keys idx (:entry e))]))
+        ;; a project's own fns that take a schema: (schema/validate ::message x)
+        schema-fns (set (mapcat #(get-in idx [:config :packs % :schema-fns]) [:spec :malli]))
         data-keys (-> #{}
                       (into (mapcat (fn [{:keys [consumes produces]}] (concat consumes produces))) (vals contracts))
                       (into (map key) (data-key-entities idx))
@@ -666,9 +708,19 @@
           :let [own (contracts id)
                 via-deps (into #{} (mapcat #(get-in contracts [(second %) :produces]))
                                (references idx (get-in idx [:entities id :entry])))
-                allowed (into (into (:consumes own) (:produces own)) via-deps)
+                ;; a schema key in the contract stands for the keys it is made of
+                allowed (with-members idx (into (into (:consumes own) (:produces own)) via-deps))
+                ;; (s/valid? ::order x), (m/validate ::order x): a schema named, no key read
+                in-schema-call? (let [cs (filter #(or (schema-nses (:to %)) (schema-fns (symbol (str (:to %)) (str (:name %)))))
+                                                 (get-in idx [:code (:filename v) :calls]))]
+                                  (fn [{:keys [row col]}]
+                                    (some #(and (:end-row %)
+                                                (neg? (compare [(:row %) (:col %)] [row col]))
+                                                (neg? (compare [row col] [(:end-row %) (:end-col %)])))
+                                          cs)))
                 outside (->> (get-in idx [:code (:filename v) :keywords])
                              (filter #(and (= (:from %) (:ns v)) (= (:from-var %) (:name v))))
+                             (remove in-schema-call?)
                              (map #(keyword (str (:ns %)) (str (:name %))))
                              (filter data-keys)
                              (remove allowed)

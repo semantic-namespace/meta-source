@@ -41,7 +41,7 @@
   (and (seq? x) (= 'fn* (first x)) (vector? (second x))
        (every? #(re-matches #"%\d*|%&|(?:p\d+|rest)__\d+#" (str %)) (remove #{'&} (second x)))))
 
-(defn- form-text
+(defn form-text
   "`form` printed the way it is written: #(...) as #(...), its arguments
    as %, %1, %&."
   [form]

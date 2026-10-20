@@ -69,6 +69,10 @@ A plain function says which id it implements with one meta key:
 {:dataflow {:consumes [:fn/reads] :produces [:fn/returns]}}
 ```
 
+A function with an `s/fdef` or a malli `m/=>` needs neither: the contract it
+already has is read, keyed by its var
+([docs/packs.md](packs.md#function-contracts-sfdef-and-m)).
+
 A var with the meta key and no entry is valid: an entity with its binding
 only, reported as info. `:id-key` in `meta-source.edn` chooses another meta
 key; `:merge {key :union}` unions a set-valued key across files instead of
