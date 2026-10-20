@@ -60,11 +60,13 @@ recording):
    consumed by
      :shop.resolvers/user-by-email    src/shop/resolvers.clj:4
    ```
-4. **A meta key on one `defn`, and its contract in two lines of EDN**: the
-   code reading `:order/discount`, which the contract doesn't declare.
+4. **Nothing**: the `s/fdef` the app already has for `place-order` is its
+   contract, so the code reading `:order/discount`, which the fdef doesn't
+   declare, is underlined. A function with no fdef can opt in with a meta
+   key and a contract in EDN.
 
-What it cost, by `git status`: one changed line of code, a
-`meta-source.edn` and a `registry/` directory.
+What it cost, by `git status`: a `meta-source.edn` and a `registry/`
+directory. No line of code changed.
 
 ### On a re-frame app
 
