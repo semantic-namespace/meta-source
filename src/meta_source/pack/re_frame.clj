@@ -6,7 +6,8 @@
    `pack` is what meta-source.index runs (see the Packs section of
    meta-source.index), enabled by :re-frame under meta-source.edn's :packs:
 
-     :re-frame {:provided [:http-xhrio]}   ; effects and coeffects a library registers
+     :re-frame {:provided [:http-xhrio]}   ; ids a library registers: effects,
+                                           ; coeffects, events, subscriptions
 
    clj-kondo finds the re-frame.core calls; the pack reads each form. An id
    is one entity, however many places register it or refer to it. A
@@ -266,8 +267,9 @@
 
 (defn- checks
   "- :event-not-registered, :sub-not-registered (warning): a dispatch or a
-     subscription to an id nothing registers, at each place that refers to
-     it. re-frame logs an error and does nothing;
+     subscription to an id nothing registers and :provided doesn't list (an
+     event re-pressed registers), at each place that refers to it. re-frame
+     logs an error and does nothing;
    - :effect-not-registered, :cofx-not-registered (info): an effect a
      handler returns, or a coeffect it injects, that nothing read registers
      and :provided doesn't list (a library registers :http-xhrio);
@@ -287,7 +289,7 @@
            :let [[as problem severity] (needs k)]
            :when (and as (not (registered as))
                       (not (contains? (get builtin as) id))
-                      (not (and (#{:fx :cofx} as) (provided id))))]
+                      (not (provided id)))]
        {:severity severity :problem problem :dev-id id :definition (loc d)})
      (for [[id e] entities
            :let [{:re-frame/keys [registered dispatched subscribed]} (:entry e)]

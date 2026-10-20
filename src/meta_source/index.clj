@@ -28,7 +28,7 @@
 
 (def ^:private bb? (some? (System/getProperty "babashka.version")))
 
-(def cache-version 2)
+(def cache-version 3)
 
 (def default-id-key
   "The meta key a plain var carries to say which id it implements. A
@@ -154,6 +154,10 @@
 ;;                          reads them with each key's line)
 ;;   :pack/runtime-fill     (fn [entry runtime]) → entry with what static reading
 ;;                          couldn't read taken from the running process's entry
+;;   :pack/var-meta         meta keys whose values clj-kondo's analysis gives on
+;;                          each var definition (:meta), for :pack/find
+;;   :pack/kondo-config     clj-kondo config the analysis adds ({:lint-as ...}),
+;;                          as the library's own exported config would
 ;;   :pack/runtime-diff     (fn [entry runtime]) → where code and the running
 ;;                          process disagree, or nil
 ;;
@@ -300,10 +304,12 @@
   (if (empty? files)
     {}
     (let [{:keys [analysis]} (@kondo (cond-> {:lint (vec files)
-                                              :config {:output {:canonical-paths true}
-                                                       :linters ^:replace {}
-                                                       :analysis {:var-definitions {:meta [id-key]}
-                                                                  :keywords true}}}
+                                              :config (merge-with merge
+                                                                  (apply merge-with merge (keep :pack/kondo-config packs))
+                                                                  {:output {:canonical-paths true}
+                                                                   :linters ^:replace {}
+                                                                   :analysis {:var-definitions {:meta (vec (distinct (cons id-key (mapcat :pack/var-meta packs))))}
+                                                                              :keywords true}})}
                                        (kondo-config-dir root) (assoc :config-dir (kondo-config-dir root))))
           by-file (fn [k xf] (group-by :filename (into [] xf (get analysis k))))
           vars (by-file :var-definitions
@@ -684,11 +690,14 @@
   "Data keys a linked var mentions that are neither in what it consumes or
    produces nor in what an entity it names produces, nor (the keys of the
    schemas among those), leaving out keys written inside a clojure.spec or
-   malli call, which name a schema rather than read a key. Only keys that appear
+   malli call, or a call to a fn :spec or :malli lists under :schema-fns
+   (a project's own validate), which name a schema rather than read a key. Only keys that appear
    in some entity's contract, or that a pack shapes, count as data keys. A
    binding-only entity has declared no contract, so it has none to keep."
   [idx]
   (let [contracts (into {} (for [[id e] (:entities idx)] [id (contract-keys idx (:entry e))]))
+        ;; a project's own fns that take a schema: (schema/validate ::message x)
+        schema-fns (set (mapcat #(get-in idx [:config :packs % :schema-fns]) [:spec :malli]))
         data-keys (-> #{}
                       (into (mapcat (fn [{:keys [consumes produces]}] (concat consumes produces))) (vals contracts))
                       (into (map key) (data-key-entities idx))
@@ -702,7 +711,8 @@
                 ;; a schema key in the contract stands for the keys it is made of
                 allowed (with-members idx (into (into (:consumes own) (:produces own)) via-deps))
                 ;; (s/valid? ::order x), (m/validate ::order x): a schema named, no key read
-                in-schema-call? (let [cs (filter #(schema-nses (:to %)) (get-in idx [:code (:filename v) :calls]))]
+                in-schema-call? (let [cs (filter #(or (schema-nses (:to %)) (schema-fns (symbol (str (:to %)) (str (:name %)))))
+                                                 (get-in idx [:code (:filename v) :calls]))]
                                   (fn [{:keys [row col]}]
                                     (some #(and (:end-row %)
                                                 (neg? (compare [(:row %) (:col %)] [row col]))

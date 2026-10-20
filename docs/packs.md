@@ -79,8 +79,15 @@ A function contract makes `:keys-outside-contract` work for plain functions:
 code reading a data key that neither its contract nor the keys of the specs
 it names list. A key in `::order`'s `s/keys` is within a function taking
 `::order`. A keyword written inside a clojure.spec or malli call
-(`(s/valid? ::order x)`) names a schema, and doesn't count as a key read. A
-var with both an `s/fdef` and the meta key implements both ids. Only a var linked by the meta key is
+(`(s/valid? ::order x)`) names a schema, and doesn't count as a key read; so
+does one inside a call to a project's own fn that takes a schema, named under
+`:schema-fns`:
+
+```clojure
+:malli {:schema-fns [app.schema/validate]}   ; (schema/validate ::message x) reads no key
+```
+
+A var with both an `s/fdef` and the meta key implements both ids. Only a var linked by the meta key is
 checked for `:undeclared-call`, since an fdef lists no calls.
 
 On [hermes](https://github.com/wardle/hermes), the pack read 114 `s/fdef`s.
@@ -90,8 +97,24 @@ One function reads keys outside its contract: `ctu->cf+normalize` returns
 keys with no spec of their own (`::nthreads`, `::batch-size`...), reported as
 `:data-key-without-schema`.
 
-Not read yet: malli schemas in a `defn`'s metadata (`{:malli/schema ...}`)
-and `mx/defn`'s inline schemas.
+With `:malli`, a `defn`'s own `{:malli/schema [:=> ...]}` metadata (as
+clj-kondo's analysis gives it) and malli.experimental's `mx/defn` `:-`
+annotations are read the same way: `mx/defn`'s become `[:=> [:cat ...] ret]`,
+one per arity, and clj-kondo is told that `mx/defn` defines a var, as malli's
+own exported clj-kondo config does. An `mx/defn` with no `:-` is a plain
+function, with no contract.
+
+On three malli codebases, read only:
+
+| | Read | Found |
+|---|---|---|
+| [repath-studio](https://github.com/repath-studio/repath-studio) (re-frame and malli) | 541 `m/=>` and `mx/defn`, 1,724 re-frame registrations and references | its REPL namespace dispatches `::element.events/boolean-unite` and four like it; no such events exist (the event is `::boolean-operation`, with the operation as its argument) |
+| [Olical/clojure-dap](https://github.com/Olical/clojure-dap) | 42 `mx/defn` | with `:schema-fns`, one `::anomaly` in a schema literal the fn returns (`[:or schema ::anomaly]`), not a key read |
+| [clj-commons/antq](https://github.com/clj-commons/antq) | 22 `{:malli/schema ...}` | nothing |
+
+The contract check reads keywords, so a schema name written as a value
+outside a schema call (`[:or schema ::anomaly]`) still counts as a key the
+fn uses.
 
 ## Resolvers and mutations: the Pathom pack
 
@@ -250,7 +273,7 @@ Those systems shaped the pack. Each of these was found on one of them:
 ## Events and subscriptions: the re-frame pack
 
 ```clojure
-:re-frame {:provided [:http-xhrio]}   ; effects and coeffects a library registers
+:re-frame {:provided [:http-xhrio]}   ; ids a library registers: effects, coeffects, events, subs
 ```
 
 ![A re-frame app adopting meta-source in Emacs](images/meta-source-re-frame.gif)
@@ -303,7 +326,8 @@ a `defn` with a dispatch key in it, in a file that uses re-frame.
 `check` adds:
 
 - `:event-not-registered`, `:sub-not-registered` (warning): a dispatch, a
-  callback, or a subscription to an id no registration read gives, at each
+  callback, or a subscription to an id no registration read gives and
+  `:provided` doesn't list (re-pressed registers its own events), at each
   place that refers to it;
 - `:effect-not-registered`, `:cofx-not-registered` (info): an effect a
   handler returns, or a coeffect it injects, that nothing read registers and
