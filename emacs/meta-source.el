@@ -228,7 +228,7 @@ nil (falls through to the next backend) otherwise."
 ;; Describe buffer
 ;; =============================================================================
 
-(define-derived-mode meta-source-describe-mode special-mode "Atlas"
+(define-derived-mode meta-source-describe-mode special-mode "meta-source"
   "Describes a keyword. RET or click follows a file:line or keyword.")
 
 (defun meta-source--buttonize (root)
