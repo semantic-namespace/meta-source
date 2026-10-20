@@ -144,7 +144,8 @@ the mode on in them, and Flymake shows what it finds."
             (should-not (buffer-local-value 'meta-source-mode handlers))
             (with-current-buffer (find-file-noselect (expand-file-name "meta-source.edn" dir))
               (insert config)
-              (save-buffer))
+              (save-buffer)
+              (should meta-source-mode))
             (with-current-buffer handlers
               (should meta-source-mode)
               (should flymake-mode)
