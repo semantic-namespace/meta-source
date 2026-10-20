@@ -154,8 +154,10 @@ library's imported config) is read as what it defines.
   shapes), **Pathom 3 and 2** (resolvers and mutations, inputs and outputs,
   declared or inferred, through your wrapper macros), **re-frame** (events,
   subscriptions, effects and coeffects, what dispatches and subscribes to
-  them, the keys handlers read and write), and **your own**: a pack is one
-  map. [docs/packs.md](docs/packs.md)
+  them, the keys handlers read and write), **reitit** (routes, their
+  handlers, inherited middleware, the keys their parameters take, links to
+  route names), and **your own**: a pack is one map.
+  [docs/packs.md](docs/packs.md)
 - **Facts merge per keyword.** A file says things about an id; it doesn't
   own it. An EDN file can add `:data/privacy :pii` to a key a spec defines.
   Two sources giving one key different values is a conflict, named with both
@@ -194,9 +196,10 @@ cross-reference, and it keeps the cross-reference true.
 
 ## Status
 
-Working today: the integrant, spec/malli (with `s/fdef` and `m/=>`), Pathom
-and re-frame packs, `check`, the queries, the Emacs package, a project's own
-packs, and a project's own rules. Next: more packs (reitit, Datomic schemas).
+Working today: the integrant, spec/malli (with `s/fdef` and `m/=>`), Pathom,
+re-frame and reitit packs, `check`, the queries, the Emacs package, a
+project's own packs, and a project's own rules. Next: more packs (Datascript
+and Datomic schemas).
 
 ## More
 

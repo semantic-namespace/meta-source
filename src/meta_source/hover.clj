@@ -242,6 +242,8 @@
            :rule-not-understood (str "rule " (pr-str (:rule p)) " not understood: " (str/join "; " (:reasons p)))
            :unreadable-rules-file (str "rules file not readable: " (:message p))
            :event-not-registered (str "no reg-event registers " id)
+           :route-not-defined (str "no route is named " id)
+           :handler-not-found (str id "'s handler " (:calls p) " is not defined")
            :sub-not-registered (str "no reg-sub registers " id)
            :effect-not-registered (str "no reg-fx registers the effect " id)
            :cofx-not-registered (str "no reg-cofx registers " id)

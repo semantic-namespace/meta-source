@@ -361,6 +361,32 @@
                  (every? #(= :warning (:severity %)) (vals ds))))
         (finally (fs/delete-tree dir))))
 
+    ;; ---- reitit: src/shop/routes.clj, links in src/shop/ui.cljs
+    (let [ri (index/build (assoc-in cfg [:packs :reitit] {}))
+          entry #(:entry (index/where ri %))
+          line #(:line (:definition (index/where ri %)))]
+      (check "every route in the tree, a route def read in place, a child written as code reported"
+             (and (= {:read 5 :not-read 1} (:reitit (:packs (index/summary ri))))
+                  (= [{:pack :reitit :line 14 :reason "1 child route(s) written as code, not read"}]
+                     (map #(select-keys % [:pack :line :reason]) (filter #(= :reitit (:pack %)) (problems ri :pack-form-not-read))))))
+      (check "a named route: its path joined from its parents, handler, inherited middleware, parameter and response keys"
+             (= #:reitit{:path "/api/users/:id" :ns "shop.routes" :methods [:get] :handlers ['shop.api/get-user]
+                         :middleware ['shop.middleware/token-auth] :parameter-keys [:user/id]
+                         :response-keys [:shop.spec/user] :linked true}
+                (entry :shop.routes/user)))
+      (check "middleware adds to the parent's; a project's own route data is kept"
+             (and (= ['shop.middleware/token-auth 'shop.middleware/require-admin] (:reitit/middleware (entry :shop.routes/users)))
+                  (= {:roles #{:admin}} (:reitit/data (entry :shop.routes/users)))))
+      (check "an unnamed route is keyed by its method and path"
+             (= {:public true} (:reitit/data (entry :shop.routes/route.post.api.login))))
+      (check "each route is at the line its path is written on, an inlined def's at the def"
+             (= [16 9 21] (map line [:shop.routes/user :shop.routes/users :shop.routes/route.post.api.login])))
+      (check "a link to a route name nothing defines; a handler its namespace doesn't define"
+             (and (= [[:shop.routes/userz 41]] (map (juxt :dev-id (comp :line :definition)) (problems ri :route-not-defined)))
+                  (= [[:shop.routes/route.post.api.login 'shop.api/login]] (map (juxt :dev-id :calls) (problems ri :handler-not-found)))))
+      (check "a route consumes its parameter keys, next to resolvers and functions"
+             (some #{:shop.routes/user} (map :dev-id (:consumers (index/data-key ri :user/id))))))
+
     ;; ---- the project's own rules: rules/shop.edn, rules-broken/broken.edn
     (let [ri (index/build (assoc cfg :rules ["rules"]))
           by (fn [i rule] (filter #(= rule (:rule %)) (index/check i)))

@@ -1,5 +1,5 @@
 (ns shop.ui
-  (:require [re-frame.core :as rf]))
+  (:require [re-frame.core :as rf] [reitit.frontend.easy :as rfe]))
 
 (rf/reg-fx :notify (fn [msg] (js/alert msg)))
 
@@ -32,3 +32,10 @@
 
 (defn email-input []
   [:input {:on-change #(rf/dispatch [::set-email (.. % -target -value)])}])
+
+(defn user-link [id]
+  [:a {:href (rfe/href :shop.routes/user {:id id})} "user"])
+
+;; :shop.routes/userz names no route
+(defn users-link []
+  [:a {:href (rfe/href :shop.routes/userz)} "users"])

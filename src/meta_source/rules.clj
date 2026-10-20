@@ -18,6 +18,9 @@
      :missing :k or [:k ...]   its entry has none of them
      := {:k v}                 its entry's :k is v, or contains v
      :in {:k #{v ...}}         its entry's :k is one of these
+     :matches {:k \"regex\"}     its entry's :k is a string the regex finds
+                               (for :=, :in and :matches, :k may be a path
+                               of keys: [:reitit/data :require-privilege])
      :id-ns \"shop.admin\"       its id's namespace is this or under it
      :data-key true            it is a data key (a schema shapes it)
      :not cond                 cond doesn't hold
@@ -33,9 +36,15 @@
 
 (def ^:private relations #{:consumers :producers :deps :used-by})
 (def ^:private quantifiers #{:all :some :none})
-(def ^:private condition-keys (into #{:kind :has :missing := :in :id-ns :data-key :not :or} relations))
+(def ^:private condition-keys (into #{:kind :has :missing := :in :matches :id-ns :data-key :not :or} relations))
 
 (defn- many [x] (if (or (sequential? x) (set? x)) x [x]))
+
+(defn- at
+  "The value at `k` in `entry`, or at a path of keys when `k` is a vector:
+   [:reitit/data :require-privilege]."
+  [entry k]
+  (if (vector? k) (get-in entry k) (get entry k)))
 
 (defn- holds-value? [v want]
   (or (= v want) (and (coll? v) (some #{want} v))))
@@ -58,7 +67,12 @@
                  (problems-in (val (first q)))
                  [(str (pr-str r) " takes {:all cond}, {:some cond} or {:none cond}")]))]
        p)
-     (for [k [:= :in] :when (and (contains? c k) (not (map? (get c k))))] (str (pr-str k) " takes a map")))))
+     (for [k [:= :in :matches] :when (and (contains? c k) (not (map? (get c k))))] (str (pr-str k) " takes a map"))
+     (when (map? (:matches c))
+       (for [[k re] (:matches c)
+             :let [bad (if (string? re) (try (re-pattern re) nil (catch Exception ex (ex-message ex))) "not a string")]
+             :when bad]
+         (str ":matches " (pr-str k) ": " bad))))))
 
 (defn rule-problems
   "What is wrong with `rule`, as strings."
@@ -102,8 +116,9 @@
                 :kind (some kinds (many v))
                 :has (every? #(contains? entry %) (many v))
                 :missing (not-any? #(contains? entry %) (many v))
-                := (every? (fn [[ek want]] (holds-value? (get entry ek) want)) v)
-                :in (every? (fn [[ek allowed]] (contains? (set allowed) (get entry ek))) v)
+                := (every? (fn [[ek want]] (holds-value? (at entry ek) want)) v)
+                :in (every? (fn [[ek allowed]] (contains? (set allowed) (at entry ek))) v)
+                :matches (every? (fn [[ek re]] (let [x (at entry ek)] (and (string? x) (re-find (re-pattern re) x)))) v)
                 :id-ns (when-let [n (and (keyword? id) (namespace id))]
                          (or (= n v) (.startsWith ^String n (str v "."))))
                 :data-key (= (boolean v) (boolean ((:data-key? view) e)))

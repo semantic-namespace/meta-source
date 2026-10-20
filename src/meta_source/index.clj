@@ -23,6 +23,7 @@
             [meta-source.pack.integrant :as integrant]
             [meta-source.pack.pathom :as pathom]
             [meta-source.pack.re-frame :as re-frame]
+            [meta-source.pack.reitit :as reitit]
             [meta-source.pack.schema :as schema]
             [meta-source.read :as read]
             [meta-source.rules :as rules]))
@@ -130,7 +131,8 @@
 ;;   :pack/read             (fn [sites file opts]) → [{:row :kind :dev-id
 ;;                          :entry} or {:row :kind :skipped reason}] for one
 ;;                          file's sites; file is {:form-at (fn [row col])
-;;                          :read (fn [text]) :own-ns :aliases}, form-at reading
+;;                          :read (fn [text]) :find-row (fn [text row])
+;;                          :own-ns :aliases}, form-at reading
 ;;                          the form at a position as data, read reading text
 ;;                          with the file's ::keywords resolved. A result
 ;;                          with :refers true is a place that refers to the
@@ -138,7 +140,11 @@
 ;;                          One with :var ns/name says that var implements
 ;;                          the id, as the meta key does (an s/fdef's)
 ;;   :pack/checks           (fn [view]) → problems; view is {:entities
-;;                          :of-kinds :data-key? :loc :flow :opts}
+;;                          :of-kinds :data-key? :loc :flow :opts
+;;                          :var-defined? :not-read}: var-defined? true or
+;;                          false for a qualified symbol in a namespace the
+;;                          analysis read, nil for one it didn't; not-read,
+;;                          how many forms of a kind couldn't be read
 ;;   :pack/inline-data-keys (fn [entities]) → data keys its entities define
 ;;                          inline, with no entity of their own
 ;;   :pack/shape            (fn [entry kind]) → a data key's shape, as text
@@ -172,7 +178,7 @@
 ;; cached per file, so it must be data. A pack needs :pack/find and
 ;; :pack/read, or :pack/data-files and :pack/read-data, or both.
 
-(def builtin-packs [schema/pack fn-schema/pack pathom/pack integrant/pack re-frame/pack])
+(def builtin-packs [schema/pack fn-schema/pack pathom/pack integrant/pack re-frame/pack reitit/pack])
 
 (defn enabled-packs
   "The packs `packs-config` (meta-source.edn's :packs) enables: each
@@ -199,12 +205,17 @@
         opts {:read-cond :allow :features #{:clj}}
         f {:own-ns own-ns :aliases aliases
            :form-at (fn [row col] (call-at @lines row col own-ns aliases opts))
-           :read (fn [text] (binding [*read-eval* false] (read-string opts (resolve-keywords text own-ns aliases))))}]
+           :read (fn [text] (binding [*read-eval* false] (read-string opts (resolve-keywords text own-ns aliases))))
+           ;; the first line from `row` on where `text` is written, as is
+           :find-row (fn [text row] (some (fn [n] (when (str/includes? (nth @lines (dec n)) text) n))
+                                          (range (max 1 row) (inc (count @lines)))))}]
     (into {} (for [[pack sites] found
                    :let [sites (sort-by :row (map first (vals (group-by (juxt :name-row :name-col) sites))))]]
                [(:pack/id pack)
                 ;; a pack that fails on a file costs that file, not the index
-                (try (vec ((:pack/read pack) sites f packs-config))
+                (try (if-let [failed (some :pack-failed sites)]
+                       [{:row 1 :kind (first (sort (:pack/kinds pack))) :skipped failed}]
+                       (vec ((:pack/read pack) sites f packs-config)))
                      (catch Exception ex
                        [{:row (:row (first sites)) :kind (first (sort (:pack/kinds pack)))
                          :skipped (str "the pack failed reading this file: " (ex-message ex))}]))]))))
@@ -325,7 +336,14 @@
                                #(into {} (for [{:keys [alias to]} %] [(str alias) (str to)])))
           ;; a :refer in an ns form names a var; it is never a form to read
           for-packs (update analysis :var-usages #(remove :refer %))
-          found (vec (for [p packs :when (:pack/find p)] [p (group-by :filename ((:pack/find p) for-packs packs-config))]))
+          ;; a pack that fails finding its forms costs that pack, not the index:
+          ;; the failure is reported at the first file, as a form not read
+          found (vec (for [p packs :when (:pack/find p)]
+                       [p (try (group-by :filename (vec ((:pack/find p) for-packs packs-config)))
+                               (catch Exception ex
+                                 {(canonical (first files))
+                                  [{:filename (canonical (first files)) :row 1 :name-row 1 :name-col 1
+                                    :pack-failed (str "the pack failed finding its forms: " (or (ex-message ex) (str (type ex))))}]}))]))
           kws (by-file :keywords
                        (comp (filter #(and (:from-var %) (:ns %)))
                              (map #(select-keys % [:filename :from :from-var :ns :name :row :col]))))]
@@ -804,12 +822,19 @@
    read (:pack-form-not-read, info), and where its runtime snapshot and the
    code differ."
   [idx]
-  (let [view {:entities (:entities idx)
+  (let [vars (into #{} (map #(symbol (str (:ns %)) (str (:name %)))) (all-vars idx))
+        nses (into #{} (map #(str (:ns %))) (all-vars idx))
+        view {:entities (:entities idx)
               :opts (get-in idx [:config :packs])
               :of-kinds #(of-kinds idx %)
               :data-key? #(data-key? idx %)
               :loc #(loc idx %)
-              :flow #(contract-keys idx %)}]
+              :flow #(contract-keys idx %)
+              ;; true or false for a var in a namespace the analysis read, nil otherwise
+              :var-defined? #(when (nses (namespace %)) (contains? vars %))
+              ;; how many forms of a kind a pack found and couldn't read
+              :not-read (let [n (frequencies (for [{:keys [pack-results]} (vals (:code idx)) [_ rs] pack-results r rs :when (:skipped r)] (:kind r)))]
+                          #(get n % 0))}]
     (concat
      (mapcat #(when-let [c (:pack/checks %)] (c view)) (:packs idx))
      (for [{:keys [file row kind skipped]} (concat (for [[f {:keys [pack-results]}] (sort-by key (:code idx))
