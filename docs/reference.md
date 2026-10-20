@@ -81,6 +81,8 @@ reporting a conflict.
 
 ## Your own rules
 
+![A team writes its own rules as data, in Emacs](images/meta-source-rules.gif)
+
 The packs check what each library means. A project's own invariants are
 rules, written as data in EDN files that `:rules` in `meta-source.edn` names:
 
@@ -124,8 +126,9 @@ Rules see every source at once: a fact from EDN (`:data/privacy`), a pack's
 where it is written (`:rule-at`), the clauses that failed, and for a relation
 the entities that broke it. Those are marked in the editor too, where each is
 defined. A rule meta-source can't understand (an unknown condition, a
-missing `:when`) is an error at the rule, saying why. Rules files are read
-again when they change, as registry files are.
+missing `:when`) is an error at the rule, saying why, and so is anything
+written after a rules file's map. Rules files are read again when they
+change, as registry files are.
 
 ## Emacs
 

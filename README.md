@@ -83,6 +83,19 @@ directory. No line of code changed.
    the subscription that reads it.
 4. **The typo fixed**: the underline goes.
 
+### Your own rules
+
+![A team writes its own rules as data, in Emacs](docs/images/meta-source-rules.gif)
+
+A shop meta-source already reads gets its team's rules, in a `rules/` file:
+
+1. **Whatever reads PII is audited**: the resolver reading `:user/email`
+   is marked where it is defined.
+2. **`{:shop.resolvers/user-by-email {:audit/logged true}}`** in EDN: the mark
+   goes. The rule sees the EDN fact and the Pathom resolver as one entity.
+3. **What `init-key` starts, `halt-key!` stops**: the two components with an
+   `init-key` and no `halt-key!`, marked at their `defmethod`s.
+
 ## Install
 
 ```sh

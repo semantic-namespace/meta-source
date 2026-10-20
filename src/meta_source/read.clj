@@ -8,7 +8,8 @@
   "[[k v line] ...] for the top-level map in `text`, `line` being where k is
    written, or nil when the text doesn't start with a map. The reader keeps
    no lines on maps, so the map is read one key and value at a time, noting
-   the line before each key. With `:tags :keep`, a tag no reader knows
+   the line before each key. Anything but whitespace and comments after the
+   map is an error: it would be read by nobody. With `:tags :keep`, a tag no reader knows
    (#ig/ref, #env) is kept as a tagged literal instead of failing the read."
   ([text] (keyed-lines text {}))
   ([text {:keys [tags]}]
@@ -26,7 +27,10 @@
          (loop [acc []]
            (let [c (skip)]
              (if (or (= c -1) (= c (int \})))
-               acc
+               ;; a form after the map would be read by nobody
+               (if (and (= c (int \})) (not= -1 (skip)))
+                 (throw (ex-info (str "something after the map, at line " (.getLineNumber r)) {:line (.getLineNumber r)}))
+                 acc)
                (do (.unread r c)
                    (let [line (.getLineNumber r)
                          k (read r)

@@ -63,7 +63,10 @@
 (defn- config [{:keys [root registry src no-cache]}]
   (let [root (or root ".")
         f (io/file root "meta-source.edn")
-        from-file (when (.exists f) (edn/read-string (slurp f)))]
+        from-file (when (.exists f)
+                    (try (edn/read-string (slurp f))
+                         (catch Exception ex
+                           (throw (ex-info (str "meta-source.edn is not readable: " (ex-message ex)) {:file (str f)})))))]
     (add-deps! (:deps from-file))
     (cond-> {:root root
              :registry (if (seq registry) registry (:registry from-file ["registry"]))
@@ -108,7 +111,15 @@
           (flush)
           (recur))))))
 
+(declare main)
+
 (defn -main [& args]
+  (try (apply main args)
+       (catch clojure.lang.ExceptionInfo ex
+         (binding [*out* *err*] (println (str "meta-source: " (ex-message ex))))
+         (System/exit 1))))
+
+(defn- main [& args]
   (let [{[cmd arg] :positional :as opts} (parse args)
         idx (delay (index/build (config opts)))
         out (case cmd

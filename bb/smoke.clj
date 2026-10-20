@@ -385,6 +385,13 @@
                  :more/components-someone-refers-to [:shop/base-path :shop/cache :shop.resolvers/seed]}
                 (update-vals (group-by :rule (filter :rule (index/check (index/build (assoc cfg :rules ["rules-more"])))))
                              #(mapv :dev-id %))))
+      (check "a form after a rules file's map is an error, not ignored"
+             (let [dir (str (fs/create-temp-dir))]
+               (spit (str dir "/r.edn") "{:r/a {:when {:has :x} :require [{:has :y}]}}\n :r/b {:when {:has :x} :require []}}")
+               (try (= [[:unreadable-rules-file "something after the map, at line 2"]]
+                       (for [p (index/check (index/build {:root dir :src [] :registry [] :rules ["r.edn"]}))]
+                         [(:problem p) (:message p)]))
+                    (finally (fs/delete-tree dir)))))
       (check "the brief line names the rule's doc, the entity and the offenders"
              (some #(str/includes? % "Whatever reads a PII key is audited: :user/email (:fn/register-user :shop.resolvers/user-by-email)")
                    (hover/brief ri))))
