@@ -66,6 +66,21 @@ recording):
 What it cost, by `git status`: one changed line of code, a
 `meta-source.edn` and a `registry/` directory.
 
+### On a re-frame app
+
+![A re-frame app adopting meta-source in Emacs](docs/images/meta-source-re-frame.gif)
+
+1. **`{:packs {:re-frame {:provided [:http-xhrio]}}}`**: an `:on-failure`
+   callback to an event nothing registers, and a subscription with a typo.
+   re-frame would only log them, when they run.
+2. **`C-c .` on `::events/checkout`**: where it is registered and
+   dispatched from, what it dispatches, the effects it returns, the keys it
+   writes.
+3. **`:spec {}` and `{:user/email {:data/privacy :pii}}`**: `C-c .` on
+   `:user/email` gives its spec, that it is PII, the event that writes it and
+   the subscription that reads it.
+4. **The typo fixed**: the underline goes.
+
 ## Install
 
 ```sh

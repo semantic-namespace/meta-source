@@ -306,7 +306,7 @@ def re_frame(work, out):
     save()
     s.wait_for(r"create\?", 10); s.pause(0.8); s.key("y"); s.pause(2.0)
     s.key("C-x"); s.key("o"); s.key("C-x"); s.key("o")  # views.cljs, then events.cljs
-    s.key("M-<"); search(":user/email"); s.key("Left"); s.key("Left"); s.pause(1.5)
+    s.key("M-<"); search("db :user/email"); s.key("Left"); s.key("Left"); s.pause(1.5)
     s.key("C-c"); s.key(".")
     s.wait_for(r":data/privacy\s+:pii"); s.pause(3)
     caption(10)

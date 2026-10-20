@@ -213,6 +213,8 @@ Those systems shaped the pack. Each of these was found on one of them:
 :re-frame {:provided [:http-xhrio]}   ; effects and coeffects a library registers
 ```
 
+![A re-frame app adopting meta-source in Emacs](images/meta-source-re-frame.gif)
+
 re-frame keeps a registry of events, subscriptions, effects and coeffects. It
 is filled when the registering code runs, and a dispatch to an id nothing
 registered is only logged, when it runs. With `:packs {:re-frame {}}`, each

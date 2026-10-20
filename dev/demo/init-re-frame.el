@@ -29,7 +29,7 @@
     "Step 3 · add the specs, and one fact no library has a place for: :user/email is PII"
     "→ C-c . on :user/email: its spec, that it is PII, the event that writes it and the subscription that reads it"
     "Step 4 · fix the typo"
-    "→ both findings go: the subscription exists, and :line-count is no longer unused"
+    "→ the underline goes: ::subs/line-count is registered"
     "What it cost: a meta-source.edn and one fact in EDN. Nothing loaded, nothing run: the forms were read as data."))
 
 (defvar demo-caption (get-buffer-create "*caption*"))
