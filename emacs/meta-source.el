@@ -52,7 +52,7 @@
 (require 'json)
 
 (defgroup meta-source nil
-  "Atlas keywords from the project's source files."
+  "What a Clojure project's keywords are, from its files."
   :group 'tools)
 
 (defcustom meta-source-bb-program (or (executable-find "bb") "/usr/local/bin/bb")
