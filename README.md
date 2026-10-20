@@ -70,26 +70,26 @@ changed. The cache lives in `.meta-source/`: add it to `.gitignore`.
 
 ## Adopting it, step by step
 
-![Adopting meta-source in an existing app, one pack at a time](docs/images/meta-source-adoption.gif)
+![Adopting meta-source in an existing app, in Emacs, one pack at a time](docs/images/meta-source-adoption.gif)
 
-An existing app with an integrant system, specs and Pathom resolvers, and no
-meta-source in it. Each step adds one line or one small file, and pays off
-before the next:
+An existing app with an integrant system, specs and Pathom resolvers, open
+in Emacs, with no meta-source in it. Every edit is typed in the recording;
+each step pays off where it lands:
 
-1. **The integrant system** (`:integrant {:configs ["resources"]}`): a ref
-   to a component no config defines, found without starting the system.
-2. **Its Pathom resolvers** (`:pathom {}`): resolver inputs nothing produces.
-3. **Its specs, and one fact no library has a place for**
-   (`{:user/email {:data/privacy :pii}}`): `meta-source data :user/email`
-   gives its shape, that it is PII, and the resolvers that produce and consume
-   it, from three sources at once. And a typo in an `s/keys`.
-4. **One plain function opts in**: a meta key on the `defn` and its contract
-   in two lines of EDN (applied as a prepared patch in the recording). `check`
-   finds the code reading a key the contract doesn't declare.
-
-What it cost: one changed line of code, a `meta-source.edn`, a `registry/`
-directory, and `.meta-source/` in `.gitignore`. No dependency added, no code
-loaded, nothing migrated.
+1. **A `meta-source.edn` with the integrant pack.** In `system.edn`, opened
+   before the config existed, Flymake underlines a ref to a component no
+   config defines, found without starting the system.
+2. **Add `:pathom {}`.** In `resolvers.clj`: resolver inputs nothing produces.
+3. **Add `:spec {}`, and one fact no library has a place for**
+   (`{:user/email {:data/privacy :pii}}`). `C-c .` on `:user/email` gives its
+   spec, that it is PII, and the resolvers that produce and consume it, from
+   three sources at once.
+4. **One plain function opts in**: a meta key on the `defn`, its contract
+   in two lines of EDN, and `:dataflow` in the config. Flymake underlines the
+   code reading `:order/discount`, which the contract doesn't declare.
+5. **What it cost** (`git status`): one changed line of code, a
+   `meta-source.edn` and a `registry/` directory. No dependency added, no
+   code loaded, nothing migrated.
 
 ## Commands
 
