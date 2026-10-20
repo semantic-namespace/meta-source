@@ -19,6 +19,7 @@
             [clojure.java.io :as io]
             [clojure.string :as str]
             [meta-source.merge :as merge]
+            [meta-source.pack.datascript :as datascript]
             [meta-source.pack.fn-schema :as fn-schema]
             [meta-source.pack.integrant :as integrant]
             [meta-source.pack.pathom :as pathom]
@@ -178,7 +179,7 @@
 ;; cached per file, so it must be data. A pack needs :pack/find and
 ;; :pack/read, or :pack/data-files and :pack/read-data, or both.
 
-(def builtin-packs [schema/pack fn-schema/pack pathom/pack integrant/pack re-frame/pack reitit/pack])
+(def builtin-packs [schema/pack fn-schema/pack datascript/pack pathom/pack integrant/pack re-frame/pack reitit/pack])
 
 (defn enabled-packs
   "The packs `packs-config` (meta-source.edn's :packs) enables: each

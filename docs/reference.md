@@ -29,6 +29,7 @@ Output is EDN, or JSON with `--json`.
 | two vars carry the same meta key value | error |
 | an integrant ref no config defines | warning |
 | a link to a reitit route name nothing defines; a route handler its namespace doesn't define | warning |
+| a Datascript pull joining or reading in reverse on a non-ref, a lookup ref on a non-unique attribute, an attribute whose spec disagrees | warning |
 | a re-frame dispatch or subscription to an id nothing registers | warning |
 | one id declared by two packs (a resolver and a component sharing a keyword) | warning |
 | code and the running process disagree about an operation | warning |
