@@ -1,0 +1,3 @@
+;; The project teaches clj-kondo its macro: meta-source's analysis uses this,
+;; wherever meta-source runs from.
+{:lint-as {app.m/defhandler clojure.core/defn}}
