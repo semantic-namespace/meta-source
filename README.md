@@ -68,6 +68,29 @@ meta-source uses :app/db       # what refers to it, and what calls its var
 The first run analyses the code; later runs re-read only the files that
 changed. The cache lives in `.meta-source/`: add it to `.gitignore`.
 
+## Adopting it, step by step
+
+![Adopting meta-source in an existing app, one pack at a time](docs/images/meta-source-adoption.gif)
+
+An existing app with an integrant system, specs and Pathom resolvers, and no
+meta-source in it. Each step adds one line or one small file, and pays off
+before the next:
+
+1. **The integrant system** (`:integrant {:configs ["resources"]}`): a ref
+   to a component no config defines, found without starting the system.
+2. **Its Pathom resolvers** (`:pathom {}`): resolver inputs nothing produces.
+3. **Its specs, and one fact no library has a place for**
+   (`{:user/email {:data/privacy :pii}}`): `meta-source data :user/email`
+   gives its shape, that it is PII, and the resolvers that produce and consume
+   it, from three sources at once. And a typo in an `s/keys`.
+4. **One plain function opts in**: a meta key on the `defn` and its contract
+   in two lines of EDN (applied as a prepared patch in the recording). `check`
+   finds the code reading a key the contract doesn't declare.
+
+What it cost: one changed line of code, a `meta-source.edn`, a `registry/`
+directory, and `.meta-source/` in `.gitignore`. No dependency added, no code
+loaded, nothing migrated.
+
 ## Commands
 
 | | |
