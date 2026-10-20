@@ -28,11 +28,13 @@ Output is EDN, or JSON with `--json`.
 | two sources give one key different values (`:conflicting-values`), naming each place | error |
 | two vars carry the same meta key value | error |
 | an integrant ref no config defines | warning |
+| a re-frame dispatch or subscription to an id nothing registers | warning |
 | one id declared by two packs (a resolver and a component sharing a keyword) | warning |
 | code and the running process disagree about an operation | warning |
 | a key code uses that isn't in its function's declared contract | info |
 | a resolver input nothing produces; an `s/keys` key with no spec; unqualified malli keys | info |
 | an `init-key` for a key no config has; a resolver defined but not registered | info |
+| a re-frame event never dispatched, a subscription never subscribed to, an effect nothing registers | info |
 | a form a pack couldn't read, and why | info |
 
 Findings are reported, never guessed around: an option written as code is

@@ -166,11 +166,38 @@ EXTRA is a plist of more request fields, such as (:file FILE)."
 ;; Keyword at point
 ;; =============================================================================
 
+(defun meta-source--buffer-ns ()
+  "The namespace of this buffer's ns form, or nil."
+  (if (fboundp 'clojure-find-ns)
+      (clojure-find-ns)
+    (save-excursion
+      (goto-char (point-min))
+      (when (re-search-forward "(ns[[:space:]\n]+\\([^][()[:space:]]+\\)" nil t)
+        (match-string-no-properties 1)))))
+
+(defun meta-source--ns-alias (alias)
+  "The namespace ALIAS stands for in this buffer's requires, or nil."
+  (save-excursion
+    (goto-char (point-min))
+    (when (re-search-forward (concat "\\[\\([^][()[:space:]]+\\)[^]]*?:as[[:space:]\n]+"
+                                     (regexp-quote alias) "[][:space:]\n]")
+                             nil t)
+      (match-string-no-properties 1))))
+
 (defun meta-source--keyword-at-point ()
-  "The qualified keyword at point, as a string like \":fn/get-cart\", or nil."
+  "The keyword at point, as a string like \":fn/get-cart\", or nil.
+::name and ::alias/name are written out with the buffer's namespace and
+aliases, as the reader resolves them; :name is kept (re-frame ids often are)."
   (let ((s (thing-at-point 'symbol t)))
-    (when (and s (string-match-p "\\`:[^:/[:space:]]+/[^/[:space:]]+\\'" s))
-      s)))
+    (cond
+     ((null s) nil)
+     ((string-match "\\`::\\([^:/[:space:]]+\\)/\\([^/[:space:]]+\\)\\'" s)
+      (let ((alias (match-string 1 s)) (name (match-string 2 s)))
+        (when-let* ((ns (meta-source--ns-alias alias))) (concat ":" ns "/" name))))
+     ((string-match "\\`::\\([^:/[:space:]]+\\)\\'" s)
+      (let ((name (match-string 1 s)))
+        (when-let* ((ns (meta-source--buffer-ns))) (concat ":" ns "/" name))))
+     ((string-match-p "\\`:[^:/[:space:]]+\\(/[^/[:space:]]+\\)?\\'" s) s))))
 
 (defun meta-source--hover (keyword)
   "The hover result plist for KEYWORD, or nil when meta-source doesn't know it."

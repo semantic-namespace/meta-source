@@ -3,7 +3,8 @@
 **clj-kondo for system specifications.**
 
 clj-kondo checks your code. meta-source checks what your code *declares*:
-your integrant system, your specs and malli schemas, your Pathom resolvers.
+your integrant system, your specs and malli schemas, your Pathom resolvers,
+your re-frame events and subscriptions.
 It reads them where they are, together, without running your app, and tells
 you where they disagree.
 
@@ -20,6 +21,8 @@ info    src/shop/resolvers.clj:18          nothing produces :user/loyalty-tier
   `ig/init` does.
 - Did someone typo a key inside an `s/keys`? spec won't tell you; it accepts
   keys with no spec.
+- Does every `dispatch` reach a registered event? re-frame only logs it,
+  when it runs.
 - Which resolvers and functions read or return `:user/email`, and is it PII?
 - What depends on `:shop/db`?
 - Does this function read keys its contract doesn't declare?
@@ -116,8 +119,10 @@ forms each library uses to declare things, then reads those forms as data.
   refs, composite keys, `#env`, variant configs, duct profiles,
   `defmethod`s, `derive`), **clojure.spec and malli** (data keys and their
   shapes), **Pathom 3 and 2** (resolvers and mutations, inputs and outputs,
-  declared or inferred, through your wrapper macros), and **your own**: a
-  pack is one map. [docs/packs.md](docs/packs.md)
+  declared or inferred, through your wrapper macros), **re-frame** (events,
+  subscriptions, effects and coeffects, what dispatches and subscribes to
+  them, the keys handlers read and write), and **your own**: a pack is one
+  map. [docs/packs.md](docs/packs.md)
 - **Facts merge per keyword.** A file says things about an id; it doesn't
   own it. An EDN file can add `:data/privacy :pii` to a key a spec defines.
   Two sources giving one key different values is a conflict, named with both
@@ -149,10 +154,11 @@ cross-reference, and it keeps the cross-reference true.
 
 ## Status
 
-Working today: the three packs, `check`, the queries, the Emacs package, and
-a project's own packs. Next: invariants of your own, written as data
-(`{:when {...} :require [...]}`) over the same index, and more packs
-(reitit, re-frame).
+Working today: the integrant, spec/malli, Pathom and re-frame packs, `check`,
+the queries, the Emacs package, and a project's own packs. Next: invariants
+of your own, written as data (`{:when {...} :require [...]}`) over the same
+index, and more packs (function contracts from `s/fdef` and malli, reitit,
+Datomic schemas).
 
 ## More
 

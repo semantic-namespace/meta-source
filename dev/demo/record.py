@@ -2,7 +2,7 @@
 an asciicast from tmux's screen captures (colours and cursor kept), for agg
 to render as a GIF. See .claude/skills/meta-source-demo-gif/SKILL.md.
 
-    python3 dev/demo/record.py overview|adoption WORK-DIR OUT.cast
+    python3 dev/demo/record.py overview|adoption|re-frame WORK-DIR OUT.cast
 
 WORK-DIR is created and filled: bin/ (where bbin installs meta-source, from
 GitHub), el/ (meta-source.el on its own, no checkout), tools/emacs, and the
@@ -11,6 +11,7 @@ demo app. Nothing is installed on your PATH. Environment:
     EMACS               Emacs 30 or later (end-of-line Flymake messages);
                         default: the first of emacs, /snap/bin/emacs that is
     MS_DEMO_CLOJURE_MODE  a directory holding clojure-mode.el (required)
+    MS_DEMO_GIT_SHA     the commit bbin installs, pushed (a branch's); default: main
 """
 import json, os, re, shutil, subprocess, sys, time
 
@@ -65,6 +66,15 @@ class Session:
                 return
             time.sleep(0.1)
         raise SystemExit("timed out waiting for %r\n%s" % (pattern, self.plain()))
+
+    def wait_gone(self, pattern, timeout=60):
+        end = time.time() + timeout
+        while time.time() < end:
+            self.snap()
+            if not re.search(pattern, self.plain()):
+                return
+            time.sleep(0.1)
+        raise SystemExit("timed out waiting for %r to go\n%s" % (pattern, self.plain()))
 
     def wait_prompt(self, prompt, timeout=60):
         end = time.time() + timeout
@@ -131,8 +141,9 @@ def prepare(work, scenario, install):
     os.chmod(emacs, 0o755)
     env = dict(os.environ, BABASHKA_BBIN_BIN_DIR=os.path.join(work, "bin"))
     if install:
-        subprocess.run(["bbin", "install", "io.github.semantic-namespace/meta-source"], env=env, check=True,
-                       capture_output=True)
+        sha = os.environ.get("MS_DEMO_GIT_SHA")
+        subprocess.run(["bbin", "install", "io.github.semantic-namespace/meta-source"] + (["--git/sha", sha] if sha else []),
+                       env=env, check=True, capture_output=True)
     app = os.path.join(work, "shop")
     shutil.copytree(os.path.join(DEMO, "%s-app" % scenario), app)
     return app, clojure_mode
@@ -251,7 +262,73 @@ def adoption(work, out):
     s.write(out)
 
 
+def re_frame(work, out):
+    """A re-frame app adopts meta-source: what refers to nothing, an event
+    described, a data key across re-frame and spec, a typo fixed."""
+    app, clojure_mode = prepare(work, "re-frame", install=True)
+    s = Session("ms-re-frame", 160, 46, app, shell_env(work, clojure_mode, "%s/tools/emacs" % work))
+
+    def find_file(path):
+        s.key("C-x"); s.key("C-f"); s.pause(0.6); s.type(path, 0.05); s.pause(0.5); s.key("Enter"); s.pause(1.0)
+    def save():
+        s.pause(0.8); s.key("C-x"); s.key("C-s")
+    def caption(after):
+        s.key("F5"); s.pause(after)
+    def search(text):
+        s.key("C-s"); s.type(text, 0.08); s.key("Enter")
+
+    rf = '{:packs {:re-frame {:provided [:http-xhrio]}'
+    s.wait_for(r"events\.cljs", 30); s.pause(1.5)
+    caption(6)                                        # the app as it is
+
+    caption(3)                                        # step 1
+    find_file("../../meta-source.edn")                # from subs.cljs
+    s.type(rf + "}}")
+    save()
+    s.wait_for(r"no reg-sub registers :shop\.subs/line-cuont"); s.wait_for(r"no reg-event registers :shop\.events/payment-failed")
+    s.pause(2.5)
+    caption(9)
+
+    caption(3)                                        # step 2
+    s.key("C-x"); s.key("o")                          # views.cljs
+    search("::events/checkout"); s.key("Left"); s.key("Left"); s.pause(1.5)
+    s.key("C-c"); s.key(".")
+    s.wait_for(r"referred to from"); s.pause(3)
+    caption(10)
+    s.key("q"); s.pause(1.0)
+
+    caption(3)                                        # step 3
+    s.key("C-x"); s.key("o"); s.key("C-x"); s.key("o")  # events.cljs, then meta-source.edn
+    s.key("C-x"); s.key("h"); s.pause(0.6); s.type(rf + "\n         :spec {}}}")
+    save(); s.pause(2.0)
+    find_file("registry/privacy.edn")
+    s.type("{:user/email {:data/privacy :pii}}")
+    save()
+    s.wait_for(r"create\?", 10); s.pause(0.8); s.key("y"); s.pause(2.0)
+    s.key("C-x"); s.key("o"); s.key("C-x"); s.key("o")  # views.cljs, then events.cljs
+    s.key("M-<"); search(":user/email"); s.key("Left"); s.key("Left"); s.pause(1.5)
+    s.key("C-c"); s.key(".")
+    s.wait_for(r":data/privacy\s+:pii"); s.pause(3)
+    caption(10)
+    s.key("q"); s.pause(1.0)
+
+    caption(3)                                        # step 4
+    s.key("C-x"); s.key("o"); s.key("C-x"); s.key("o")  # meta-source.edn's window, then views.cljs
+    s.key("M-<"); search("line-cuont")
+    for _ in range(len("cuont")):
+        s.key("BSpace")
+    s.pause(0.5); s.type("count", 0.12)
+    save()
+    s.wait_gone(r"no reg-sub registers"); s.wait_gone(r"nothing subscribes to"); s.pause(2.5)
+    caption(7)
+
+    caption(11)                                       # the cost
+    s.write(out)
+
+
+SCENARIOS = {"overview": overview, "adoption": adoption, "re-frame": re_frame}
+
 if __name__ == "__main__":
-    if len(sys.argv) != 4 or sys.argv[1] not in ("overview", "adoption"):
+    if len(sys.argv) != 4 or sys.argv[1] not in SCENARIOS:
         raise SystemExit(__doc__)
-    {"overview": overview, "adoption": adoption}[sys.argv[1]](os.path.abspath(sys.argv[2]), os.path.abspath(sys.argv[3]))
+    SCENARIOS[sys.argv[1]](os.path.abspath(sys.argv[2]), os.path.abspath(sys.argv[3]))

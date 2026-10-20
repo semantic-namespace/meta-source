@@ -207,6 +207,89 @@ Those systems shaped the pack. Each of these was found on one of them:
 - `derive` used to share an `init-key`;
 - a `:refer` of a pack's macro.
 
+## Events and subscriptions: the re-frame pack
+
+```clojure
+:re-frame {:provided [:http-xhrio]}   ; effects and coeffects a library registers
+```
+
+re-frame keeps a registry of events, subscriptions, effects and coeffects. It
+is filled when the registering code runs, and a dispatch to an id nothing
+registered is only logged, when it runs. With `:packs {:re-frame {}}`, each
+`reg-event-db`, `reg-event-fx`, `reg-event-ctx`, `reg-sub`, `reg-sub-raw`,
+`reg-fx` and `reg-cofx` call (`re-frame.core` or `re-frame.alpha`, in `.cljs`,
+`.cljc` and `.clj` files) becomes an entity keyed by its id, in the pack's own
+vocabulary:
+
+```clojure
+:shop.events/checkout
+#:re-frame{:registered #{:event}
+           :handler :fx
+           :dispatches [:shop.events/paid :shop.events/payment-failed]
+           :effects [:http-xhrio]
+           :writes [:order/state]}
+```
+
+- `:re-frame/dispatches`: the events an event's effects dispatch: under
+  `:dispatch`, `:dispatch-n`, `:dispatch-later`, async-flow's
+  `:first-dispatch` and rules, an effect's own `:on-*` callbacks
+  (`:http-xhrio {:on-success [::paid]}`), and `[:dispatch ...]` in `:fx`.
+  They're looked for through `let`, `if`, `cond`, `case`, `try`, `cond->`,
+  `conj` and `into`, and through a local bound to the event.
+- `:re-frame/effects`: the keys of the effect maps it returns, built-ins
+  left out (`:db`, `:fx`, `:dispatch`...).
+- `:re-frame/signals`: a subscription's `:<-` inputs. They are references,
+  so `meta-source uses ::lines` lists the subscriptions built on it.
+- `:re-frame/cofx`: the coeffects an event injects.
+- `:re-frame/reads` and `:re-frame/writes`: the qualified keys a handler reads
+  (`(:k db)`, `get`, `get-in`) and writes (`assoc`, `assoc-in`, `update`,
+  `update-in`). They are the pack's dataflow, so `meta-source data :user/email`
+  lists the event that writes it and the subscription that reads it, next to
+  its spec and Pathom resolvers.
+
+Each place that refers to an id gives it one fact, telling how: `dispatch`,
+`dispatch-sync` and a dispatching effect give `:re-frame/dispatched`;
+`subscribe`, `sub` and `:<-` give `:re-frame/subscribed`; `inject-cofx`
+gives `:re-frame/injected`; an effect a handler returns gives
+`:re-frame/effect-used`. A place that only refers to an id is never its
+definition: `M-.` goes to the registration, and `M-?` and the describe
+buffer's "referred to from" list where it is used. A handler that returns
+what one of the project's own fns builds (`(enter db uid)`) has its
+effects under `:re-frame/not-read`. That fn's dispatches are read when it is
+a `defn` with a dispatch key in it, in a file that uses re-frame.
+
+`check` adds:
+
+- `:event-not-registered`, `:sub-not-registered` (warning): a dispatch, a
+  callback, or a subscription to an id no registration read gives, at each
+  place that refers to it;
+- `:effect-not-registered`, `:cofx-not-registered` (info): an effect a
+  handler returns, or a coeffect it injects, that nothing read registers and
+  `:provided` doesn't list;
+- `:event-never-dispatched`, `:sub-never-subscribed` (info): registered, and
+  referred to nowhere read. A dispatch written as code may still reach it.
+  `:unread-handlers` lists the handlers whose effects weren't read.
+
+clj-kondo's analysis marks re-frame registrations, and some of the references
+to them (`:<-`, `inject-cofx`, `dispatch` calls). The pack reads the forms
+itself, because the effect maps a handler returns, and `sub` calls, aren't
+marked.
+
+On open-source apps (read, never run):
+
+| | Read | Found |
+|---|---|---|
+| [jacekschae/conduit](https://github.com/jacekschae/conduit) (RealWorld) | 161 registrations and references | nothing, with `:provided [:http-xhrio]` |
+| re-frame's own todomvc, simple and flow examples | 68 | nothing: flows' `:reg-flow`, `:clear-flow` and `:flow` are built-ins |
+| [athensresearch/athens](https://github.com/athensresearch/athens), 146 files | 1,064, with 14 dispatches whose id is code | two dispatches to events nothing registers: `:fail-resolve-forward-transact`, whose handler is registered as `:fail-resolve-transact-forward`, and `:alert/unset`; 20 events never dispatched, several of them only from code commented out with `#_` |
+
+Athens shaped the pack: `fn-traced` handlers, async-flow rules, dispatches
+built with `cond->` and `into`, and handlers that delegate to a `defn`.
+
+Not read: a project's own wrappers around `reg-event-fx` and `dispatch`;
+events built in a fn and dispatched from another; and re-frame's registrar
+at runtime, which a snapshot could give, as Pathom's does.
+
 ## One id, two packs
 
 Data keys are global: a spec and a malli schema shaping `:user/email` are one

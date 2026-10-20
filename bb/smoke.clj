@@ -201,6 +201,45 @@
            (let [b (index/build (assoc-in cfg [:packs 'smoke/broken-pack] {}))]
              (some #(and (= :broken (:pack %)) (str/includes? (:reason %) "boom")) (problems b :pack-form-not-read))))
 
+    ;; ---- re-frame: src/shop/ui.cljs
+    (let [rf (index/build (assoc-in cfg [:packs :re-frame] {:provided [:http-xhrio]}))
+          entry #(:entry (index/where rf %))
+          found #(set (map :dev-id (problems rf %)))]
+      (check "every registration and reference is read, in a .cljs file"
+             (= {:read 19 :not-read 0} (:re-frame (:packs (index/summary rf)))))
+      (check "an event: its handler, what its effects dispatch (a callback among them), its effects and writes"
+             (= #:re-frame{:registered #{:event} :handler :fx :dispatched true
+                           :dispatches [:shop.ui/pay :shop.ui/paid] :effects [:http-xhrio] :writes [:order/state]}
+                (entry :shop.ui/checkout)))
+      (check ":fx entries: an effect and a dispatch"
+             (= [[:shop.ui/clear-cart] [:notify]] ((juxt :re-frame/dispatches :re-frame/effects) (entry :shop.ui/paid))))
+      (check "a subscription's :<- signals are references"
+             (= [{:dev-id :shop.ui/line-count :via :re-frame/signals}]
+                (map #(select-keys % [:dev-id :via]) (:referenced-by (index/uses rf :shop.ui/lines)))))
+      (check "its primary definition is the registration, not a place that refers to it"
+             (= 9 (:line (:definition (index/where rf :shop.ui/checkout)))))
+      (check "a dispatch and a subscription to ids nothing registers, where they are written"
+             (= [[:sub-not-registered :shop.ui/line-cuont 31] [:event-not-registered :shop.ui/pay 14]]
+                (for [p (index/check rf) :when (#{:sub-not-registered :event-not-registered} (:problem p))]
+                  [(:problem p) (:dev-id p) (:line (:definition p))])))
+      (check "registered and referred to nowhere; :provided effects are not reported"
+             (and (= #{:shop.ui/log-out} (found :event-never-dispatched))
+                  (= #{:shop.ui/line-count} (found :sub-never-subscribed))
+                  (empty? (found :effect-not-registered))
+                  (= #{:http-xhrio} (set (map :dev-id (problems (index/build (assoc-in cfg [:packs :re-frame] {})) :effect-not-registered))))))
+      (check "one key across four registries: a spec shapes it, EDN calls it PII, a resolver and a subscription read it"
+             (let [email (index/data-key rf :user/email)]
+               (and (= [:fn/register-user :shop.resolvers/user-by-email :shop.ui/email] (map :dev-id (:consumers email)))
+                    (some #{:shop.ui/set-email} (map :dev-id (:producers email)))
+                    (not-any? #{:shop.ui/log-out} (map :dev-id (:producers email))))))
+      (check "a key an event writes that no schema shapes"
+             (contains? (set (map :keys (problems rf :data-key-without-schema))) [:order/state]))
+      (check "the editor underlines ::pay where it is written"
+             (some #(= {:line 14 :col 17 :end-col 22 :problem "event-not-registered"} (select-keys % [:line :col :end-col :problem]))
+                   (hover/diagnostics rf "src/shop/ui.cljs")))
+      (check "the hover describes an event"
+             (str/includes? (:eldoc (hover/lookup rf :shop.ui/checkout)) "event (fx)")))
+
     ;; ---- diagnostics: what an editor underlines, per file
     (let [diags #(set (map (juxt :line :col :end-col :severity :problem) (hover/diagnostics idx %)))]
       (check "diagnostics: a key used outside the contract, at the key in the code"

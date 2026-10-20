@@ -55,7 +55,11 @@
         problems (filter #(= id (:dev-id %)) (index/check idx))
         {:keys [consumes produces]} (index/contract-keys idx entry)
         deps (map :dev-id (:depends-on (index/dependencies idx id)))
-        n-used (+ (count (:referenced-by u)) (count (:called-from u)))
+        ;; places that only refer to it (a dispatch) are not where it is defined
+        {referring true defining false} (group-by #(boolean (:refers %)) (:sources w))
+        ;; keys only those places give (:re-frame/dispatched) are said by "referred to from"
+        marker? (set (remove (set (mapcat :keys defining)) (mapcat :keys referring)))
+        n-used (+ (count (:referenced-by u)) (count (:called-from u)) (count referring))
         ;; what gives it: a pack, an EDN entry, or only a var's meta key
         kind (cond (get-in w [:definition :pack]) (name (get-in w [:definition :pack]))
                    (get-in w [:definition :binding]) "binding"
@@ -77,17 +81,22 @@
        (when (seq consumes) [(str "consumes   " (str/join " " (map pr-str (sort consumes))))])
        (when (seq produces) [(str "produces   " (str/join " " (map pr-str (sort produces))))])
        (when (seq deps) [(str "deps       " (str/join " " (map pr-str deps)))])
-       (for [[k v] (sort-by key entry)] (str (pr-str k) "  " (pr-str v)))
+       (for [[k v] (sort-by key entry) :when (not (marker? k))] (str (pr-str k) "  " (pr-str v)))
        [""]
-       (for [[i s] (map-indexed vector (:sources w))]
+       (for [[i s] (map-indexed vector defining)]
          (str (if (zero? i) "defined    " "           ") (source-line s)))
+       (when (and (seq referring) (empty? defining)) ["defined    nowhere read"])
        [(if-let [impl (:impl w)]
           (str "impl       " (:var impl) "    " (at impl))
           "impl       none")]
        [""]
-       (if (seq (:referenced-by u))
+       (when (seq referring)
+         (concat (cons "referred to from" (for [s referring] (str "  " (at s) "    " (str/join " " (map name (:keys s))))))
+                 [""]))
+       (cond
+         (seq (:referenced-by u))
          (cons "used by" (for [r (:referenced-by u)] (str "  " (pr-str (:dev-id r)) "  via " (pr-str (:via r)) "    " (at (:definition r)))))
-         ["used by    nothing names it"])
+         (empty? referring) ["used by    nothing names it"])
        (when (seq (:called-from u))
          (cons "called from" (for [c (:called-from u)] (str "  " (:var c) (when (:dev-id c) (str " " (pr-str (:dev-id c)))) "    " (at c)))))
        (when-let [note (get-in u [:coverage :note])]
@@ -98,12 +107,15 @@
                              (when (:keys p) (str " " (few (:keys p) 6)))
                              (when (:calls p) (str " calls " (pr-str (:calls p))))
                              (when-let [l (or (:impl p) (:definition p) (when (:file p) p))] (str "    " (at l)))))))))
-     :definitions (vec (concat (for [s (:sources w) :when (:file s)]
+     :definitions (vec (concat (for [s defining :when (:file s)]
                                  {:file (abs-path idx (:file s)) :line (:line s)
                                   :summary (str "defined: " (str/join " " (map name (:keys s))))})
                                (when-let [impl (:impl w)]
                                  [{:file (abs-path idx (:file impl)) :line (:line impl) :summary (str "impl: " (:var impl))}])))
-     :references (vec (concat (for [r (:referenced-by u)]
+     :references (vec (concat (for [s referring :when (:file s)]
+                                {:file (abs-path idx (:file s)) :line (:line s)
+                                 :summary (str/join " " (map name (:keys s)))})
+                              (for [r (:referenced-by u)]
                                 {:file (abs-path idx (get-in r [:definition :file])) :line (get-in r [:definition :line])
                                  :summary (str (pr-str (:dev-id r)) " via " (pr-str (:via r)))})
                               (for [c (:called-from u)]
@@ -180,6 +192,11 @@
                 (when (.find m) [n (inc (.start m)) (inc (.end m))]))))
           (range from (inc (min to (count lines)))))))
 
+(defn- own-ns-token
+  "[line col end-col] for `k` written as ::name, or nil."
+  [lines k from to]
+  (when (qualified-keyword? k) (token-at lines (symbol (str "::" (name k))) from to)))
+
 (def ^:private window
   "How many lines after a problem's line a key it names is looked for, at
    most: the search also stops where the file's next definition starts."
@@ -219,6 +236,12 @@
            :not-in-runtime (str id " is not registered in the running process")
            :runtime-only (str id " is registered in the running process, and in no file read")
            :binding-only (str id ": the meta key names it, no source says anything about it yet")
+           :event-not-registered (str "no reg-event registers " id)
+           :sub-not-registered (str "no reg-sub registers " id)
+           :effect-not-registered (str "no reg-fx registers the effect " id)
+           :cofx-not-registered (str "no reg-cofx registers " id)
+           :event-never-dispatched (str "nothing dispatches " id)
+           :sub-never-subscribed (str "nothing subscribes to " id)
            (str (name (:problem p)) (when id (str " " id)) (when (seq (:keys p)) (str " " ks))
                 (when (:reason p) (str ": " (:reason p))) (when (:message p) (str ": " (:message p))))))))
 
@@ -257,6 +280,7 @@
                   ;; the key as written, or its name where it is destructured
                   ;; ({:user/keys [loyalty-tier]}), within the form
                   at-keys (keep (fn [k] (when-let [t (or (token-at lines k line end)
+                                                         (own-ns-token lines k line end)
                                                          (when (qualified-keyword? k) (token-at lines (symbol (name k)) line end)))]
                                           [k t]))
                                 (:keys p))
@@ -264,6 +288,7 @@
                   ;; form's symbol ((pco/defresolver seed ...))
                   at-id (when-let [id (:dev-id p)]
                           (or (token-at lines id line line)
+                              (own-ns-token lines id line line)
                               (when (qualified-keyword? id) (token-at lines (symbol (name id)) line line))))]
             d (cond
                 (seq at-keys) (for [[k [n c e]] at-keys] {:line n :col c :end-col e :key k})
