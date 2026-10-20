@@ -361,6 +361,22 @@
                  (every? #(= :warning (:severity %)) (vals ds))))
         (finally (fs/delete-tree dir))))
 
+    ;; ---- the project's clj-kondo config: test/fixtures/kondo-config, read from here, not its root
+    (let [show #(first (filter (comp #{'show} :name) (mapcat :vars (vals (:code %)))))
+          kws #(set (map :name (mapcat :keywords (vals (:code %)))))
+          dir (str (fs/create-temp-dir))
+          _ (fs/copy-tree "test/fixtures/kondo-config" dir)
+          cache (str dir "/.meta-source/index.transit")
+          build #(index/build {:root dir :src ["src"] :registry [] :cache cache})
+          before (build)]
+      (check "a macro the project's .clj-kondo config lints as defn defines a var, its meta key and keywords read"
+             (and (= :fn/show (:dev-id (show before))) (contains? (kws before) "email")))
+      (spit (str dir "/.clj-kondo/config.edn") "{}")
+      (let [after (build)]
+        (check "the config edited: the cached analysis is not reused"
+               (and (pos? (:analysed after)) (nil? (show after)))))
+      (fs/delete-tree dir))
+
     ;; ---- serve: what the editor talks to, with meta-source.edn edited while it runs
     (let [dir (fs/create-temp-dir {:prefix "meta-source-serve"})
           _ (fs/copy-tree root dir)

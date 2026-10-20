@@ -127,6 +127,9 @@ library's own; nothing answers the questions that cross them.
 
 meta-source builds on clj-kondo: it runs clj-kondo's analysis to find the
 forms each library uses to declare things, then reads those forms as data.
+That analysis uses your project's `.clj-kondo` config, as your editor's
+clj-kondo does: a macro you've taught clj-kondo (`:lint-as`, a hook, a
+library's imported config) is read as what it defines.
 
 ## How it works
 
@@ -143,7 +146,8 @@ forms each library uses to declare things, then reads those forms as data.
   Two sources giving one key different values is a conflict, named with both
   places, never last-write-wins.
 - **Nothing is evaluated.** The Clojure reader and clj-kondo, in babashka.
-  Your code is never loaded. An option written as code is reported as not
+  Your code is never loaded. (clj-kondo runs your `.clj-kondo` hooks, if you
+  have any, in its own interpreter, as it does in your editor.) An option written as code is reported as not
   read rather than guessed.
 - **What runs can be compared with what is written.** A running Pathom
   environment can write a snapshot; meta-source fills in what the code

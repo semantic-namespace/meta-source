@@ -267,19 +267,41 @@
       (or (try (requiring-resolve 'clj-kondo.core/run!) (catch Exception _ nil))
           (throw (ex-info "meta-source.index needs clj-kondo on the classpath" {}))))))
 
+(defn- kondo-config-dir
+  "The project's .clj-kondo directory under `root`, or nil."
+  [root]
+  (let [d (io/file root ".clj-kondo")]
+    (when (.isDirectory d) (canonical d))))
+
+(defn- kondo-config-stamps
+  "{path mtime} for the project's clj-kondo config: its config.edn, the
+   configs it imports and its hooks, not its .cache. When one changes, the
+   code is analysed again."
+  [root]
+  (when-let [d (kondo-config-dir root)]
+    (into (sorted-map)
+          (for [^java.io.File f (file-seq (io/file d))
+                :let [rel (relative d (canonical f))]
+                :when (and (.isFile f) (not (str/starts-with? rel ".cache")))]
+            [rel (.lastModified f)]))))
+
 (defn- analyse-code
   "{file {:vars [..] :calls [..] :keywords [..] :pack-results {pack-id [..]}}}
    for `files`, the parts of clj-kondo's analysis the index uses, and what
    each enabled pack reads there. A var carrying `id-key` in its meta gets
-   that :dev-id."
-  [files packs packs-config id-key]
+   that :dev-id. clj-kondo reads the project's own .clj-kondo config under
+   `root` (its :lint-as and hooks, the configs it imports), as the editor's
+   clj-kondo does, wherever meta-source runs from: macros the project
+   teaches clj-kondo are analysed as what they define."
+  [root files packs packs-config id-key]
   (if (empty? files)
     {}
-    (let [{:keys [analysis]} (@kondo {:lint (vec files)
-                                      :config {:output {:canonical-paths true}
-                                               :linters ^:replace {}
-                                               :analysis {:var-definitions {:meta [id-key]}
-                                                          :keywords true}}})
+    (let [{:keys [analysis]} (@kondo (cond-> {:lint (vec files)
+                                              :config {:output {:canonical-paths true}
+                                                       :linters ^:replace {}
+                                                       :analysis {:var-definitions {:meta [id-key]}
+                                                                  :keywords true}}}
+                                       (kondo-config-dir root) (assoc :config-dir (kondo-config-dir root))))
           by-file (fn [k xf] (group-by :filename (into [] xf (get analysis k))))
           vars (by-file :var-definitions
                         (map (fn [{:keys [meta] :as d}]
@@ -343,7 +365,9 @@
   [{:keys [root registry src cache previous packs dataflow id-key] :as opts
     :or {root "." id-key default-id-key}}]
   (let [config {:root (canonical root) :registry (vec registry) :src (vec src)
-                :packs (or packs {}) :dataflow dataflow :merge (:merge opts) :id-key id-key}
+                :packs (or packs {}) :dataflow dataflow :merge (:merge opts) :id-key id-key
+                ;; a changed clj-kondo config changes what the code analyses to
+                :kondo-config (kondo-config-stamps root)}
         edn-files (vec (files-under root registry [".edn"]))
         src-files (files-under root src [".clj" ".cljc" ".cljs"])
         cached (cond
@@ -364,7 +388,7 @@
   (let [fresh? #(and (= (stamps %) (get-in cached [:stamps %])) (contains? (:code cached) %))
         stale (remove fresh? src-files)
         code (merge (select-keys (:code cached) (filter fresh? src-files))
-                    (analyse-code stale packs (:packs config) (:id-key config)))
+                    (analyse-code root stale packs (:packs config) (:id-key config)))
         ;; registry files: re-read only the ones that changed
         edn (into {} (for [f edn-files]
                        [f (if (= (edn-stamps f) (get-in cached [:edn-stamps f]))
