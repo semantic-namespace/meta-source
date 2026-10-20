@@ -217,9 +217,21 @@
            :runtime-disagrees (str id " differs from the running process"
                                    (when (:changed-since-snapshot p) " (the file changed since the snapshot)"))
            :not-in-runtime (str id " is not registered in the running process")
+           :runtime-only (str id " is registered in the running process, and in no file read")
            :binding-only (str id ": the meta key names it, no source says anything about it yet")
            (str (name (:problem p)) (when id (str " " id)) (when (seq (:keys p)) (str " " ks))
                 (when (:reason p) (str ": " (:reason p))) (when (:message p) (str ": " (:message p))))))))
+
+(defn brief
+  "check's problems as lines for a terminal, most severe first: severity,
+   where it is (its first location), and the message the editor shows."
+  [idx]
+  (vec (for [p (index/check idx)
+             :let [l (first (locations p))]]
+         (format "%-7s %-34s %s"
+                 (name (:severity p))
+                 (if l (str (:file l) ":" (:line l)) "")
+                 (subs (message p nil) (count "meta-source: "))))))
 
 (defn diagnostics
   "check's problems located in `file` (absolute, or relative to the root),

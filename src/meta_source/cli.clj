@@ -3,7 +3,7 @@
    bbin. Runs under babashka (cheshire, and clj-kondo as a pod).
 
    meta-source <command> [args] [--root dir] [--registry dir]... [--src dir]...
-               [--json] [--no-cache]
+               [--json] [--brief] [--no-cache]
 
    Answers from the project's files, nothing loaded or run. Settings come
    from the flags, or from <root>/meta-source.edn:
@@ -32,7 +32,7 @@
   uses <id>           entries that name it, and code that calls its var
   deps <id>           entities its entry names
   data <data-key>     entities producing and consuming the key
-  check               where code and registry files disagree
+  check               where code and registry files disagree (--brief: one line each)
   summary             counts, coverage, files re-analysed by this call
   hover <keyword>     what an editor shows for a keyword: eldoc line, describe text, locations
   diagnostics <file>  check's problems in one file, with the line and columns to underline
@@ -49,6 +49,7 @@
       (= a "--src") (recur (rest more) (update opts :src conj (first more)))
       (= a "--json") (recur more (assoc opts :json true))
       (= a "--no-cache") (recur more (assoc opts :no-cache true))
+      (= a "--brief") (recur more (assoc opts :brief true))
       :else (recur more (update opts :positional conj a)))))
 
 (defn- add-deps!
@@ -104,12 +105,13 @@
               "uses" (index/uses @idx (kw arg))
               "deps" (or (index/dependencies @idx (kw arg)) {:not-found (kw arg)})
               "data" (index/data-key @idx (kw arg))
-              "check" (index/check @idx)
+              "check" (if (:brief opts) (hover/brief @idx) (index/check @idx))
               "diagnostics" (hover/diagnostics @idx arg)
               "summary" (index/summary @idx)
               "hover" (hover/lookup @idx (kw arg))
               "serve" (do (serve (config opts)) (System/exit 0))
               (do (println usage) (System/exit (if cmd 1 0))))]
-    (if (:json opts)
-      (println (json/generate-string out {:pretty true}))
-      (pp/pprint out))))
+    (cond
+      (:json opts) (println (json/generate-string out {:pretty true}))
+      (and (:brief opts) (= cmd "check")) (run! println out)
+      :else (pp/pprint out))))

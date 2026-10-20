@@ -721,7 +721,9 @@
   "Where code and registry files disagree, most severe first."
   [idx]
   (let [linked (linked-vars idx)]
-    (vec (concat
+    ;; sort-by is stable: findings of one kind keep their order
+    (vec (sort-by #(get {:error 0 :warning 1} (:severity %) 2)
+                  (concat
           (for [p (:read-problems idx)] (assoc p :severity :error))
           (for [[id vs] linked :when (> (count vs) 1)]
             {:severity :error :problem :dev-id-on-several-vars :dev-id id :vars (mapv #(loc idx %) vs)})
@@ -731,7 +733,7 @@
             {:severity :info :problem :binding-only :dev-id id :impl (loc idx (impl-of idx id))})
           (undeclared-calls idx)
           (keys-outside-contract idx)
-          (pack-problems idx)))))
+          (pack-problems idx))))))
 
 (defn summary [idx]
   (let [kinds (frequencies (for [[_ e] (:entities idx)] (:kind e)))]

@@ -214,6 +214,13 @@
       (check "diagnostics: a file with nothing to report"
              (empty? (diags "src/shop/order.cljc"))))
 
+    ;; ---- check: most severe first; --brief, one line each
+    (check "check lists errors, then warnings, then info"
+           (let [ranks (map #(get {:error 0 :warning 1} (:severity %) 2) (index/check idx))]
+             (= ranks (sort ranks))))
+    (check "check --brief: severity, file:line, and the editor's message"
+           (some #(re-matches #"warning +resources/system\.edn:10 +no config defines :shop/metrics" %) (hover/brief idx)))
+
     ;; ---- the meta key, and the merge
     (check "a var with the meta key and no entry: a binding-only entity, valid, reported as info"
            (and (= {:file "src/shop/handlers.clj" :line 13 :binding true} (:definition (index/where idx :fn/cancel-order)))
