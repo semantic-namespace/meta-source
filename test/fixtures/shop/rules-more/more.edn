@@ -1,0 +1,20 @@
+;; Each condition, against the shop's facts.
+{:more/resolvers-outside-their-ns
+ {:when {:kind :pathom :not {:id-ns "shop.resolvers"}}
+  :require [{:has :owner/team}]}
+
+ :more/privacy-is-a-known-class
+ {:when {:has :data/privacy}
+  :require [{:in {:data/privacy #{:pii :public}}}]}
+
+ :more/components-someone-refers-to
+ {:when {:kind :integrant :has :integrant/config-in}
+  :require [{:or [{:used-by {:some {:kind :integrant}}} {:has :integrant/derives}]}]}
+
+ :more/no-component-depends-on-pii
+ {:when {:kind :integrant}
+  :require [{:deps {:none {:= {:data/privacy :pii}}}}]}
+
+ :more/pii-has-a-producer
+ {:when {:= {:data/privacy :pii}}
+  :require [{:producers {:some {:kind #{:pathom :edn}}}}]}}

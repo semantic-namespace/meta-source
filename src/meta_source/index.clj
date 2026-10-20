@@ -24,7 +24,8 @@
             [meta-source.pack.pathom :as pathom]
             [meta-source.pack.re-frame :as re-frame]
             [meta-source.pack.schema :as schema]
-            [meta-source.read :as read]))
+            [meta-source.read :as read]
+            [meta-source.rules :as rules]))
 
 (def ^:private bb? (some? (System/getProperty "babashka.version")))
 
@@ -375,6 +376,7 @@
     :or {root "." id-key default-id-key}}]
   (let [config {:root (canonical root) :registry (vec registry) :src (vec src)
                 :packs (or packs {}) :dataflow dataflow :merge (:merge opts) :id-key id-key
+                :rules (vec (:rules opts))
                 ;; a changed clj-kondo config changes what the code analyses to
                 :kondo-config (kondo-config-stamps root)}
         edn-files (vec (files-under root registry [".edn"]))
@@ -385,15 +387,32 @@
         packs (enabled-packs (:packs config))
         stamps (into {} (map (juxt identity mtime)) src-files)
         data-files (pack-data-files root (:packs config) packs)
+        rule-files (vec (distinct (for [d (:rules opts)
+                                        :let [f (under root d)]
+                                        path (cond (.isDirectory f) (files-under root [d] [".edn"])
+                                                   (.isFile f) [(canonical f)])]
+                                    path)))
         edn-stamps (into {} (map (juxt identity mtime))
                          (concat edn-files
+                                 rule-files
                                  (for [p packs :let [f (snapshot-file root (:packs config) p)] :when (.isFile f)] (canonical f))
                                  (mapcat second data-files)))]
     (if (and previous (identical? cached previous) (= stamps (:stamps previous)) (= edn-stamps (:edn-stamps previous)))
       (assoc previous :analysed 0)
-      (build* config packs data-files root cache cached stamps edn-stamps edn-files src-files))))
+      (build* config packs data-files root cache cached stamps edn-stamps edn-files src-files rule-files))))
 
-(defn- build* [config packs data-files root cache cached stamps edn-stamps edn-files src-files]
+(defn- read-rules
+  "[{:id :rule :file :line}] and read problems, from the rules files."
+  [root files]
+  (let [read (for [f files]
+               (try {:rules (for [[id rule line] (or (read/keyed-lines (slurp f))
+                                                     (throw (ex-info "a rules file holds a map of rule id to rule" {})))]
+                              {:id id :rule rule :file (relative root f) :line line})}
+                    (catch Exception ex
+                      {:problem {:problem :unreadable-rules-file :file (relative root f) :message (ex-message ex)}})))]
+    {:rules (vec (mapcat :rules read)) :problems (vec (keep :problem read))}))
+
+(defn- build* [config packs data-files root cache cached stamps edn-stamps edn-files src-files rule-files]
   (let [fresh? #(and (= (stamps %) (get-in cached [:stamps %])) (contains? (:code cached) %))
         stale (remove fresh? src-files)
         code (merge (select-keys (:code cached) (filter fresh? src-files))
@@ -449,6 +468,7 @@
                                                 (first (remove :refers defs))
                                                 (first defs))]]
                           [id (assoc primary :entry entry :definitions defs)]))
+        rules-read (read-rules root rule-files)
         ;; packs' runtime snapshots: fill what static reading couldn't read,
         ;; add what only the running process has
         snapshots (read-snapshots root (:packs config) packs)
@@ -478,6 +498,8 @@
       (write-cache cache {:version cache-version :config config :stamps stamps :code code}))
     {:root (canonical root)
      :config config
+     :rules (:rules rules-read)
+     :rules-problems (:problems rules-read)
      :packs packs
      :dataflow (dataflow config packs)
      :stamps stamps
@@ -801,6 +823,26 @@
      (identity-problems idx)
      (runtime-problems idx))))
 
+(defn- rule-findings
+  "The project's own rules (meta-source.rules) over the index, and the
+   rules files that couldn't be read."
+  [idx]
+  (let [entities (sort-by key (:entities idx))
+        ;; each relation, once for the whole index: {id [related-id ...]}
+        index-by (fn [f] (reduce (fn [m [id e]] (reduce #(update %1 %2 (fnil conj []) id) m (f e))) {} entities))
+        used-by (index-by #(map second (references idx (:entry %))))
+        consumers (index-by #(:consumes (contract-keys idx (:entry %))))
+        producers (index-by #(:produces (contract-keys idx (:entry %))))
+        view {:entities (:entities idx)
+              :data-key? #(data-key? idx %)
+              :loc #(loc idx %)
+              :consumers #(get consumers %)
+              :producers #(get producers %)
+              :deps #(map second (references idx (get-in idx [:entities % :entry])))
+              :used-by #(distinct (get used-by %))}]
+    (concat (for [p (:rules-problems idx)] (assoc p :severity :error))
+            (rules/check view (:rules idx)))))
+
 (defn check
   "Where code and registry files disagree, most severe first."
   [idx]
@@ -817,7 +859,8 @@
             {:severity :info :problem :binding-only :dev-id id :impl (loc idx (impl-of idx id))})
           (undeclared-calls idx)
           (keys-outside-contract idx)
-          (pack-problems idx))))))
+          (pack-problems idx)
+          (rule-findings idx))))))
 
 (defn summary [idx]
   (let [kinds (frequencies (for [[_ e] (:entities idx)] (:kind e)))]

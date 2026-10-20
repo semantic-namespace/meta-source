@@ -1,0 +1,16 @@
+;; The shop's own rules, over what every source says.
+{:rule/pii-readers-audited
+ {:doc "Whatever reads a PII key is audited"
+  :when {:= {:data/privacy :pii}}
+  :require [{:consumers {:all {:has :audit/logged}}}]}
+
+ :rule/components-halt
+ {:doc "A component that starts something stops it"
+  :severity :info
+  :when {:kind :integrant :has :integrant/init-key}
+  :require [{:has :integrant/halt-key!}]}
+
+ ;; holds: every function contract says what it needs
+ :rule/functions-say-what-they-need
+ {:when {:has :fn/reads}
+  :require [{:has :fn/needs}]}}

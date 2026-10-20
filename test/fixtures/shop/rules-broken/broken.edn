@@ -1,0 +1,3 @@
+{:rule/misspelled
+ {:when {:kynd :integrant}
+  :require [{:has :integrant/halt-key!}]}}

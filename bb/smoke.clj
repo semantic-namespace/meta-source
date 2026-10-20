@@ -361,6 +361,41 @@
                  (every? #(= :warning (:severity %)) (vals ds))))
         (finally (fs/delete-tree dir))))
 
+    ;; ---- the project's own rules: rules/shop.edn, rules-broken/broken.edn
+    (let [ri (index/build (assoc cfg :rules ["rules"]))
+          by (fn [i rule] (filter #(= rule (:rule %)) (index/check i)))
+          pii (first (by ri :rule/pii-readers-audited))]
+      (check "a rule over a relation: a PII key's consumers must be audited, naming the ones that aren't"
+             (and (= :warning (:severity pii)) (= :user/email (:dev-id pii))
+                  (= [:fn/register-user :shop.resolvers/user-by-email] (:offenders pii))
+                  (= {:file "rules/shop.edn" :line 2} (:rule-at pii))))
+      (check "the editor marks the offenders too, where they are defined"
+             (some #(= "rule-violated" (:problem %)) (hover/diagnostics ri "src/shop/resolvers.clj")))
+      (check "a rule over a pack's facts, at its own severity"
+             (= #{:shop/http-server :shop.system/const :shop.system/unused}
+                (set (map :dev-id (filter #(= :info (:severity %)) (by ri :rule/components-halt))))))
+      (check "a rule that holds gives nothing"
+             (empty? (by ri :rule/functions-say-what-they-need)))
+      (check "a rule it can't understand is an error at the rule, saying why"
+             (= [{:problem :rule-not-understood :file "rules-broken/broken.edn" :line 1 :reasons ["unknown condition :kynd"]}]
+                (map #(select-keys % [:problem :file :line :reasons])
+                     (by (index/build (assoc cfg :rules ["rules-broken"])) :rule/misspelled))))
+      (check ":not, :id-ns, :in, :or, :used-by :some, :deps :none, :producers :some with a set of kinds"
+             (= {:more/resolvers-outside-their-ns [:shop.resolvers2/product-name :shop.wrapped/product-price]
+                 :more/components-someone-refers-to [:shop/base-path :shop/cache :shop.resolvers/seed]}
+                (update-vals (group-by :rule (filter :rule (index/check (index/build (assoc cfg :rules ["rules-more"])))))
+                             #(mapv :dev-id %))))
+      (check "a form after a rules file's map is an error, not ignored"
+             (let [dir (str (fs/create-temp-dir))]
+               (spit (str dir "/r.edn") "{:r/a {:when {:has :x} :require [{:has :y}]}}\n :r/b {:when {:has :x} :require []}}")
+               (try (= [[:unreadable-rules-file "something after the map, at line 2"]]
+                       (for [p (index/check (index/build {:root dir :src [] :registry [] :rules ["r.edn"]}))]
+                         [(:problem p) (:message p)]))
+                    (finally (fs/delete-tree dir)))))
+      (check "the brief line names the rule's doc, the entity and the offenders"
+             (some #(str/includes? % "Whatever reads a PII key is audited: :user/email (:fn/register-user :shop.resolvers/user-by-email)")
+                   (hover/brief ri))))
+
     ;; ---- function contracts the code writes: test/fixtures/contracts, s/fdef and m/=>
     (let [fc (index/build (assoc (edn/read-string (slurp "test/fixtures/contracts/meta-source.edn"))
                                  :root "test/fixtures/contracts"))
