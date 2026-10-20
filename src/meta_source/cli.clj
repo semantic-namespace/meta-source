@@ -13,6 +13,7 @@
       :packs {:integrant {:configs [\"resources\"]} :spec {} :pathom {}}
       :dataflow {:consumes [...] :produces [...]}
       :merge {:app/tags :union}
+      :rules [\"rules\"]                   ; EDN files of the project's own rules
       :id-key :meta-source/id             ; the meta key a var carries
       :deps {app/packs {:local/root \"tools\"}}}  ; where a project's own packs live
 
@@ -70,6 +71,7 @@
              :packs (:packs from-file {})
              :dataflow (:dataflow from-file)
              :merge (:merge from-file)
+             :rules (:rules from-file)
              :cache (when-not no-cache (str (io/file root ".meta-source" "index.transit")))}
       (:id-key from-file) (assoc :id-key (:id-key from-file)))))
 

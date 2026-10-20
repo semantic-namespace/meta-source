@@ -36,10 +36,11 @@ Output is EDN, or JSON with `--json`.
 | an `init-key` for a key no config has; a resolver defined but not registered | info |
 | a re-frame event never dispatched, a subscription never subscribed to, an effect nothing registers | info |
 | a form a pack couldn't read, and why | info |
+| one of your own rules, broken (`:rule-violated`), at the rule's severity; a rule not understood | yours; error |
 
 Findings are reported, never guessed around: an option written as code is
-reported as not read, rather than read wrongly. Next: invariants of your own,
-written as data (`{:when {...} :require [...]}`) over the same index.
+reported as not read, rather than read wrongly. Your own invariants are
+rules over the same index: [Your own rules](#your-own-rules).
 
 ## Facts in EDN, and plain functions
 
@@ -77,6 +78,54 @@ A var with the meta key and no entry is valid: an entity with its binding
 only, reported as info. `:id-key` in `meta-source.edn` chooses another meta
 key; `:merge {key :union}` unions a set-valued key across files instead of
 reporting a conflict.
+
+## Your own rules
+
+The packs check what each library means. A project's own invariants are
+rules, written as data in EDN files that `:rules` in `meta-source.edn` names:
+
+```clojure
+;; meta-source.edn
+{:rules ["rules"] ...}
+
+;; rules/shop.edn: rule id → rule
+{:rule/pii-readers-audited
+ {:doc "Whatever reads a PII key is audited"
+  :severity :warning                       ; :error, :warning (the default), :info
+  :when {:= {:data/privacy :pii}}          ; the entities it is about
+  :require [{:consumers {:all {:has :audit/logged}}}]}
+
+ :rule/components-halt
+ {:doc "A component that starts something stops it"
+  :when {:kind :integrant :has :integrant/init-key}
+  :require [{:has :integrant/halt-key!}]}}
+```
+
+`:when` selects entities; each `:require` condition must hold on every one of
+them. A condition is a map, and every key in it must hold:
+
+| Key | Holds when |
+|---|---|
+| `:kind :integrant` (or a set) | a source of that kind gives the entity: `:integrant`, `:spec`, `:pathom`, `:re-frame`, `:edn`... |
+| `:has :k` (or a vector) | its merged entry has the keys |
+| `:missing :k` (or a vector) | it has none of them |
+| `:= {:k v}` | its `:k` is `v`, or contains it |
+| `:in {:k #{v ...}}` | its `:k` is one of them |
+| `:id-ns "shop.admin"` | its id's namespace is that one or under it |
+| `:data-key true` | a schema shapes it |
+| `:not cond`, `:or [cond ...]` | |
+| `:consumers`, `:producers` | a data key's consumers or producers... |
+| `:deps`, `:used-by` | ...what its entry names, or what names it... |
+| | ...with `{:all cond}`, `{:some cond}` or `{:none cond}` |
+
+Rules see every source at once: a fact from EDN (`:data/privacy`), a pack's
+(`:integrant/init-key`), and the relations between them. A violation is a
+`:rule-violated` finding at the entity, with the rule's `:doc`, its id and
+where it is written (`:rule-at`), the clauses that failed, and for a relation
+the entities that broke it. Those are marked in the editor too, where each is
+defined. A rule meta-source can't understand (an unknown condition, a
+missing `:when`) is an error at the rule, saying why. Rules files are read
+again when they change, as registry files are.
 
 ## Emacs
 
