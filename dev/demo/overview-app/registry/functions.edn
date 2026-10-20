@@ -1,9 +1,0 @@
-{:fn/register-user
- {:fn/reads [:user/email :user/name :user/phone]
-  :fn/returns [:user/id :user/email]
-  :fn/needs #{:shop/mailer}}
-
- :fn/place-order
- {:fn/reads [:user/id :order/lines]
-  :fn/returns [:order/id :order/total]
-  :fn/needs #{}}}

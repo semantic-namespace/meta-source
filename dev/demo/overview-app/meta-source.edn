@@ -1,5 +1,0 @@
-{:src ["src"]
- :packs {:integrant {:configs ["resources"]}
-         :spec {}
-         :pathom {}}
- :dataflow {:consumes [:fn/reads] :produces [:fn/returns]}}
