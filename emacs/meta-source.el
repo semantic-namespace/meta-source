@@ -100,7 +100,7 @@ diagnostics.  The backend is added either way; Flymake shows it when on."
 (defvar meta-source--next-id 0)
 
 (defun meta-source--root ()
-  "The project root: the closest directory with an meta-source.edn."
+  "The project root: the closest directory with a meta-source.edn."
   (when-let* ((dir (locate-dominating-file default-directory "meta-source.edn")))
     (expand-file-name dir)))
 
@@ -349,6 +349,24 @@ text, and asks again on save."
   (when (and buffer-file-name (meta-source--root))
     (meta-source-mode 1)))
 
+(defun meta-source--after-save ()
+  "After a save in a meta-source project, refresh the project's buffers.
+What was saved (meta-source.edn, a config, an EDN fact) can change what
+every file of the project shows.  Turn `meta-source-mode' on in the
+project's Clojure buffers opened before it had a meta-source.edn, and
+ask Flymake again in the others; the saved buffer asks by itself."
+  (when-let* ((root (and buffer-file-name (meta-source--root))))
+    (let ((saved (current-buffer)))
+      (dolist (b (buffer-list))
+        (with-current-buffer b
+          (when (and buffer-file-name
+                     (not (eq b saved))
+                     (string-prefix-p root (expand-file-name buffer-file-name))
+                     (derived-mode-p 'clojure-mode 'clojure-ts-mode))
+            (if meta-source-mode
+                (when flymake-mode (flymake-start))
+              (meta-source-mode 1))))))))
+
 (defun meta-source-setup ()
   "Enable `meta-source-mode' in Clojure buffers of meta-source projects.
 Now, and in buffers opened later."
@@ -356,6 +374,7 @@ Now, and in buffers opened later."
   (dolist (h '(clojure-mode-hook clojurec-mode-hook clojurescript-mode-hook
                clojure-ts-mode-hook clojure-ts-clojurec-mode-hook))
     (add-hook h #'meta-source-maybe-enable))
+  (add-hook 'after-save-hook #'meta-source--after-save)
   (dolist (b (buffer-list))
     (with-current-buffer b
       (when (derived-mode-p 'clojure-mode 'clojure-ts-mode)

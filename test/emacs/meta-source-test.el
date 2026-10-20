@@ -126,4 +126,40 @@ uses it."
     (should (equal (meta-source-test--files (xref-backend-references 'meta-source ":shop/db"))
                    '("system.edn")))))
 
+(ert-deftest meta-source-adopted-after-opening ()
+  "Files opened before the project had a meta-source.edn: saving one turns
+the mode on in them, and Flymake shows what it finds."
+  (skip-unless (featurep 'clojure-mode))
+  (let* ((dir (make-temp-file "meta-source-adopt" t))
+         (config (with-temp-buffer
+                   (insert-file-contents (meta-source-test--fixture "meta-source.edn"))
+                   (buffer-string))))
+    (unwind-protect
+        (progn
+          (copy-directory (meta-source-test--fixture "src") (expand-file-name "src" dir))
+          (copy-directory (meta-source-test--fixture "registry") (expand-file-name "registry" dir))
+          (copy-directory (meta-source-test--fixture "resources") (expand-file-name "resources" dir))
+          (meta-source-setup)
+          (let ((handlers (find-file-noselect (expand-file-name "src/shop/handlers.clj" dir))))
+            (should-not (buffer-local-value 'meta-source-mode handlers))
+            (with-current-buffer (find-file-noselect (expand-file-name "meta-source.edn" dir))
+              (insert config)
+              (save-buffer))
+            (with-current-buffer handlers
+              (should meta-source-mode)
+              (should flymake-mode)
+              ;; Flymake defers a check until the buffer is shown, which a
+              ;; batch Emacs never does: start it, as a window would
+              (flymake-start)
+              (let ((deadline (+ (float-time) 120)))
+                (while (and (null (flymake-diagnostics)) (< (float-time) deadline))
+                  (accept-process-output nil 0.1)))
+              (should (cl-some (lambda (d) (string-match-p ":order/discount" (flymake-diagnostic-text d)))
+                               (flymake-diagnostics))))))
+      (meta-source-stop)
+      (dolist (b (buffer-list))
+        (when (and (buffer-file-name b) (string-prefix-p (file-truename dir) (file-truename (buffer-file-name b))))
+          (with-current-buffer b (set-buffer-modified-p nil)) (kill-buffer b)))
+      (delete-directory dir t))))
+
 ;;; meta-source-test.el ends here
