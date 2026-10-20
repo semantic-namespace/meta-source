@@ -1,0 +1,15 @@
+;; A small shop whose data keys are shaped by clojure.spec and malli. The
+;; schema pack reads the s/def calls and the malli registry named here; the
+;; Pathom pack reads the resolvers and mutations; the integrant pack reads the
+;; system's configs in resources/ and the defmethods that implement them. The
+;; shop describes its plain functions in its own words (registry/functions.edn):
+;; :dataflow says which of those words list data read and returned.
+{:registry ["registry"]
+ :src ["src"]
+ :packs {:spec {}
+         :malli {:registries [shop.schema/registry]}
+         :pathom {:resolver-macros [shop.connect/defresolver]
+                  ;; written by make_pathom_snapshot.clj from real Pathom envs
+                  :snapshot "snapshots/pathom.edn"}
+         :integrant {:configs ["resources"]}}
+ :dataflow {:consumes [:fn/reads] :produces [:fn/returns]}}

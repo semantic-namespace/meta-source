@@ -1,0 +1,4 @@
+;; meta-source as a library: src only. The CLI and the packs run under
+;; babashka; on the JVM, put clj-kondo on the classpath to build an index.
+{:paths ["src"]
+ :deps {}}
