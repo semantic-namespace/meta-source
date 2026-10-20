@@ -6,6 +6,9 @@
   (:require [meta-source.hover :as hover]
             [meta-source.index :as index]
             [babashka.fs :as fs]
+            [babashka.process :as p]
+            [cheshire.core :as json]
+            [clojure.java.io :as io]
             [clojure.edn :as edn]
             [clojure.string :as str]))
 
@@ -318,6 +321,28 @@
           (check "a disagreement is a warning"
                  (every? #(= :warning (:severity %)) (vals ds))))
         (finally (fs/delete-tree dir))))
+
+    ;; ---- serve: what the editor talks to, with meta-source.edn edited while it runs
+    (let [dir (fs/create-temp-dir {:prefix "meta-source-serve"})
+          _ (fs/copy-tree root dir)
+          conf (str (fs/path dir "meta-source.edn"))
+          proc (p/process ["bb" "--config" "bb.edn" "meta-source" "serve" "--root" (str dir)] {:err :inherit})
+          in (io/writer (:in proc))
+          out (io/reader (:out proc))
+          ask (fn [id file]
+                (.write in (str (json/generate-string {:id id :op "diagnostics" :file file}) "\n"))
+                (.flush in)
+                (set (map :problem (:result (json/parse-string (.readLine out) true)))))]
+      (try
+        (spit conf "{:packs {:integrant {:configs [\"resources\"]}}}")
+        (let [before (ask 1 "src/shop/resolvers.clj")]
+          (spit conf "{:packs {:integrant {:configs [\"resources\"]} :pathom {}}}")
+          (.setLastModified (fs/file conf) (+ 2000 (System/currentTimeMillis)))
+          (let [after (ask 2 "src/shop/resolvers.clj")]
+            (check "serve reads meta-source.edn again when it changes: a pack enabled while it runs takes effect"
+                   (and (not (contains? before "input-without-producer"))
+                        (contains? after "input-without-producer")))))
+        (finally (.close in) (p/destroy proc) (fs/delete-tree dir))))
 
     (if (zero? @failures)
       (println "smoke: all checks passed")

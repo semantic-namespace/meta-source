@@ -77,21 +77,30 @@
 
 (defn- serve
   "Answers one JSON request per line until stdin closes. Before each reply
-   the index is refreshed from what changed on disk, in memory."
-  [cfg]
-  (let [idx (atom (index/build (dissoc cfg :cache)))]
+   the index is refreshed from what changed on disk, in memory, and
+   meta-source.edn is read again when it changed: a pack enabled while the
+   editor is open takes effect on the next answer."
+  [opts]
+  (let [config-file (io/file (or (:root opts) ".") "meta-source.edn")
+        state (atom {})]
     (loop []
       (when-let [line (read-line)]
         (let [{:keys [id op keyword file]} (try (json/parse-string line true) (catch Exception _ nil))
               reply (try
-                      (swap! idx #(index/build (assoc (dissoc cfg :cache) :previous %)))
-                      {:id id
-                       :result (case op
-                                 "hover" (hover/lookup @idx (kw keyword))
-                                 "check" (index/check @idx)
-                                 "diagnostics" (hover/diagnostics @idx file)
-                                 "summary" (index/summary @idx)
-                                 {:error (str "unknown op " op)})}
+                      (let [stamp (.lastModified config-file)
+                            {:keys [cfg idx]} (swap! state (fn [{:keys [stamp-was] :as st}]
+                                                             (if (and (:cfg st) (= stamp stamp-was))
+                                                               st
+                                                               {:stamp-was stamp :cfg (dissoc (config opts) :cache)})))
+                            idx (index/build (assoc cfg :previous idx))]
+                        (swap! state assoc :idx idx)
+                        {:id id
+                         :result (case op
+                                   "hover" (hover/lookup idx (kw keyword))
+                                   "check" (index/check idx)
+                                   "diagnostics" (hover/diagnostics idx file)
+                                   "summary" (index/summary idx)
+                                   {:error (str "unknown op " op)})})
                       (catch Exception e {:id id :error (ex-message e)}))]
           (println (json/generate-string reply))
           (flush)
@@ -109,7 +118,7 @@
               "diagnostics" (hover/diagnostics @idx arg)
               "summary" (index/summary @idx)
               "hover" (hover/lookup @idx (kw arg))
-              "serve" (do (serve (config opts)) (System/exit 0))
+              "serve" (do (serve opts) (System/exit 0))
               (do (println usage) (System/exit (if cmd 1 0))))]
     (cond
       (:json opts) (println (json/generate-string out {:pretty true}))
