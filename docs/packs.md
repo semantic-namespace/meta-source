@@ -47,11 +47,51 @@ code that reads a spec'd key its contract doesn't name is reported even when
 no other contract names that key.
 
 Not read yet: specs or schemas declared through a project's own wrapper fn or
-macro, malli schemas held in vars rather than a registry, and function schemas
-(`s/fdef`, `m/=>`). Every entry of a malli registry gets the line of its
-`def`. On a 535-file app the pack read 1,770 `s/def` calls, none unreadable;
-`test/fixtures/shop` is a small project using both libraries, checked
-by `bb smoke`, which also covers the Pathom pack below.
+macro, and malli schemas held in vars rather than a registry. Every entry of
+a malli registry gets the line of its `def`. On a 535-file app the pack read
+1,770 `s/def` calls, none unreadable; `test/fixtures/shop` is a small project
+using both libraries, checked by `bb smoke`, which also covers the Pathom pack
+below.
+
+### Function contracts: `s/fdef` and `m/=>`
+
+The same `:spec` and `:malli` keys read the function contracts the code
+already writes. Each `s/fdef` and `m/=>` becomes an entity keyed by its
+function's var, `ns/name` as a keyword, and that var implements it with no
+meta key:
+
+```clojure
+(s/fdef total :args (s/cat :order ::order) :ret ::receipt)
+;; :shop.checkout/total
+#:spec{:args "(s/cat :order :shop.checkout/order)" :args-keys [:shop.checkout/order]
+       :ret ":shop.checkout/receipt" :ret-keys [:shop.checkout/receipt]}
+```
+
+- `:spec/args-keys` and `:spec/ret-keys` are the specs `:args` and `:ret`
+  name, leaving out the tags of `s/cat`, `s/alt` and `s/or`. They are what the
+  function consumes and produces, so `meta-source data ::order` lists the
+  functions taking an order.
+- From `m/=>`, `:malli/args-keys` and `:malli/ret-keys` come from each `:=>`
+  or `:->` in the schema (`:function` arities among them), with inline `:map`
+  keys.
+
+A function contract makes `:keys-outside-contract` work for plain functions:
+code reading a data key that neither its contract nor the keys of the specs
+it names list. A key in `::order`'s `s/keys` is within a function taking
+`::order`. A keyword written inside a clojure.spec or malli call
+(`(s/valid? ::order x)`) names a schema, and doesn't count as a key read. A
+var with both an `s/fdef` and the meta key implements both ids. Only a var linked by the meta key is
+checked for `:undeclared-call`, since an fdef lists no calls.
+
+On [hermes](https://github.com/wardle/hermes), the pack read 114 `s/fdef`s.
+One function reads keys outside its contract: `ctu->cf+normalize` returns
+`:cf/definition-status`, `:cf/focus-concepts`, `:cf/groups` and
+`:cf/ungrouped`, and its fdef has no `:ret`. Its `s/keys*` options name four
+keys with no spec of their own (`::nthreads`, `::batch-size`...), reported as
+`:data-key-without-schema`.
+
+Not read yet: malli schemas in a `defn`'s metadata (`{:malli/schema ...}`)
+and `mx/defn`'s inline schemas.
 
 ## Resolvers and mutations: the Pathom pack
 

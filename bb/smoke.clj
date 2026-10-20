@@ -361,6 +361,29 @@
                  (every? #(= :warning (:severity %)) (vals ds))))
         (finally (fs/delete-tree dir))))
 
+    ;; ---- function contracts the code writes: test/fixtures/contracts, s/fdef and m/=>
+    (let [fc (index/build (assoc (edn/read-string (slurp "test/fixtures/contracts/meta-source.edn"))
+                                 :root "test/fixtures/contracts"))
+          outside (into {} (map (juxt :dev-id :keys)) (problems fc :keys-outside-contract))]
+      (check "an s/fdef: an entity keyed by its var, its :args and :ret keys what it consumes and produces"
+             (= #:spec{:args "(s/cat :order :shop.checkout/order)" :args-keys [:shop.checkout/order]
+                       :ret ":shop.checkout/receipt" :ret-keys [:shop.checkout/receipt]}
+                (:entry (index/where fc :shop.checkout/total))))
+      (check "its var implements it, with no meta key"
+             (= 'shop.checkout/total (:var (:impl (index/where fc :shop.checkout/total)))))
+      (check "an m/=>: the keys of its :=> input and output"
+             (= [:order/discount :order/id] (:malli/args-keys (:entry (index/where fc :shop.checkout/line-count)))))
+      (check "a key of an :args spec's s/keys is within the contract; a key outside it is reported"
+             (= {:shop.checkout/total [:user/loyalty-tier] :shop.checkout/line-count [:order/lines]} outside))
+      (check "a function is not a data key, and consumes the spec its :args names"
+             (= [:shop.checkout/discounted? :shop.checkout/total]
+                (map :dev-id (:consumers (index/data-key fc :shop.checkout/order)))))
+      (check "a spec named in s/valid? is not a key read; an s/alt tag is not a spec the fn consumes"
+             (and (not (contains? outside :shop.checkout/gold?))
+                  (nil? (:spec/args-keys (:entry (index/where fc :shop.checkout/gold?))))))
+      (check "the hover shows the fdef"
+             (str/includes? (:eldoc (hover/lookup fc :shop.checkout/total)) "fn  (s/cat :order :shop.checkout/order) → :shop.checkout/receipt")))
+
     ;; ---- the project's clj-kondo config: test/fixtures/kondo-config, read from here, not its root
     (let [show #(first (filter (comp #{'show} :name) (mapcat :vars (vals (:code %)))))
           kws #(set (map :name (mapcat :keywords (vals (:code %)))))

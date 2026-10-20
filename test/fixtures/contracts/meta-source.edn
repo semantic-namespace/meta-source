@@ -1,0 +1,4 @@
+;; Plain functions whose contracts the code already writes: an s/fdef and an
+;; m/=>. No meta key, no EDN contract.
+{:src ["src"]
+ :packs {:spec {} :malli {}}}
