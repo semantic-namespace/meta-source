@@ -200,15 +200,16 @@ cross-reference, and it keeps the cross-reference true.
 
 Working today: the integrant, spec/malli (with `s/fdef` and `m/=>`), Pathom,
 re-frame, reitit and Datascript packs, `check`, the queries, the Emacs
-package, a project's own packs, and a project's own rules. Next: snapshots of
-the running system for every pack, and a pinned corpus of real apps checked
-in CI.
+package, a project's own packs, and a project's own rules. Next:
+[docs/roadmap.md](docs/roadmap.md).
 
 ## More
 
 - [docs/reference.md](docs/reference.md): every command, what `check`
   finds, EDN facts and the meta key, the Emacs package
 - [docs/packs.md](docs/packs.md): each pack's options, and writing your own
+- [docs/roadmap.md](docs/roadmap.md): a pinned corpus of real apps in CI, a
+  conformance suite for packs, runtime snapshots for every pack, more packs
 
 ```sh
 bb smoke                   # the index, packs and diagnostics on test/fixtures/shop
