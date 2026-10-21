@@ -562,6 +562,8 @@ primary.
 Not read: a state whose name is code (a template machine), reported as not
 read; transitions added at runtime; guards and actions, which are fns.
 
+![A tilakone machine: a renamed state, the transition left behind, in Emacs](images/meta-source-tilakone.gif)
+
 ## One id, two packs
 
 Data keys are global: a spec and a malli schema shaping `:user/email` are one
