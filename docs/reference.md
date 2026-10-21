@@ -21,6 +21,12 @@ Emacs package. Packs, and how to write one: [packs.md](packs.md).
 
 Output is EDN, or JSON with `--json`.
 
+`check` exits 0 whatever it finds. In CI, `--fail-on error` makes it exit 1
+when a problem is an error (`warning`: a warning or an error; `info`: any
+problem):
+
+![check --fail-on: the exit status CI reads](images/meta-source-fail-on.gif)
+
 ## What `check` finds
 
 | Finding | Severity |
