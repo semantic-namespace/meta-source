@@ -421,6 +421,55 @@ clj-kondo's analysis (blaze), unread trees making links uncertain (tubo).
 Not read: routes built by `:expand` or other fns, a route `:name` written as
 a symbol naming a def, and the compiled router, which a snapshot could give.
 
+## A database's attributes: the Datascript pack
+
+```clojure
+:datascript {:schemas ["resources/schema.edn"]}   ; EDN schema files, if any
+```
+
+A schema is read where it is written: a map of attribute to properties
+(`{:user/orders {:db/valueType :db.type/ref ...}}`) or a vector of attribute
+maps with `:db/ident` (Datomic's form), in any `def` holding one (schemas
+split across migrations, or passed from another namespace, are each read
+where they are defined), in a `datascript.core` call (`create-conn`,
+`empty-db`, `init-db`, `conn-from-datoms`, `conn-from-db`), or in the EDN files
+`:schemas` names. Each attribute is a data key, whatever else describes it:
+
+```clojure
+:user/orders #:datascript{:value-type :db.type/ref :cardinality :db.cardinality/many}
+```
+
+`meta-source data :user/name` gives its Datascript shape (`many`) beside its
+spec (`string?`). A pull pattern written as data (`d/pull`, `d/pull-many`,
+and `(pull ?e [...])` in a quoted `d/q` query) refers to the attributes it
+joins on and reads in reverse; a lookup ref `[:attr v]` as an entity id
+(`d/entity`, `d/pull`) to the attribute it looks up. `check` adds, where
+Datascript goes wrong at runtime:
+
+- `:pull-join-not-ref` (warning): a join `{:attr [...]}` on an attribute that
+  isn't a ref: Datascript returns its value and ignores the subpattern;
+- `:reverse-not-ref` (warning): `:ns/_attr` on an attribute that isn't a ref,
+  which Datascript refuses;
+- `:lookup-ref-not-unique` (warning): a lookup ref on an attribute that isn't
+  `:db/unique`, which Datascript refuses;
+- `:schema-disagrees` (warning): an attribute that is many, or a ref, in the
+  Datascript schema and one plain value (`string?`, `:int`...) in its spec or
+  malli schema.
+
+Each is info, with `:in-no-schema`, when no schema read gives the attribute
+(it may be in one built in code), and none is reported when no schema was
+read.
+
+| | Read | Found |
+|---|---|---|
+| [athens](https://github.com/athensresearch/athens) | 17 attributes from three migration schemas; 14 joins, 11 reverse reads, 7 lookup refs | nothing: every join and reverse read is on a ref, every lookup ref on a unique attribute |
+| [zetawar](https://github.com/Zetawar/zetawar) | 38 attributes, a schema passed from another namespace | nothing; no pull written as data |
+| [datascript-chat](https://github.com/tonsky/datascript-chat) | 3 attributes | nothing |
+
+Not read: patterns and queries held in vars or built in code, a project's
+own wrappers around `d/pull`, and Datomic's peer and client APIs (its schema
+files are read).
+
 ## One id, two packs
 
 Data keys are global: a spec and a malli schema shaping `:user/email` are one

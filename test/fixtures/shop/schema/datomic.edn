@@ -1,0 +1,4 @@
+[{:db/ident :product/sku
+  :db/valueType :db.type/string
+  :db/unique :db.unique/identity
+  :db/doc "A product's stock-keeping unit"}]
