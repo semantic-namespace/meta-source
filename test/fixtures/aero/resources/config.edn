@@ -1,0 +1,16 @@
+{:db {:url #or [#env DB_URL "jdbc:postgresql://localhost/app"]
+      ;; "ten" is no number
+      :pool #long #or [#env DB_POOL "ten"]}
+ :api-key #env API_KEY
+ ;; PRIMARY_ID falls back to SECONDARY_ID, which has no default
+ :client-id #or [#env PRIMARY_ID #env SECONDARY_ID]
+ :secrets #include ".secrets.edn"
+ :categories #include "categories.edn"
+ :lost #include "nowhere.edn"
+ ;; read with :prod and :test: :dev and :staging are never read, and both read nil
+ :ttl #profile {:dev 10 :staging 20}
+ :timeout #profile {:default 5 :test 1}
+ :db-url #ref [:db :url]
+ :broken #ref [:db :host]
+ :handler #ig/ref :app/handler
+ :every #duration "5m"}

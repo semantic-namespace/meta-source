@@ -29,6 +29,8 @@ Output is EDN, or JSON with `--json`.
 | two vars carry the same meta key value | error |
 | an integrant ref no config defines | warning |
 | a link to a reitit route name nothing defines; a route handler its namespace doesn't define | warning |
+| an aero `#include` not found, a tag with no reader, a `#profile` reading nil, a `#ref` to nothing, a number reader over a non-number | warning |
+| an environment variable read with no default that no deployment file sets; a `#profile` branch no profile reads | info |
 | a Datascript pull joining or reading in reverse on a non-ref, a lookup ref on a non-unique attribute, an attribute whose spec disagrees | warning |
 | a re-frame dispatch or subscription to an id nothing registers | warning |
 | one id declared by two packs (a resolver and a component sharing a keyword) | warning |
