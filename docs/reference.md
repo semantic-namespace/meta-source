@@ -141,6 +141,8 @@ them. A condition is a map, and every key in it must hold:
 | `:referenced-by {:k q}` | the entities whose `:k` names it: `{:referenced-by {:vp/pattern {:some {:has :kind/vp}}}}` |
 | `:resolves :k` (or a vector) | everything its `:k` names is an entity some source defines; what doesn't is named |
 
+![Rules about one property, :resolves and :refs, in Emacs](images/meta-source-rule-refs.gif)
+
 Rules see every source at once: a fact from EDN (`:data/privacy`), a pack's
 (`:integrant/init-key`), and the relations between them. A violation is a
 `:rule-violated` finding at the entity, with the rule's `:doc`, its id and
