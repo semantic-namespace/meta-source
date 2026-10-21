@@ -130,6 +130,9 @@
 ;;                          and their source is the id's primary definition
 ;;   :pack/dataflow         {:consumes [k ...] :produces [k ...]}: entry keys
 ;;                          that list data keys
+;;   :pack/dataflow-of      (fn [entries]) → the same, derived from what was
+;;                          read ({id entry}): atlas's ontologies declare
+;;                          their context and response keys
 ;;   :pack/find             (fn [analysis opts]) → sites, each {:filename :row
 ;;                          :name-row :name-col ...} found in clj-kondo's
 ;;                          analysis; name-row/name-col is the symbol right
@@ -249,12 +252,15 @@
 
 (defn- dataflow
   "Which entry keys list consumed and produced data keys: meta-source.edn's
-   :dataflow, plus what each enabled pack declares."
-  [config packs]
+   :dataflow, plus what each enabled pack declares, plus what each pack's
+   :pack/dataflow-of derives from `entities` ({id entry}), as atlas's reads
+   it from the project's ontologies."
+  [config packs entities]
   (apply merge-with (comp vec distinct concat)
          {:consumes [] :produces []}
          (:dataflow config)
-         (keep :pack/dataflow packs)))
+         (concat (keep :pack/dataflow packs)
+                 (for [p packs :let [f (:pack/dataflow-of p)] :when f] (f entities)))))
 
 (defn- snapshot-file
   "Where `pack`'s runtime snapshot is: its :snapshot option, or
@@ -551,7 +557,7 @@
      :rules (:rules rules-read)
      :rules-problems (:problems rules-read)
      :packs packs
-     :dataflow (dataflow config packs)
+     :dataflow (dataflow config packs (update-vals static :entry))
      :stamps stamps
      :edn-stamps edn-stamps
      :edn edn

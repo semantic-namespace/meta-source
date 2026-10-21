@@ -80,6 +80,14 @@
 (def describing-pack (notes-pack true))
 (def declaring-pack (notes-pack false))
 
+(def flow-pack
+  "A pack deriving dataflow from what was read: an entry with :flow/in-key
+   names the key that lists what an entity type consumes, as atlas's
+   ontologies name :dataflow/context-key."
+  {:pack/id :flow :pack/kinds #{:flow}
+   :pack/find (fn [_ _] []) :pack/read (fn [_ _ _] [])
+   :pack/dataflow-of (fn [entries] {:consumes (vec (keep :flow/in-key (vals entries)))})})
+
 (defn- problems [idx problem]
   (filter #(= problem (:problem %)) (index/check idx)))
 
@@ -555,6 +563,15 @@
                (and (= [:spec/form] (map :key (problems ci :conflicting-values)))
                     (= #{["string?" "src/app/a.clj"] ["uuid?" "src/app/b.clj"]}
                        (set (map (juxt :form :file) (:shape (index/data-key ci :user/id))))))))
+      (fs/delete-tree dir))
+
+    ;; ---- dataflow a pack derives from what was read
+    (let [dir (str (fs/create-temp-dir))]
+      (fs/create-dirs (str dir "/registry"))
+      (spit (str dir "/registry/r.edn") "{:ont/widget {:flow/in-key :widget/takes}\n :fn/w {:widget/takes [:user/id]}}")
+      (let [fi (index/build {:root dir :src [] :registry ["registry"] :packs {'smoke/flow-pack {}}})]
+        (check "a pack's :pack/dataflow-of: a key an ontology entry names lists what its entities consume"
+               (= [:fn/w] (map :dev-id (:consumers (index/data-key fi :user/id))))))
       (fs/delete-tree dir))
 
     ;; ---- a pack that describes what others declare
