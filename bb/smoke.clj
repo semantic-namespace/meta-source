@@ -54,6 +54,16 @@
                                  (select-keys u [:filename :row :name-row :name-col])))
    :pack/read (fn [_ _ _] (throw (ex-info "boom" {})))})
 
+(def tagged-pack
+  "A pack whose library links vars with its own meta key, :app/id, and
+   reports a var it links that nothing else describes."
+  {:pack/id :tagged :pack/kinds #{:tagged} :pack/id-key :app/id
+   :pack/find (fn [_ _] []) :pack/read (fn [_ _ _] [])
+   :pack/checks (fn [{:keys [entities linked-by loc impl]}]
+                  (for [[id e] (sort-by key entities)
+                        :when (and (every? #(= :binding (:kind %)) (:definitions e)) (= :tagged (linked-by id)))]
+                    {:severity :error :problem :tagged-without-entry :dev-id id :impl (impl id) :definition (loc e)}))})
+
 (defn- problems [idx problem]
   (filter #(= problem (:problem %)) (index/check idx)))
 
@@ -492,6 +502,20 @@
       (let [after (build)]
         (check "the config edited: the cached analysis is not reused"
                (and (pos? (:analysed after)) (nil? (show after)))))
+      (fs/delete-tree dir))
+
+    ;; ---- a pack's own meta key
+    (let [dir (str (fs/create-temp-dir))]
+      (fs/create-dirs (str dir "/src/app")) (fs/create-dirs (str dir "/registry"))
+      (spit (str dir "/src/app/core.clj")
+            "(ns app.core)\n(defn ^{:app/id :x/linked} linked [x] x)\n(defn ^{:app/id :x/bare} bare [x] x)\n(defn ^{:meta-source/id :x/plain} plain [x] x)\n")
+      (spit (str dir "/registry/x.edn") "{:x/linked {:x/doc \"described\"}}")
+      (let [ti (index/build {:root dir :src ["src"] :registry ["registry"] :packs {'smoke/tagged-pack {}}})]
+        (check "a pack's :pack/id-key links a var with no :id-key configured"
+               (= 'app.core/linked (:var (:impl (index/where ti :x/linked)))))
+        (check "a var a pack's key links with no source is the pack's to report, not :binding-only"
+               (and (= [:x/bare] (map :dev-id (problems ti :tagged-without-entry)))
+                    (= [:x/plain] (map :dev-id (problems ti :binding-only))))))
       (fs/delete-tree dir))
 
     ;; ---- serve: what the editor talks to, with meta-source.edn edited while it runs

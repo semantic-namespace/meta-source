@@ -31,7 +31,7 @@
 
 (def ^:private bb? (some? (System/getProperty "babashka.version")))
 
-(def cache-version 3)
+(def cache-version 4)
 
 (def default-id-key
   "The meta key a plain var carries to say which id it implements. A
@@ -142,10 +142,12 @@
 ;;                          the id, as the meta key does (an s/fdef's)
 ;;   :pack/checks           (fn [view]) → problems; view is {:entities
 ;;                          :of-kinds :data-key? :loc :flow :opts
-;;                          :var-defined? :not-read}: var-defined? true or
+;;                          :var-defined? :not-read :impl :linked-by}: var-defined? true or
 ;;                          false for a qualified symbol in a namespace the
 ;;                          analysis read, nil for one it didn't; not-read,
-;;                          how many forms of a kind couldn't be read
+;;                          how many forms of a kind couldn't be read; impl,
+;;                          where the var implementing an id is, or nil;
+;;                          linked-by, the pack whose :pack/id-key linked it
 ;;   :pack/inline-data-keys (fn [entities]) → data keys its entities define
 ;;                          inline, with no entity of their own
 ;;   :pack/shape            (fn [entry kind]) → a data key's shape, as text
@@ -162,10 +164,17 @@
 ;;                          reads them with each key's line)
 ;;   :pack/runtime-fill     (fn [entry runtime]) → entry with what static reading
 ;;                          couldn't read taken from the running process's entry
+;;   :pack/id-key           its library's meta key linking a var to an id
+;;                          (atlas's :atlas.source/id), read as :id-key is: a
+;;                          var it links with no source is the pack's to
+;;                          report, not :binding-only
 ;;   :pack/var-meta         meta keys whose values clj-kondo's analysis gives on
 ;;                          each var definition (:meta), for :pack/find
 ;;   :pack/kondo-config     clj-kondo config the analysis adds ({:lint-as ...}),
 ;;                          as the library's own exported config would
+;;   :pack/runtime-kinds    the source kinds its snapshot is compared with,
+;;                          default its own: atlas's include :edn, its
+;;                          registry files being its declarations
 ;;   :pack/runtime-diff     (fn [entry runtime]) → where code and the running
 ;;                          process disagree, or nil
 ;;
@@ -308,8 +317,9 @@
 (defn- analyse-code
   "{file {:vars [..] :calls [..] :keywords [..] :pack-results {pack-id [..]}}}
    for `files`, the parts of clj-kondo's analysis the index uses, and what
-   each enabled pack reads there. A var carrying `id-key` in its meta gets
-   that :dev-id. clj-kondo reads the project's own .clj-kondo config under
+   each enabled pack reads there. A var carrying `id-key`, or an enabled
+   pack's :pack/id-key, in its meta gets that :dev-id; with a pack's, it is
+   :linked-by-pack that pack. clj-kondo reads the project's own .clj-kondo config under
    `root` (its :lint-as and hooks, the configs it imports), as the editor's
    clj-kondo does, wherever meta-source runs from: macros the project
    teaches clj-kondo are analysed as what they define."
@@ -321,14 +331,18 @@
                                                                   (apply merge-with merge (keep :pack/kondo-config packs))
                                                                   {:output {:canonical-paths true}
                                                                    :linters ^:replace {}
-                                                                   :analysis {:var-definitions {:meta (vec (distinct (cons id-key (mapcat :pack/var-meta packs))))}
+                                                                   :analysis {:var-definitions {:meta (vec (distinct (concat [id-key] (keep :pack/id-key packs) (mapcat :pack/var-meta packs))))}
                                                                               :keywords true}})}
                                        (kondo-config-dir root) (assoc :config-dir (kondo-config-dir root))))
           by-file (fn [k xf] (group-by :filename (into [] xf (get analysis k))))
+          ;; the project's meta key, and each pack's own (atlas's :atlas.source/id)
+          pack-keys (into {} (for [p packs :let [k (:pack/id-key p)] :when k] [k (:pack/id p)]))
           vars (by-file :var-definitions
                         (map (fn [{:keys [meta] :as d}]
-                               (cond-> (select-keys d [:filename :ns :name :row :end-row :private :defined-by])
-                                 (get meta id-key) (assoc :dev-id (get meta id-key))))))
+                               (let [k (first (filter #(get meta %) (cons id-key (keys pack-keys))))]
+                                 (cond-> (select-keys d [:filename :ns :name :row :end-row :private :defined-by])
+                                   k (assoc :dev-id (get meta k))
+                                   (pack-keys k) (assoc :linked-by-pack (pack-keys k)))))))
           calls (by-file :var-usages
                          (comp (filter :from-var)
                                (map #(select-keys % [:filename :from :from-var :to :name :row :col :end-row :end-col]))))
@@ -800,8 +814,9 @@
         :let [pack (first (filter #(= pack-id (:pack/id %)) (:packs idx)))
               diff (:pack/runtime-diff pack)
               snapshot (relative (:root idx) (:file snap))]
+        :let [compared (or (:pack/runtime-kinds pack) #{kind})]
         [id e] (sort-by key (:entities idx))
-        :let [code-defs (filter #(and (= kind (:kind %)) (not (:runtime %))) (:definitions e))
+        :let [code-defs (filter #(and (compared (:kind %)) (not (:runtime %))) (:definitions e))
               runtime (:runtime e)]
         p (cond
             (and (seq code-defs) (not (contains? ids id)))
@@ -833,6 +848,10 @@
               :flow #(contract-keys idx %)
               ;; true or false for a var in a namespace the analysis read, nil otherwise
               :var-defined? #(when (nses (namespace %)) (contains? vars %))
+              ;; where the var implementing an id is, or nil
+              :impl #(some->> (impl-of idx %) (loc idx))
+              ;; the pack whose :pack/id-key linked that var, or nil
+              :linked-by #(:linked-by-pack (impl-of idx %))
               ;; how many forms of a kind a pack found and couldn't read
               :not-read (let [n (frequencies (for [{:keys [pack-results]} (vals (:code idx)) [_ rs] pack-results r rs :when (:skipped r)] (:kind r)))]
                           #(get n % 0))}]
@@ -879,9 +898,11 @@
           (for [p (:read-problems idx)] (assoc p :severity :error))
           (for [[id vs] linked :when (> (count vs) 1)]
             {:severity :error :problem :dev-id-on-several-vars :dev-id id :vars (mapv #(loc idx %) vs)})
-          ;; identity declared, nothing said about it yet: valid
+          ;; identity declared, nothing said about it yet: valid, unless a
+          ;; pack's own meta key linked it, which makes it that pack's to report
           (for [[id e] (sort-by key (:entities idx))
-                :when (every? #(= :binding (:kind %)) (:definitions e))]
+                :when (and (every? #(= :binding (:kind %)) (:definitions e))
+                           (not (:linked-by-pack (impl-of idx id))))]
             {:severity :info :problem :binding-only :dev-id id :impl (loc idx (impl-of idx id))})
           (undeclared-calls idx)
           (keys-outside-contract idx)
