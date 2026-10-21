@@ -107,6 +107,10 @@ rules, written as data in EDN files that `:rules` in `meta-source.edn` names:
   :require [{:has :integrant/halt-key!}]}}
 ```
 
+A pack can give rules too, derived from what it read (`:pack/rules-of`, see
+[packs](packs.md)): atlas's takes the ones a project's invariants carry as
+data. They are checked with the project's own.
+
 `:when` selects entities; each `:require` condition must hold on every one of
 them. A condition is a map, and every key in it must hold:
 
