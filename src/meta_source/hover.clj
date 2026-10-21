@@ -260,6 +260,11 @@
            :cofx-not-registered (str "no reg-cofx registers " id)
            :event-never-dispatched (str "nothing dispatches " id)
            :sub-never-subscribed (str "nothing subscribes to " id)
+           :transition-to-no-state (str id ": " (pr-str (:state p)) " on " (pr-str (:on p)) " goes to " (pr-str (:to p))
+                                        ", which is no state of it")
+           :initial-state-not-a-state (str id " starts at " (pr-str (:to p)) ", which is no state of it")
+           :state-defined-twice (str id " defines the state " (pr-str (:state p)) " twice: tilakone takes the first")
+           :state-unreachable (str (pr-str (:state p)) " is not reached from " (pr-str (:from p)) " by " id "'s transitions")
            (str (name (:problem p)) (when id (str " " id)) (when (seq (:keys p)) (str " " ks))
                 (when (:reason p) (str ": " (:reason p))) (when (:message p) (str ": " (:message p))))))))
 

@@ -161,7 +161,8 @@ library's imported config) is read as what it defines.
   handlers, inherited middleware, the keys their parameters take, links to
   route names), **Datascript** (attributes from schemas and Datomic-style
   schema files, the pulls and lookup refs that need them to be refs or
-  unique), and **your own**: a pack is one map.
+  unique), **tilakone** (state machines, their states and transitions, a
+  transition to no state), and **your own**: a pack is one map.
   [docs/packs.md](docs/packs.md)
 - **Facts merge per keyword.** A file says things about an id; it doesn't
   own it. An EDN file can add `:data/privacy :pii` to a key a spec defines.

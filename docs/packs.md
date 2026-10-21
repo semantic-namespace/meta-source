@@ -523,6 +523,45 @@ Not read: patterns and queries held in vars or built in code, a project's
 own wrappers around `d/pull`, and Datomic's peer and client APIs (its schema
 files are read).
 
+## State machines: the tilakone pack
+
+```clojure
+:tilakone {}
+```
+
+A [tilakone](https://github.com/metosin/tilakone) machine is read where it is
+written: a map with `::tk/states` in a `def` or `defn`, the value or anywhere
+in it. Nothing is loaded or run. The machine is an entity keyed by its var
+(`:shop.order/fsm`; several in one def by their place, `:shop.order/fsm.2`):
+
+```clojure
+#:tilakone{:states [:shop.order/cart :shop.order/paying ...]
+           :initial :shop.order/cart
+           :transitions [[:shop.order/cart :shop.order/checkout :shop.order/paying] ...]}
+```
+
+Each state is an entity too, under its name, from every machine that has it:
+`:tilakone/machines`, the signals it has transitions `:tilakone/on` (tilakone's
+`_` as `:tilakone/any`) and the states it goes `:tilakone/to`. So `uses` on a
+state lists the states that go to it and its machines. The pack describes its
+states, as atlas describes an integrant key: a state is often another
+registry's id (a workflow step, an error spec), whose declaration stays
+primary.
+
+`check` adds:
+
+- `:transition-to-no-state` (error): a transition's `:to` names no state of
+  its machine, at the transition. tilakone throws when that signal is
+  applied;
+- `:initial-state-not-a-state` (error): the machine's `::tk/state` is none of
+  its states;
+- `:state-defined-twice` (error): two states of one machine share a name;
+- `:state-unreachable` (info): no transition from the initial state leads to
+  it. Code that sets the state directly may still enter it.
+
+Not read: a state whose name is code (a template machine), reported as not
+read; transitions added at runtime; guards and actions, which are fns.
+
 ## One id, two packs
 
 Data keys are global: a spec and a malli schema shaping `:user/email` are one
