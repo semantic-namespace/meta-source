@@ -270,6 +270,59 @@ Those systems shaped the pack. Each of these was found on one of them:
 - `derive` used to share an `init-key`;
 - a `:refer` of a pack's macro.
 
+## A config's environment and includes: the aero pack
+
+```clojure
+:aero {:configs ["resources/config.edn" "resources/app"]  ; files, or dirs of .edn
+       :profiles [:prod]                    ; the profiles the code reads them with
+       :resource-paths ["resources"]        ; where #include looks (the default)
+       :provided [".secrets.edn"]           ; includes something else supplies
+       :env-sources ["deploy/main.tf" "docker-compose.yml"]}  ; where env vars are set
+```
+
+aero config files are read as data, their tags kept, and nothing is read
+from the environment. The integrant pack can read the same files for their
+components; the aero pack reads what they depend on:
+
+- **Environment variables.** Each `#env` gives an entity per variable,
+  `:env/DB_URL`: `:aero/defaults` (the literal after it in an `#or`),
+  `:aero/required` (some use has no default), `:aero/coerced` (`#long`,
+  `#double`, `#integer`, `#keyword`, `#boolean` around it), and, with
+  `:env-sources`, `:aero/set-in-deploy`. In `#or [#env A #env B]`, A falls
+  back to B; only an `#env` with nothing after it is required. Each place a
+  variable is read is a source: `meta-source where :env/DB_URL` lists them.
+- **Includes**, resolved as aero's adaptive resolver does (the resource
+  paths, then beside the file), or at the project root, as a root resolver
+  or a map of names to paths does.
+- **Tags**, against the readers that exist: aero's own, Clojure's, and each
+  `(defmethod aero.core/reader 'tag ...)` in the code read.
+- **`#profile` branches, `#ref` paths, and number readers over literals.**
+
+`check` adds:
+
+| Finding | Severity | Because |
+|---|---|---|
+| `:include-not-found` | warning | aero reads a missing include as `{:aero/missing-include ...}` and carries on |
+| `:tag-without-reader` | warning | reading the config throws `No reader for tag` |
+| `:profile-without-branch` | warning | a `#profile` with no `:default` and no branch for one of `:profiles` reads nil |
+| `:ref-to-nothing` | warning | a `#ref` to a path the config doesn't hold |
+| `:not-a-number` | warning | `#long`, `#double` or `#integer` over a literal or default that isn't a number |
+| `:profile-never-read` | info | a `#profile` branch none of `:profiles` names: no read sees it |
+| `:env-not-set` | info | a variable read with no default that no `:env-sources` file names; it may be set elsewhere (a secret store, the console), so it is a list to check |
+
+`:env-sources` is a presence check: every identifier written in those files
+(Terraform, docker-compose, a `.env`) counts as set.
+
+On a production app (read, never run): 839 forms across 19 config files, 72
+environment variables, 50 of them required somewhere. Its custom
+`#ig/ref` and `#integer` readers were found in its code. Two required
+variables are named in no deployment file, its Terraform and docker-compose:
+one its code expects to be absent, one to look at. Making it read cleanly
+taught the pack `#or` fallback chains and includes resolved from the root.
+
+Not read: `#merge`, `#join` and `#read-edn` contents, `#hostname` and
+`#user` cases, and readers registered through `data_readers.clj`.
+
 ## Events and subscriptions: the re-frame pack
 
 ```clojure

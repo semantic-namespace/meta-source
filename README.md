@@ -148,7 +148,9 @@ library's imported config) is read as what it defines.
 
 ## How it works
 
-- **Packs** read one library's registry each: **integrant** (components,
+- **Packs** read one library's registry each: **aero** (the environment
+  variables a config needs and which deployment sets them, includes,
+  profiles, tags with no reader), **integrant** (components,
   refs, composite keys, `#env`, variant configs, duct profiles,
   `defmethod`s, `derive`), **clojure.spec and malli** (data keys and their
   shapes), **Pathom 3 and 2** (resolvers and mutations, inputs and outputs,
@@ -198,8 +200,8 @@ cross-reference, and it keeps the cross-reference true.
 
 ## Status
 
-Working today: the integrant, spec/malli (with `s/fdef` and `m/=>`), Pathom,
-re-frame, reitit and Datascript packs, `check`, the queries, the Emacs
+Working today: the integrant, aero, spec/malli (with `s/fdef` and `m/=>`),
+Pathom, re-frame, reitit and Datascript packs, `check`, the queries, the Emacs
 package, a project's own packs, and a project's own rules. Next: snapshots of
 the running system for every pack, and a pinned corpus of real apps checked
 in CI.

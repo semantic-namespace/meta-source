@@ -1,0 +1,6 @@
+;; An aero config: its environment, includes, profiles, refs and tags.
+{:src ["src"]
+ :packs {:aero {:configs ["resources/config.edn"]
+                :profiles [:prod :test]
+                :provided [".secrets.edn"]
+                :env-sources ["deploy/main.tf"]}}}

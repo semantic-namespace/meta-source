@@ -19,6 +19,7 @@
             [clojure.java.io :as io]
             [clojure.string :as str]
             [meta-source.merge :as merge]
+            [meta-source.pack.aero :as aero]
             [meta-source.pack.datascript :as datascript]
             [meta-source.pack.fn-schema :as fn-schema]
             [meta-source.pack.integrant :as integrant]
@@ -184,11 +185,12 @@
 ;; index reads it beside the code: it fills what static reading couldn't
 ;; read, adds what only the process has, and checks where they disagree.
 ;;
-;; `opts` is meta-source.edn's :packs map. What :pack/read returns is
+;; `opts` is meta-source.edn's :packs map, with the project's root (a
+;; canonical path) as :meta-source/root. What :pack/read returns is
 ;; cached per file, so it must be data. A pack needs :pack/find and
 ;; :pack/read, or :pack/data-files and :pack/read-data, or both.
 
-(def builtin-packs [schema/pack fn-schema/pack datascript/pack pathom/pack integrant/pack re-frame/pack reitit/pack])
+(def builtin-packs [schema/pack fn-schema/pack datascript/pack pathom/pack integrant/pack aero/pack re-frame/pack reitit/pack])
 
 (defn enabled-packs
   "The packs `packs-config` (meta-source.edn's :packs) enables: each
@@ -206,6 +208,12 @@
     (when-let [dup (seq (for [[k n] (frequencies (mapcat :pack/kinds ps)) :when (> n 1)] k))]
       (throw (ex-info "Two packs give sources of the same kind" {:kinds (vec dup)})))
     ps))
+
+(defn- pack-opts
+  "What a pack is given as `opts`: meta-source.edn's :packs map, with the
+   project's root as :meta-source/root."
+  [config]
+  (assoc (:packs config) :meta-source/root (:root config)))
 
 (defn- read-packs
   "{pack-id [result ...]} for `file`: each pack's :pack/read over its sites
@@ -449,7 +457,7 @@
   (let [fresh? #(and (= (stamps %) (get-in cached [:stamps %])) (contains? (:code cached) %))
         stale (remove fresh? src-files)
         code (merge (select-keys (:code cached) (filter fresh? src-files))
-                    (analyse-code root stale packs (:packs config) (:id-key config)))
+                    (analyse-code root stale packs (pack-opts config) (:id-key config)))
         ;; registry files: re-read only the ones that changed
         edn (into {} (for [f edn-files]
                        [f (if (= (edn-stamps f) (get-in cached [:edn-stamps f]))
@@ -460,7 +468,7 @@
         ;; packs reading data files: all of a pack's files at once
         data-results (vec (for [[p files] data-files
                                 :let [fs (vec (for [f files] {:file f :path (relative root f) :text (slurp f)}))]
-                                r (try ((:pack/read-data p) fs (:packs config))
+                                r (try ((:pack/read-data p) fs (pack-opts config))
                                        (catch Exception ex
                                          [{:file (first files) :row 1 :kind (first (sort (:pack/kinds p)))
                                            :skipped (str "the pack failed reading its files: " (ex-message ex))}]))]
@@ -841,7 +849,7 @@
   (let [vars (into #{} (map #(symbol (str (:ns %)) (str (:name %)))) (all-vars idx))
         nses (into #{} (map #(str (:ns %))) (all-vars idx))
         view {:entities (:entities idx)
-              :opts (get-in idx [:config :packs])
+              :opts (pack-opts (:config idx))
               :of-kinds #(of-kinds idx %)
               :data-key? #(data-key? idx %)
               :loc #(loc idx %)
