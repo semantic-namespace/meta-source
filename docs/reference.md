@@ -111,6 +111,8 @@ A pack can give rules too, derived from what it read (`:pack/rules-of`, see
 [packs](packs.md)): atlas's takes the ones a project's invariants carry as
 data. They are checked with the project's own.
 
+![A pack's rules, from atlas's invariants and the project's own, in Emacs](images/meta-source-pack-rules.gif)
+
 `:when` selects entities; each `:require` condition must hold on every one of
 them. A condition is a map, and every key in it must hold:
 
