@@ -3,7 +3,7 @@
    bbin. Runs under babashka (cheshire, and clj-kondo as a pod).
 
    meta-source <command> [args] [--root dir] [--registry dir]... [--src dir]...
-               [--json] [--brief] [--no-cache]
+               [--json] [--brief] [--no-cache] [--fail-on error|warning|info]
 
    Answers from the project's files, nothing loaded or run. Settings come
    from the flags, or from <root>/meta-source.edn:
@@ -33,7 +33,8 @@
   uses <id>           entries that name it, and code that calls its var
   deps <id>           entities its entry names
   data <data-key>     entities producing and consuming the key
-  check               where code and registry files disagree (--brief: one line each)
+  check               where code and registry files disagree (--brief: one line each;
+                      --fail-on error: exit 1 when a problem is that severe or more, as CI wants)
   summary             counts, coverage, files re-analysed by this call
   hover <keyword>     what an editor shows for a keyword: eldoc line, describe text, locations
   diagnostics <file>  check's problems in one file, with the line and columns to underline
@@ -51,6 +52,7 @@
       (= a "--json") (recur more (assoc opts :json true))
       (= a "--no-cache") (recur more (assoc opts :no-cache true))
       (= a "--brief") (recur more (assoc opts :brief true))
+      (= a "--fail-on") (recur (rest more) (assoc opts :fail-on (first more)))
       :else (recur more (update opts :positional conj a)))))
 
 (defn- add-deps!
@@ -119,9 +121,20 @@
          (binding [*out* *err*] (println (str "meta-source: " (ex-message ex))))
          (System/exit 1))))
 
+(def ^:private severity-rank {:info 0 :warning 1 :error 2})
+
+(defn failing
+  "The problems as severe as `fail-on` (\"error\", \"warning\", \"info\") or more."
+  [problems fail-on]
+  (let [floor (or (severity-rank (keyword fail-on))
+                  (throw (ex-info (str "--fail-on takes error, warning or info, not " (pr-str fail-on)) {})))]
+    (filter #(>= (severity-rank (:severity %) 0) floor) problems)))
+
 (defn- main [& args]
   (let [{[cmd arg] :positional :as opts} (parse args)
         idx (delay (index/build (config opts)))
+        ;; checked before any output, so a bad value fails fast
+        fail-on (when (:fail-on opts) (failing [] (:fail-on opts)) (:fail-on opts))
         out (case cmd
               "where" (or (index/where @idx (kw arg)) {:not-found (kw arg)})
               "uses" (index/uses @idx (kw arg))
@@ -136,4 +149,10 @@
     (cond
       (:json opts) (println (json/generate-string out {:pretty true}))
       (and (:brief opts) (= cmd "check")) (run! println out)
-      :else (pp/pprint out))))
+      :else (pp/pprint out))
+    (when (and fail-on (= cmd "check"))
+      (let [n (count (failing (index/check @idx) fail-on))]
+        (when (pos? n)
+          (binding [*out* *err*]
+            (println (str "meta-source: " n " problem(s) at " fail-on " or above")))
+          (System/exit 1))))))

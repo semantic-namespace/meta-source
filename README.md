@@ -116,6 +116,7 @@ Then, at your project's root:
 
 ```sh
 meta-source check --brief      # where your declarations disagree
+meta-source check --brief --fail-on error   # in CI: exit 1 on an error
 meta-source uses :app/db       # what refers to it, and what calls its var
 meta-source data :user/email   # a data key's shape, producers and consumers
 ```
