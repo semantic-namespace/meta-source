@@ -28,6 +28,11 @@
      :consumers, :producers    a data key's consumers or producers,
      :deps, :used-by           what its entry names, or what names it:
                                {:all cond}, {:some cond} or {:none cond}
+     :refs {:k q}              what its entry's :k names, q as above:
+                               {:refs {:fn/deps {:all {:has :tier/x}}}}
+     :referenced-by {:k q}     the entities whose :k names it
+     :resolves :k or [:k ...]  everything its entry's :k names is an
+                               entity some source defines
 
    :when selects the entities; each :require condition is checked on every
    one of them. A rule that fails on an entity is a :rule-violated finding
@@ -36,7 +41,9 @@
 
 (def ^:private relations #{:consumers :producers :deps :used-by})
 (def ^:private quantifiers #{:all :some :none})
-(def ^:private condition-keys (into #{:kind :has :missing := :in :matches :id-ns :data-key :not :or} relations))
+(def ^:private property-relations #{:refs :referenced-by})
+(def ^:private condition-keys
+  (into #{:kind :has :missing := :in :matches :id-ns :data-key :not :or :resolves} (concat relations property-relations)))
 
 (defn- many [x] (if (or (sequential? x) (set? x)) x [x]))
 
@@ -45,6 +52,16 @@
    [:reitit/data :require-privilege]."
   [entry k]
   (if (vector? k) (get-in entry k) (get entry k)))
+
+(defn names
+  "The ids `entry`'s `k` names: the qualified keywords in its value, a
+   keyword or a collection of them, nested (a map's values, not its keys)."
+  [entry k]
+  (letfn [(walk [x] (cond (qualified-keyword? x) [x]
+                          (map? x) (mapcat walk (vals x))
+                          (coll? x) (mapcat walk x)
+                          :else []))]
+    (vec (distinct (walk (at entry k))))))
 
 (defn- holds-value? [v want]
   (or (= v want) (and (coll? v) (some #{want} v))))
@@ -67,6 +84,19 @@
                  (problems-in (val (first q)))
                  [(str (pr-str r) " takes {:all cond}, {:some cond} or {:none cond}")]))]
        p)
+     (for [r property-relations :when (contains? c r)
+           p (let [m (get c r)]
+               (if (and (map? m) (seq m))
+                 (for [[k q] m
+                       p (if (and (map? q) (= 1 (count q)) (quantifiers (key (first q))))
+                           (problems-in (val (first q)))
+                           [(str (pr-str r) " " (pr-str k) " takes {:all cond}, {:some cond} or {:none cond}")])]
+                   p)
+                 [(str (pr-str r) " takes {:key {:all cond}}, a key, and a clause on what it names")]))]
+       p)
+     (when (contains? c :resolves)
+       (when-not (every? keyword? (many (:resolves c)))
+         [":resolves takes a key or a vector of keys"]))
      (for [k [:= :in :matches] :when (and (contains? c k) (not (map? (get c k))))] (str (pr-str k) " takes a map"))
      (when (map? (:matches c))
        (for [[k re] (:matches c)
@@ -93,17 +123,46 @@
 
 (declare holds?)
 
-(defn- breakers
-  "For a relation clause {quantifier cond}: nil when it holds on `id`,
-   otherwise the related ids that break it (empty when :some found none)."
-  [view relation q id]
+(defn- quantified
+  "For {quantifier cond} over `ids`: nil when it holds, otherwise the ids
+   that break it (empty when :some found none)."
+  [view q ids]
   (let [[quantifier c] (first q)
-        ids (related view relation id)
         ok? #(holds? view c %)]
     (case quantifier
       :all (let [bad (vec (remove ok? ids))] (when (seq bad) bad))
       :none (let [bad (vec (filter ok? ids))] (when (seq bad) bad))
       :some (when-not (some ok? ids) []))))
+
+(defn- breakers
+  "For a relation clause {quantifier cond}: nil when it holds on `id`,
+   otherwise the related ids that break it (empty when :some found none)."
+  [view relation q id]
+  (quantified view q (related view relation id)))
+
+(defn- property-breakers
+  "For {:k {quantifier cond}} under :refs or :referenced-by: nil when every
+   key's clause holds on `id`, otherwise the ids that break them."
+  [view relation m id]
+  (let [entry (get-in view [:entities id :entry])
+        broken (for [[k q] m
+                     :let [ids (case relation
+                                 :refs (names entry k)
+                                 :referenced-by ((:referrers view) k id))
+                           b (quantified view q ids)]
+                     :when b]
+                 b)]
+    (when (seq broken) (vec (distinct (apply concat broken))))))
+
+(defn- unresolved
+  "The ids `id`'s entry names under the :resolves keys that no source
+   defines, or nil when there are none."
+  [view ks id]
+  (let [entry (get-in view [:entities id :entry])
+        bad (vec (distinct (for [k (many ks) n (names entry k)
+                                 :when (not (contains? (:entities view) n))]
+                             n)))]
+    (when (seq bad) bad)))
 
 (defn holds?
   "True when condition `c` holds on entity `id`."
@@ -124,6 +183,8 @@
                 :data-key (= (boolean v) (boolean ((:data-key? view) e)))
                 :not (not (holds? view v id))
                 :or (some #(holds? view % id) v)
+                :resolves (nil? (unresolved view v id))
+                (:refs :referenced-by) (nil? (property-breakers view k v id))
                 (nil? (breakers view k v id))))
             c)))
 
@@ -131,11 +192,14 @@
   "The :require clauses of `rule` that fail on `id`: [{:clause c :offenders [...]}]."
   [view rule id]
   (for [c (:require rule)
-        :let [rel (first (filter #(contains? c %) relations))
-              own (dissoc c :consumers :producers :deps :used-by)
+        :let [own (apply dissoc c :resolves (concat relations property-relations))
               own-fails? (and (seq own) (not (holds? view own id)))
-              broken (when rel (breakers view rel (get c rel) id))]
-        :when (or own-fails? broken)]
+              ;; each related clause: nil when it holds, else who breaks it
+              results (concat (for [r relations :when (contains? c r)] (breakers view r (get c r) id))
+                              (for [r property-relations :when (contains? c r)] (property-breakers view r (get c r) id))
+                              (when (contains? c :resolves) [(unresolved view (:resolves c) id)]))
+              broken (vec (distinct (apply concat (remove nil? results))))]
+        :when (or own-fails? (some some? results))]
     (cond-> {:clause c}
       (seq broken) (assoc :offenders broken))))
 
@@ -144,7 +208,11 @@
    :consumers :producers :deps :used-by (fn [id] → ids), :loc (fn [e])}.
    `rules` is [{:id :rule :file :line}]."
   [view rules]
-  (let [ids (sort (keys (:entities view)))]
+  (let [ids (sort (keys (:entities view)))
+        ;; {:k {id [ids whose :k names it]}}, built for a key when a rule asks
+        by-key (memoize (fn [k] (reduce (fn [m [from e]] (reduce #(update %1 %2 (fnil conj []) from) m (names (:entry e) k)))
+                                        {} (sort-by key (:entities view)))))
+        view (assoc view :referrers (fn [k id] (get (by-key k) id)))]
     (for [{:keys [id rule file line]} rules
           p (if-let [ps (seq (rule-problems rule))]
               [{:severity :error :problem :rule-not-understood :rule id :reasons (vec ps) :file file :line line}]

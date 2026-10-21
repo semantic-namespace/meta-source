@@ -589,6 +589,37 @@
       (check "--fail-on with an unknown severity is an error, not a pass"
              (try (cli/failing ps "fatal") false (catch clojure.lang.ExceptionInfo _ true))))
 
+    ;; ---- rules over one property: :refs, :referenced-by, :resolves
+    (let [dir (str (fs/create-temp-dir))]
+      (fs/create-dirs (str dir "/registry"))
+      (fs/create-dirs (str dir "/rules"))
+      (spit (str dir "/registry/r.edn")
+            (str "{:fn/pure {:kind/fn true :tag/pure true :fn/deps #{:db/main}}\n"
+                 " :fn/ok {:kind/fn true :tag/pure true :fn/calls [:db/main] :fn/deps #{:fn/helper}}\n"
+                 " :fn/helper {:kind/fn true}\n"
+                 " :db/main {:kind/component true}\n"
+                 " :fn/dangling {:kind/fn true :fn/deps #{:db/gone :db/main}}\n"
+                 " :pattern/used {:kind/pattern true}\n"
+                 " :pattern/unused {:kind/pattern true}\n"
+                 " :vp/a {:kind/vp true :vp/pattern :pattern/used}}"))
+      (spit (str dir "/rules/r.edn")
+            (str "{:r/pure-no-components {:when {:has :tag/pure} :require [{:refs {:fn/deps {:none {:has :kind/component}}}}]}\n"
+                 " :r/deps-resolve {:when {:has :kind/fn} :require [{:resolves :fn/deps}]}\n"
+                 " :r/pattern-used {:when {:has :kind/pattern} :require [{:referenced-by {:vp/pattern {:some {:has :kind/vp}}}}]}\n"
+                 " :r/bad {:when {:has :kind/fn} :require [{:refs {:fn/deps :oops}} {:resolves \"x\"}]}}"))
+      (let [ri (index/build {:root dir :src [] :registry ["registry"] :rules ["rules"]})
+            v (fn [rule] (set (for [p (problems ri :rule-violated) :when (= rule (:rule p))] [(:dev-id p) (:offenders p)])))]
+        (check ":refs: only what that property names, offenders named (:fn/ok names :db/main by :fn/calls, not :fn/deps)"
+               (= #{[:fn/pure [:db/main]]} (v :r/pure-no-components)))
+        (check ":resolves: a dep no source defines, named"
+               (= #{[:fn/dangling [:db/gone]]} (v :r/deps-resolve)))
+        (check ":referenced-by: a pattern no value proposition names through :vp/pattern"
+               (= #{[:pattern/unused nil]} (v :r/pattern-used)))
+        (check "a malformed :refs or :resolves is a rule not understood, saying why"
+               (= [[":refs :fn/deps takes {:all cond}, {:some cond} or {:none cond}" ":resolves takes a key or a vector of keys"]]
+                  (for [p (problems ri :rule-not-understood) :when (= :r/bad (:rule p))] (:reasons p)))))
+      (fs/delete-tree dir))
+
     ;; ---- rules a pack derives from what was read
     (let [dir (str (fs/create-temp-dir))]
       (fs/create-dirs (str dir "/registry"))

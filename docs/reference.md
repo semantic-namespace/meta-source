@@ -137,6 +137,9 @@ them. A condition is a map, and every key in it must hold:
 | `:consumers`, `:producers` | a data key's consumers or producers... |
 | `:deps`, `:used-by` | ...what its entry names, or what names it... |
 | | ...with `{:all cond}`, `{:some cond}` or `{:none cond}` |
+| `:refs {:k q}` | what its `:k` names (the qualified keywords in its value), `q` as above: `{:refs {:fn/deps {:none {:has :kind/component}}}}`. `:deps` follows every key; this, one |
+| `:referenced-by {:k q}` | the entities whose `:k` names it: `{:referenced-by {:vp/pattern {:some {:has :kind/vp}}}}` |
+| `:resolves :k` (or a vector) | everything its `:k` names is an entity some source defines; what doesn't is named |
 
 Rules see every source at once: a fact from EDN (`:data/privacy`), a pack's
 (`:integrant/init-key`), and the relations between them. A violation is a
