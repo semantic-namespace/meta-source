@@ -38,6 +38,8 @@ problem):
 | an aero `#include` not found, a tag with no reader, a `#profile` reading nil, a `#ref` to nothing, a number reader over a non-number | warning |
 | an environment variable read with no default that no deployment file sets; a `#profile` branch no profile reads | info |
 | a Datascript pull joining or reading in reverse on a non-ref, a lookup ref on a non-unique attribute, an attribute whose spec disagrees | warning |
+| a tilakone transition to no state, an initial state that is no state, a state defined twice in a machine | error |
+| a tilakone state no transition from the initial state reaches | info |
 | a re-frame dispatch or subscription to an id nothing registers | warning |
 | one id declared by two packs (a resolver and a component sharing a keyword) | warning |
 | code and the running process disagree about an operation | warning |

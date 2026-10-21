@@ -26,6 +26,7 @@
             [meta-source.pack.pathom :as pathom]
             [meta-source.pack.re-frame :as re-frame]
             [meta-source.pack.reitit :as reitit]
+            [meta-source.pack.tilakone :as tilakone]
             [meta-source.pack.schema :as schema]
             [meta-source.read :as read]
             [meta-source.rules :as rules]))
@@ -197,7 +198,7 @@
 ;; cached per file, so it must be data. A pack needs :pack/find and
 ;; :pack/read, or :pack/data-files and :pack/read-data, or both.
 
-(def builtin-packs [schema/pack fn-schema/pack datascript/pack pathom/pack integrant/pack aero/pack re-frame/pack reitit/pack])
+(def builtin-packs [schema/pack fn-schema/pack datascript/pack pathom/pack integrant/pack aero/pack re-frame/pack reitit/pack tilakone/pack])
 
 (defn enabled-packs
   "The packs `packs-config` (meta-source.edn's :packs) enables: each
