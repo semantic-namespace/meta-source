@@ -537,19 +537,28 @@ The optional keys:
 |---|---|
 | `:pack/config-keys` | for a built-in pack, the `:packs` keys that enable it |
 | `:pack/data-keys?` | true when its entities are data keys, as a schema's are |
-| `:pack/checks` | `(fn [view])` → problems; `view` has `:entities`, `:of-kinds`, `:data-key?`, `:loc` and `:flow` |
+| `:pack/checks` | `(fn [view])` → problems; `view` has `:entities`, `:of-kinds`, `:data-key?`, `:loc`, `:flow`, `:opts`, `:var-defined?` (a qualified symbol: true, false, or nil when its namespace wasn't read), `:not-read` (a kind: how many forms couldn't be read) and `:impl` (an id: where its var is, or nil) |
 | `:pack/inline-data-keys` | `(fn [entities])` → data keys its entities define with no entity of their own |
 | `:pack/shape`, `:pack/members` | a data key's shape as text, and the keys a schema is made of |
 | `:pack/describe` | one line for the hover |
 | `:pack/merge` | `{key :union}`: keys whose values it unions across sources, rather than reporting different values as a conflict |
+| `:pack/dataflow` | `{:consumes [k ...] :produces [k ...]}`: entry keys listing the data keys its entities read and give |
+| `:pack/var-meta` | meta keys whose values clj-kondo's analysis gives on each var definition, for `:pack/find` (the function-contracts pack reads `:malli/schema`) |
+| `:pack/kondo-config` | clj-kondo config the analysis adds, as a library's own exported config would (`{:lint-as {malli.experimental/defn schema.core/defn}}`) |
 | `:pack/data-files`, `:pack/read-data` | a pack that reads data files rather than code: `(fn [opts])` gives paths (files, or directories of `.edn`), and `(fn [files opts])` reads all of them at once, so a key several files define can be one result. `meta-source.read/keyed-lines` reads EDN with each key's line, keeping unknown tags |
 | `:pack/runtime-fill`, `:pack/runtime-diff` | its runtime half: `(fn [entry runtime])`, filling what static reading couldn't read, and saying where code and the running process disagree. The process writes `{:pack id :written ms :entities {...}}` to `.meta-source/packs/<id>.edn` (or the pack's `:snapshot` option) |
 
 `form-at` reads the form whose head symbol is at a row and column, with
-`::keywords` resolved and `.cljc` reader conditionals read as `:clj`. A
-result is `{:row :kind :dev-id :entry}`, or `{:row :kind :skipped reason}` when
-the form can't be read; the index reports those as `:pack-form-not-read` and
+`::keywords` resolved and `.cljc` reader conditionals read as `:clj`;
+`find-row` gives the first line from a row on where some text is written,
+to place what a form holds at its own line. A result is
+`{:row :kind :dev-id :entry}`, or `{:row :kind :skipped reason}` when the
+form can't be read. With `:refers true`, it is a place that refers to the
+id (a dispatch, a link), never its primary definition; with `:var ns/name`,
+that var implements the id, as the meta key does. Failures are reported,
+never thrown: the index reports those as `:pack-form-not-read` and
 counts each kind's reads in `meta-source summary`. A pack that throws on a
-file is reported the same way, for that file. Two packs giving the same
+file is reported the same way, for that file, and one whose `:pack/find`
+throws, at the first file. Two packs giving the same
 `:kind` are refused; a `:refer` in an `ns` form is never handed to a pack. `bb smoke` runs a pack like this one.
 

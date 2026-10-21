@@ -142,10 +142,11 @@
 ;;                          the id, as the meta key does (an s/fdef's)
 ;;   :pack/checks           (fn [view]) → problems; view is {:entities
 ;;                          :of-kinds :data-key? :loc :flow :opts
-;;                          :var-defined? :not-read}: var-defined? true or
+;;                          :var-defined? :not-read :impl}: var-defined? true or
 ;;                          false for a qualified symbol in a namespace the
 ;;                          analysis read, nil for one it didn't; not-read,
-;;                          how many forms of a kind couldn't be read
+;;                          how many forms of a kind couldn't be read; impl,
+;;                          where the var implementing an id is, or nil
 ;;   :pack/inline-data-keys (fn [entities]) → data keys its entities define
 ;;                          inline, with no entity of their own
 ;;   :pack/shape            (fn [entry kind]) → a data key's shape, as text
@@ -833,6 +834,8 @@
               :flow #(contract-keys idx %)
               ;; true or false for a var in a namespace the analysis read, nil otherwise
               :var-defined? #(when (nses (namespace %)) (contains? vars %))
+              ;; where the var implementing an id is, or nil
+              :impl #(some->> (impl-of idx %) (loc idx))
               ;; how many forms of a kind a pack found and couldn't read
               :not-read (let [n (frequencies (for [{:keys [pack-results]} (vals (:code idx)) [_ rs] pack-results r rs :when (:skipped r)] (:kind r)))]
                           #(get n % 0))}]
