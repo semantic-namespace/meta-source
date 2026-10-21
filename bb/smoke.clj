@@ -3,7 +3,8 @@
    fixture (test/fixtures/shop): clojure.spec s/def calls and a
    malli registry, Pathom 3 and 2 resolvers, plain annotated defns, and EDN
    files that give the functions' contracts and a data key's privacy class."
-  (:require [meta-source.hover :as hover]
+  (:require [meta-source.cli :as cli]
+            [meta-source.hover :as hover]
             [meta-source.read]
             [meta-source.index :as index]
             [babashka.fs :as fs]
@@ -580,6 +581,13 @@
         (check "a pack's :pack/dataflow-of: a key an ontology entry names lists what its entities consume"
                (= [:fn/w] (map :dev-id (:consumers (index/data-key fi :user/id))))))
       (fs/delete-tree dir))
+
+    ;; ---- check --fail-on: which problems fail a CI run
+    (let [ps [{:severity :error} {:severity :warning} {:severity :info}]]
+      (check "--fail-on error fails on errors only; warning on warnings and errors; info on all"
+             (= [1 2 3] (map #(count (cli/failing ps %)) ["error" "warning" "info"])))
+      (check "--fail-on with an unknown severity is an error, not a pass"
+             (try (cli/failing ps "fatal") false (catch clojure.lang.ExceptionInfo _ true))))
 
     ;; ---- rules a pack derives from what was read
     (let [dir (str (fs/create-temp-dir))]
