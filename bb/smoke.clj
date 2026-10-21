@@ -545,6 +545,18 @@
                (and (pos? (:analysed after)) (nil? (show after)))))
       (fs/delete-tree dir))
 
+    ;; ---- a spec defined twice, differently
+    (let [dir (str (fs/create-temp-dir))]
+      (fs/create-dirs (str dir "/src/app"))
+      (spit (str dir "/src/app/a.clj") "(ns app.a (:require [clojure.spec.alpha :as s]))\n(s/def :user/id string?)\n")
+      (spit (str dir "/src/app/b.clj") "(ns app.b (:require [clojure.spec.alpha :as s]))\n(s/def :user/id uuid?)\n")
+      (let [ci (index/build {:root dir :src ["src"] :registry [] :packs {:spec {}}})]
+        (check "two specs of one key conflict, and its shape shows each, where it is written"
+               (and (= [:spec/form] (map :key (problems ci :conflicting-values)))
+                    (= #{["string?" "src/app/a.clj"] ["uuid?" "src/app/b.clj"]}
+                       (set (map (juxt :form :file) (:shape (index/data-key ci :user/id))))))))
+      (fs/delete-tree dir))
+
     ;; ---- a pack that describes what others declare
     (let [ig-only {:integrant {:configs ["resources"]}}
           with (fn [p] (index/build (assoc cfg :packs (assoc ig-only p {}))))

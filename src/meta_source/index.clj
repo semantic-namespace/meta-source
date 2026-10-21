@@ -499,11 +499,13 @@
         merged (merge/merge-sources (for [{:keys [label entities]} sources] {:source label :entities entities})
                                     (merge-policy config packs))
         definition (fn [id label]
-                     (let [{:keys [file kind lines dropped refers]} (by-label label)]
+                     (let [{:keys [file kind lines dropped refers entities]} (by-label label)]
                        (cond-> {:file file :line (get lines id) :kind kind
                                 :keys (vec (sort (for [[k ls] (get-in merged [:provenance id]) :when (contains? ls label)] k)))}
                          (seq dropped) (assoc :dropped dropped)
-                         refers (assoc :refers true))))
+                         refers (assoc :refers true)
+                         ;; what a schema said, so each shape shows even when they conflict
+                         (data-key-kinds kind) (assoc :given (get entities id)))))
         static (into {} (for [[id entry] (:entities merged)
                               :let [defs (mapv #(definition id %) (merge/sources-of (:provenance merged) id))
                                     ;; what a pack declares (a component, a resolver, a
@@ -719,7 +721,9 @@
       own (assoc :shape (vec (for [d (:definitions e)
                                    :let [p (pack-of idx (:kind d))]
                                    :when (and p (:pack/data-keys? p))]
-                               (assoc (loc idx d) :form (when-let [f (:pack/shape p)] (f own (:kind d))))))
+                               ;; each source's own shape: two that conflict are left
+                               ;; out of the merged entry, and both are shown here
+                               (assoc (loc idx d) :form (when-let [f (:pack/shape p)] (f (or (:given d) own) (:kind d))))))
                  :props (into (sorted-map) (remove #(vocabulary (namespace (key %)))) own))
       (seq member-of) (assoc :member-of member-of))))
 
