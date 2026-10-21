@@ -28,6 +28,7 @@ Output is EDN, or JSON with `--json`.
 | two sources give one key different values (`:conflicting-values`), naming each place | error |
 | two vars carry the same meta key value | error |
 | an integrant ref no config defines | warning |
+| a link to a reitit route name nothing defines; a route handler its namespace doesn't define | warning |
 | a re-frame dispatch or subscription to an id nothing registers | warning |
 | one id declared by two packs (a resolver and a component sharing a keyword) | warning |
 | code and the running process disagree about an operation | warning |
@@ -113,6 +114,8 @@ them. A condition is a map, and every key in it must hold:
 | `:missing :k` (or a vector) | it has none of them |
 | `:= {:k v}` | its `:k` is `v`, or contains it |
 | `:in {:k #{v ...}}` | its `:k` is one of them |
+| `:matches {:k "regex"}` | its `:k` is a string the regex finds (`{:reitit/path "^/api/admin"}`) |
+| | for `:=`, `:in` and `:matches`, `:k` may be a path: `{:= {[:reitit/data :roles] :admin}}` |
 | `:id-ns "shop.admin"` | its id's namespace is that one or under it |
 | `:data-key true` | a schema shapes it |
 | `:not cond`, `:or [cond ...]` | |

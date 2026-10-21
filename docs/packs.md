@@ -356,6 +356,71 @@ Not read: a project's own wrappers around `reg-event-fx` and `dispatch`;
 events built in a fn and dispatched from another; and re-frame's registrar
 at runtime, which a snapshot could give, as Pathom's does.
 
+## Routes: the reitit pack
+
+```clojure
+:reitit {}
+```
+
+A route tree is read where it is written: the first argument of a reitit
+`router` call (`reitit.core`, `reitit.ring`, `reitit.http`, `reitit.frontend`),
+and any `def` or `defn` holding route data, since trees are often assembled
+from route defs in namespaces that never require reitit. A child that names
+a route def in the same file is read in place; one in another file is read
+where it is defined, its paths relative to it. A child written as code
+(`(when dev? [...])`) is reported as not read.
+
+A route with a `:name` is keyed by it. An unnamed one is keyed by its method
+and path, under where it is written: `:shop.routes/route.post.api.login` in a
+router call, `:app.users/routes.get.id` in the def `app.users/routes`, since
+route defs repeat relative paths. Route data is inherited as reitit merges
+it: children add to their parents' `:middleware` and `:interceptors`, and the
+rest is the child's when it gives it.
+
+```clojure
+:shop.routes/user
+#:reitit{:path "/api/users/:id" :ns "shop.routes" :methods [:get]
+         :handlers [shop.api/get-user] :middleware [shop.middleware/token-auth]
+         :parameter-keys [:user/id] :response-keys [:shop.spec/user]}
+```
+
+- `:reitit/handlers`: handler vars, written as symbols or `#'vars`;
+  `:reitit/handler-code` when a handler is a fn written there.
+- `:reitit/parameter-keys` and `:reitit/response-keys`: the qualified keys its
+  `:parameters` and `:responses` name, spec or malli. They are the pack's
+  dataflow: `meta-source data :user/id` lists the routes taking it.
+- `:reitit/data`: the rest of its route data, a project's own keys
+  (`:require-privilege`, `:permission`, `:roles`), symbols qualified, values
+  written as code as `:reitit/code`. Rules test them:
+  `{:not {:= {[:reitit/data :permission] nil}}}`.
+- `:reitit/ns` and `:reitit/in`: the namespace and the def it is written in.
+
+`rfe/href`, `rfe/push-state`, `rfe/replace-state` and `match-by-name` with a
+literal route name are references to it. `check` adds:
+
+- `:route-not-defined` (warning): a link to a route name no route read
+  defines. Info, with `:unread-trees`, when some route trees couldn't be
+  read, since the name may be defined in one;
+- `:handler-not-found` (warning): a handler written with a namespace
+  (`api/login`) that the namespace, read by the analysis, doesn't define. A
+  bare symbol may be a local, and isn't reported.
+
+On open-source apps (read, never run):
+
+| | Routes read | Notes |
+|---|---|---|
+| [lipas](https://github.com/lipas-liikuntapaikat/lipas) | 157, 22 named; backend and frontend, fragments in namespaces that don't require reitit | nothing; its own `:require-privilege` route data is what a rule about auth tests |
+| [sepal](https://github.com/sepal-app/sepal) | 128, from per-resource route fns; `#'var` handlers | nothing; every route's `:permission` is in `:reitit/data` |
+| [blaze](https://github.com/samply/blaze) | 16 | its main FHIR routes are built as code, reported as not read |
+| [tubo](https://github.com/migalmoreno/tubo) | none | routes come from an `:expand` fn: not read, so its 26 links to route names are info, not warnings |
+
+Each shaped the pack: fragments without reitit requires (lipas), scoped ids
+for relative paths and `#'var` handlers (sepal), keywords with no line in
+clj-kondo's analysis (blaze), unread trees making links uncertain (tubo).
+
+Not read: routes built by `:expand` or other fns, a route `:name` written as
+a symbol naming a def, and the compiled router, which a snapshot could give.
+
 ## One id, two packs
 
 Data keys are global: a spec and a malli schema shaping `:user/email` are one

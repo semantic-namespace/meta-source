@@ -65,7 +65,7 @@
   [analysis _opts]
   (let [kws (group-by :filename (:keywords analysis))
         inside (fn [u] (vec (for [k (get kws (:filename u))
-                                  :when (<= (:row u) (:row k) (or (:end-row u) (:row u)))]
+                                  :when (and (:row k) (<= (:row u) (:row k) (or (:end-row u) (:row u))))]
                               [(kw-of k) (:row k)])))
         rf? #(#{'re-frame.core 're-frame.alpha} (:to %))
         rf-files (set (map :filename (filter rf? (:var-usages analysis))))]
