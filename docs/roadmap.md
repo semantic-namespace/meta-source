@@ -100,7 +100,6 @@ tested once. And the conventions packs follow, written in
 |---|---|---|
 | component, mount, donut.system, clip | systems as data | refs to components no system defines, as integrant |
 | lacinia | GraphQL schema EDN, resolver attachments | fields with no resolver, resolvers attached to no field |
-| aero | `#include`, `#profile`, `#env`, `#ref` | the `#env` a profile needs, refs to nothing |
 | fulcro, fulcro-rad | `defsc` queries and idents, mutations, `defattr` | attributes as data keys |
 | pedestal | routes and interceptors | as reitit |
 | clara, O'Doyle | rules' facts | dataflow between rules |
@@ -108,7 +107,7 @@ tested once. And the conventions packs follow, written in
 
 ## Done
 
-integrant, clojure.spec and malli, function contracts (`s/fdef`, `m/=>`,
+integrant, aero, clojure.spec and malli, function contracts (`s/fdef`, `m/=>`,
 `:malli/schema`, `mx/defn`), Pathom (with its runtime snapshot), re-frame,
 reitit, Datascript, a project's own packs, a project's own rules as data, the
 project's clj-kondo config, the Emacs package.
