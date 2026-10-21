@@ -167,6 +167,9 @@
 ;;                          each var definition (:meta), for :pack/find
 ;;   :pack/kondo-config     clj-kondo config the analysis adds ({:lint-as ...}),
 ;;                          as the library's own exported config would
+;;   :pack/runtime-kinds    the source kinds its snapshot is compared with,
+;;                          default its own: atlas's include :edn, its
+;;                          registry files being its declarations
 ;;   :pack/runtime-diff     (fn [entry runtime]) → where code and the running
 ;;                          process disagree, or nil
 ;;
@@ -801,8 +804,9 @@
         :let [pack (first (filter #(= pack-id (:pack/id %)) (:packs idx)))
               diff (:pack/runtime-diff pack)
               snapshot (relative (:root idx) (:file snap))]
+        :let [compared (or (:pack/runtime-kinds pack) #{kind})]
         [id e] (sort-by key (:entities idx))
-        :let [code-defs (filter #(and (= kind (:kind %)) (not (:runtime %))) (:definitions e))
+        :let [code-defs (filter #(and (compared (:kind %)) (not (:runtime %))) (:definitions e))
               runtime (:runtime e)]
         p (cond
             (and (seq code-defs) (not (contains? ids id)))
