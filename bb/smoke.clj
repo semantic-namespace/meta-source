@@ -4,6 +4,7 @@
    malli registry, Pathom 3 and 2 resolvers, plain annotated defns, and EDN
    files that give the functions' contracts and a data key's privacy class."
   (:require [meta-source.hover :as hover]
+            [meta-source.read]
             [meta-source.index :as index]
             [babashka.fs :as fs]
             [babashka.process :as p]
@@ -63,6 +64,21 @@
                   (for [[id e] (sort-by key entities)
                         :when (and (every? #(= :binding (:kind %)) (:definitions e)) (= :tagged (linked-by id)))]
                     {:severity :error :problem :tagged-without-entry :dev-id id :impl (impl id) :definition (loc e)}))})
+
+(defn- notes-pack
+  "A pack giving a note on every key the shop's system config has, as
+   atlas's registry describes components: describing, or not."
+  [describes?]
+  {:pack/id :notes :pack/kinds #{:note} :pack/describes? describes?
+   :pack/data-files (fn [_] ["resources/system.edn"])
+   :pack/read-data (fn [files _]
+                     (vec (for [{:keys [file text]} files
+                                [k _ line] (meta-source.read/keyed-lines text {:tags :keep})
+                                :when (qualified-keyword? k)]
+                            {:file file :row line :kind :note :dev-id k :entry {:note/text "described"}})))})
+
+(def describing-pack (notes-pack true))
+(def declaring-pack (notes-pack false))
 
 (defn- problems [idx problem]
   (filter #(= problem (:problem %)) (index/check idx)))
@@ -528,6 +544,18 @@
         (check "the config edited: the cached analysis is not reused"
                (and (pos? (:analysed after)) (nil? (show after)))))
       (fs/delete-tree dir))
+
+    ;; ---- a pack that describes what others declare
+    (let [ig-only {:integrant {:configs ["resources"]}}
+          with (fn [p] (index/build (assoc cfg :packs (assoc ig-only p {}))))
+          shared #(set (map :dev-id (problems % :id-in-several-packs)))]
+      (check "a pack describing integrant's components under their keys: no :id-in-several-packs, integrant stays primary"
+             (let [d (with 'smoke/describing-pack)]
+               (and (not (contains? (shared d) :shop/db))
+                    (= :integrant (:pack (:definition (index/where d :shop/db))))
+                    (= "described" (:note/text (:entry (index/where d :shop/db)))))))
+      (check "the same pack, declaring: one id in two packs is a warning"
+             (contains? (shared (with 'smoke/declaring-pack)) :shop/db)))
 
     ;; ---- a pack's own meta key
     (let [dir (str (fs/create-temp-dir))]

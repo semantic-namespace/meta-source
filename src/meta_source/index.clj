@@ -124,6 +124,10 @@
 ;;   :pack/kinds            the :kind of the sources it gives (one pack per kind)
 ;;   :pack/vocabulary       the key namespaces its entries use
 ;;   :pack/data-keys?       true when its entities are data keys (schemas)
+;;   :pack/describes?       true when it describes what other packs declare
+;;                          (atlas's registry, under an integrant component's
+;;                          key): sharing their ids is no :id-in-several-packs,
+;;                          and their source is the id's primary definition
 ;;   :pack/dataflow         {:consumes [k ...] :produces [k ...]}: entry keys
 ;;                          that list data keys
 ;;   :pack/find             (fn [analysis opts]) → sites, each {:filename :row
@@ -491,6 +495,7 @@
                     :lines {dev-id row} :entities {dev-id entry}}))
         by-label (into {} (map (juxt :label identity)) sources)
         data-key-kinds (set (mapcat :pack/kinds (filter :pack/data-keys? packs)))
+        describing-kinds (set (mapcat :pack/kinds (filter :pack/describes? packs)))
         merged (merge/merge-sources (for [{:keys [label entities]} sources] {:source label :entities entities})
                                     (merge-policy config packs))
         definition (fn [id label]
@@ -502,9 +507,11 @@
         static (into {} (for [[id entry] (:entities merged)
                               :let [defs (mapv #(definition id %) (merge/sources-of (:provenance merged) id))
                                     ;; what a pack declares (a component, a resolver, a
-                                    ;; data key's schema) before what EDN adds to it,
-                                    ;; and both before a place that only refers to it
+                                    ;; data key's schema) before what a describing pack
+                                    ;; or EDN adds to it, and all before a place that
+                                    ;; only refers to it
                                     primary (or (first (filter #(data-key-kinds (:kind %)) defs))
+                                                (first (remove #(or (= :edn (:kind %)) (:refers %) (describing-kinds (:kind %))) defs))
                                                 (first (remove #(or (= :edn (:kind %)) (:refers %)) defs))
                                                 (first (remove :refers defs))
                                                 (first defs))]]
@@ -797,12 +804,15 @@
    warning): a resolver and a component sharing a keyword are two things
    under one name. Schemas don't count: data keys are global, so a spec and
    a malli schema shaping one key are one entity, and a spec under a
-   component's key is that component's shape."
+   component's key is that component's shape. Nor does a pack that
+   describes what others declare (:pack/describes?, atlas's registry
+   describing an integrant component under its key), nor a place that
+   only refers to an id."
   [idx]
   (let [kind->pack (into {} (for [p (:packs idx) k (:pack/kinds p)] [k p]))]
     (for [[id e] (sort-by key (:entities idx))
-          :let [packs (distinct (keep #(kind->pack (:kind %)) (remove :runtime (:definitions e))))]
-          :when (> (count (remove :pack/data-keys? packs)) 1)]
+          :let [packs (distinct (keep #(kind->pack (:kind %)) (remove #(or (:runtime %) (:refers %)) (:definitions e))))]
+          :when (> (count (remove #(or (:pack/data-keys? %) (:pack/describes? %)) packs)) 1)]
       {:severity :warning :problem :id-in-several-packs :dev-id id
        :packs (vec (sort (map :pack/id packs)))
        :definitions (vec (for [d (:definitions e) :when (and (kind->pack (:kind d)) (not (:runtime d)))] (loc idx d)))})))
