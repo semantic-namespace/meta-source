@@ -88,6 +88,13 @@
    :pack/find (fn [_ _] []) :pack/read (fn [_ _ _] [])
    :pack/dataflow-of (fn [entries] {:consumes (vec (keep :flow/in-key (vals entries)))})})
 
+(def rules-pack
+  "A pack deriving rules from what was read: an entry's :rule/as-data is a
+   rule, as atlas's invariants carry :invariant/rule."
+  {:pack/id :rules-of :pack/kinds #{:rules-of}
+   :pack/find (fn [_ _] []) :pack/read (fn [_ _ _] [])
+   :pack/rules-of (fn [entries] (into {} (for [[id e] entries :when (:rule/as-data e)] [id (:rule/as-data e)])))})
+
 (defn- problems [idx problem]
   (filter #(= problem (:problem %)) (index/check idx)))
 
@@ -572,6 +579,18 @@
       (let [fi (index/build {:root dir :src [] :registry ["registry"] :packs {'smoke/flow-pack {}}})]
         (check "a pack's :pack/dataflow-of: a key an ontology entry names lists what its entities consume"
                (= [:fn/w] (map :dev-id (:consumers (index/data-key fi :user/id))))))
+      (fs/delete-tree dir))
+
+    ;; ---- rules a pack derives from what was read
+    (let [dir (str (fs/create-temp-dir))]
+      (fs/create-dirs (str dir "/registry"))
+      (spit (str dir "/registry/r.edn")
+            (str "{:fn/w {:widget/takes [:user/id]}\n"
+                 " :inv/audited {:rule/as-data {:doc \"A widget is audited\" :when {:has :widget/takes} :require [{:has :audit/logged}]}}}"))
+      (let [ri (index/build {:root dir :src [] :registry ["registry"] :packs {'smoke/rules-pack {}}})]
+        (check "a pack's :pack/rules-of: a rule an entry carries is checked, located at that entry"
+               (= [[:fn/w :inv/audited {:file "registry/r.edn" :line 2}]]
+                  (map (juxt :dev-id :rule :rule-at) (problems ri :rule-violated)))))
       (fs/delete-tree dir))
 
     ;; ---- a pack that describes what others declare

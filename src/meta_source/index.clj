@@ -250,6 +250,20 @@
   [config packs]
   (apply merge (concat (keep :pack/merge packs) [(:merge config)])))
 
+(defn- pack-rules
+  "The rules each pack's :pack/rules-of derives from `entities` (static, {id
+   entity}), as atlas's reads them from the project's invariants: {rule-id
+   rule}, as a rules file holds. A rule whose id is an entity's is located
+   at that entity's definition."
+  [root packs entities]
+  (vec (for [p packs
+             :let [f (:pack/rules-of p)]
+             :when f
+             [id rule] (sort-by (comp pr-str key) (f (update-vals entities :entry)))
+             :let [d (first (filter :line (get-in entities [id :definitions])))]]
+         (cond-> {:id id :rule rule :pack (:pack/id p)}
+           d (assoc :file (relative root (:file d)) :line (:line d))))))
+
 (defn- dataflow
   "Which entry keys list consumed and produced data keys: meta-source.edn's
    :dataflow, plus what each enabled pack declares, plus what each pack's
@@ -554,7 +568,7 @@
       (write-cache cache {:version cache-version :config config :stamps stamps :code code}))
     {:root (canonical root)
      :config config
-     :rules (:rules rules-read)
+     :rules (into (:rules rules-read) (pack-rules root packs static))
      :rules-problems (:problems rules-read)
      :packs packs
      :dataflow (dataflow config packs (update-vals static :entry))
