@@ -63,6 +63,7 @@ The optional keys:
 | `:pack/config-keys` | for a built-in pack, the `:packs` keys that enable it |
 | `:pack/data-keys?` | true when its entities are data keys, as a schema's are |
 | `:pack/describes?` | true when it describes what other packs declare, as atlas's registry describes an integrant component under its key: sharing their ids is no `:id-in-several-packs`, and their source stays the id's primary definition |
+| `:pack/depicts?` | true when it is a picture of the system, as an architecture model is: never an id's primary definition while anything else defines it |
 | `:pack/checks` | `(fn [view])` → problems; `view` has `:entities`, `:of-kinds`, `:data-key?`, `:loc`, `:flow`, `:opts`, `:var-defined?` (a qualified symbol: true, false, or nil when its namespace wasn't read), `:not-read` (a kind: how many forms couldn't be read), `:impl` (an id: where its var is, or nil) and `:linked-by` (an id: the pack whose `:pack/id-key` linked its var, or nil) and `:namespaces` (the names of the namespaces the analysis read) |
 | `:pack/inline-data-keys` | `(fn [entities])` → data keys its entities define with no entity of their own |
 | `:pack/shape`, `:pack/members` | a data key's shape as text, and the keys a schema is made of |
@@ -830,12 +831,11 @@ read; transitions added at runtime; guards and actions, which are fns.
 
 An [Overarch](https://github.com/soulspace-org/overarch) model is EDN: sets of
 element maps, read as data. Nothing is loaded or run. Each element is an
-entity under its `:id`, with what the model says of it, the element whose
-`:ct` holds it, and the elements its `:ct` holds:
+entity under its `:id`, with what the model says of it and the elements its
+`:ct` holds:
 
 ```clojure
-:shop/api #:overarch{:el :container :name "Shop API" :tech "Clojure"
-                     :parent :shop/system}
+:shop/system #:overarch{:el :system :name "Shop" :contains [:shop/api :shop/orders-db]}
 ```
 
 A relation (any element with `:from` and `:to`: `:rel`, `:uses`,
@@ -846,10 +846,10 @@ views showing it. A view (an element whose `:el` ends in `-view`) gives
 `:overarch/shows`, the ids its `:ct` refers to, or `:overarch/selection`, the
 criteria Overarch resolves when it renders.
 
-The pack describes its elements, as atlas describes an integrant key: the
+The pack describes its elements, and depicts them (`:pack/depicts?`): the
 atlas adapter exports atlas ids as they are, so a model element is often an
-entity a registry or another pack declares, and that declaration stays
-primary. That is what lets `check` compare the model with what the system
+entity a registry or another pack defines, and what the system says of it
+stays its primary definition, the model's facts beside it. That is what lets `check` compare the model with what the system
 says. `check` adds:
 
 - `:relation-to-nothing` (error): a relation's `:from` or `:to` names no
