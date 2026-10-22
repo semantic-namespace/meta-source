@@ -575,8 +575,10 @@ rest is the child's when it gives it.
 literal route name are references to it. `check` adds:
 
 - `:route-not-defined` (warning): a link to a route name no route read
-  defines. Not reported while some route tree couldn't be read (a fn builds
-  it): the name may be defined in one, and `:pack-form-not-read` says which;
+  defines. A name that a form the pack can't read as a tree gives literally
+  counts as defined: `{:view about :name :about-page}` in an `:expand` fn, or
+  in a defn that builds the routes. While some route tree couldn't be read,
+  it is info, with `:unread-trees`, since a name may still be built there;
 - `:handler-not-found` (warning): a handler written with a namespace
   (`api/login`) that the namespace, read by the analysis, doesn't define. A
   bare symbol may be a local, and isn't reported.
