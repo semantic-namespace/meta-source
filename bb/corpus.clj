@@ -7,6 +7,8 @@
      bb corpus run [app ...]    check each app, into .corpus/findings.edn
      bb corpus report           per check: findings, labels, precision
      bb corpus unlabeled [n]    findings no label judges, with their code
+     bb corpus todo             append an entry to fill in to labels.edn per
+                                unjudged finding, its code as comments above it
      bb corpus plant            plant each known defect, see if its check finds it
      bb corpus ci               run, then fail on findings no label judges
 
@@ -20,16 +22,21 @@
             [clojure.walk :as walk]
             [meta-source.index :as index]))
 
-(def corpus-file "corpus/corpus.edn")
-(def labels-file "corpus/labels.edn")
-(def plants-file "corpus/plants.edn")
-(def work ".corpus")
+;; the corpus: this repository's (corpus/), or a private one MS_CORPUS_DIR
+;; names (an app that can't be public), whose clones and findings stay in it
+(def corpus-dir (or (System/getenv "MS_CORPUS_DIR") "corpus"))
+(def corpus-file (str corpus-dir "/corpus.edn"))
+(def labels-file (str corpus-dir "/labels.edn"))
+(def plants-file (str corpus-dir "/plants.edn"))
+(def work (if (System/getenv "MS_CORPUS_DIR") (str corpus-dir "/.work") ".corpus"))
 (def findings-file (str work "/findings.edn"))
 
 (defn- read-edn [f] (edn/read-string (slurp f)))
 
 (defn corpus [] (read-edn corpus-file))
 (defn labels [] (if (fs/exists? labels-file) (read-edn labels-file) []))
+;; the entries judged: todo's blank ones (:label nil) don't count
+(defn judged [] (filter :label (labels)))
 
 ;; =============================================================================
 ;; The apps
@@ -65,7 +72,10 @@
   [app]
   (let [root (app-root app)
         cfg (or (:config app) (read-edn (str (fs/path root "meta-source.edn"))))]
-    (merge {:registry [] :src ["src"]} cfg {:root root})))
+    ;; a project's own packs, as meta-source.edn's :deps puts them on the classpath
+    (when (seq (:deps cfg))
+      ((requiring-resolve 'babashka.deps/add-deps) {:deps (:deps cfg)}))
+    (merge {:registry [] :src ["src"]} (dissoc cfg :deps) {:root root})))
 
 ;; =============================================================================
 ;; Findings
@@ -166,7 +176,7 @@
   []
   (let [{:keys [not-judged]} (corpus)
         fs (mapcat :findings (vals (findings)))
-        by-key (into {} (map (juxt :finding identity)) (labels))
+        by-key (into {} (map (juxt :finding identity)) (judged))
         rows (for [[problem ps] (sort-by key (group-by (comp second :key) fs))
                    :let [ls (keep #(by-key (:key %)) ps)
                          freq (frequencies (map :label ls))
@@ -194,7 +204,7 @@
       (println (str "| " (name id) " | " (if err (str "error: " err) n) " | " entities " | " lines " | "
                     (if (and lines (pos? lines)) (format "%.1f" (/ (* 1000.0 n) lines)) "-") " | " ms " |")))
     (let [keys (set (map :key fs))
-          stale (remove #(keys (:finding %)) (labels))]
+          stale (remove #(keys (:finding %)) (judged))]
       (when (seq stale)
         (println (str "\n" (count stale) " labels judge findings no run produces now (bb corpus unlabeled shows the rest)"))))))
 
@@ -211,12 +221,43 @@
           (str/join "\n" (for [i (range from to)]
                            (format "%s%5d  %s" (if (= (inc i) line) ">" " ") (inc i) (nth ls i)))))))))
 
+(defn- distinct-by-key [fs]
+  (vals (into (sorted-map-by #(compare (pr-str %1) (pr-str %2))) (map (juxt :key identity)) (reverse fs))))
+
+(defn todo
+  "Appends to labels.edn an entry with :label nil for each finding no label
+   judges, under comments with its message and the code around it: fill in
+   :label, :why and :by, set :confirmed true, and the report counts it."
+  []
+  (let [apps (into {} (map (juxt :id identity)) (:apps (corpus)))
+        judged (set (map :finding (labels)))
+        {:keys [not-judged]} (corpus)
+        ;; the most severe first, each check's findings together
+        todo (sort-by (fn [f] [({:error 0 :warning 1 :info 2} (:severity f) 3) (str (second (:key f))) (pr-str (:key f))])
+                      (distinct-by-key
+                       (for [[_ r] (sort-by key (findings)) f (:findings r)
+                             :when (and (not (judged (:key f))) (not (not-judged (second (:key f)))))]
+                         f)))
+        text (str/join
+              "\n"
+              (for [{:keys [key line problem]} todo
+                    :let [[app-id _ _ file] key]]
+                (str "\n;; ---- " (name app-id) " " file ":" line "  " (name (:severity problem)) " " (name (:problem problem)) "\n"
+                     ";; " (pr-str (dissoc problem :definition :impl :severity)) "\n"
+                     (some->> (snippet (apps app-id) file line) str/split-lines (map #(str ";; " %)) (str/join "\n"))
+                     "\n" (pr-str {:finding key :label nil :why "" :by "" :confirmed true}))))
+        current (if (fs/exists? labels-file) (str/trim (slurp labels-file)) "[]")]
+    (when (seq todo)
+      ;; inside the vector: before its closing bracket
+      (spit labels-file (str (subs current 0 (str/last-index-of current "]")) text "\n]\n")))
+    (println (count todo) "entries appended to" labels-file)))
+
 (defn unlabeled
   "Findings no label judges, each with the code around it and an entry to
    paste into corpus/labels.edn once judged."
   [n]
   (let [apps (into {} (map (juxt :id identity)) (:apps (corpus)))
-        judged (set (map :finding (labels)))
+        judged (set (map :finding (judged)))
         {:keys [not-judged]} (corpus)
         todo (for [[_ r] (sort-by key (findings)) f (:findings r)
                    :when (and (not (judged (:key f))) (not (not-judged (second (:key f)))))]
@@ -278,7 +319,7 @@
    is judged before it ships."
   []
   (run [])
-  (let [judged (set (map :finding (labels)))
+  (let [judged (set (map :finding (judged)))
         {:keys [not-judged]} (corpus)
         todo (for [[_ r] (findings) f (:findings r)
                    :when (and (not (judged (:key f))) (not (not-judged (second (:key f)))))]
@@ -294,6 +335,7 @@
     "run" (do (run args) nil)
     "report" (report)
     "unlabeled" (unlabeled (some-> (first args) parse-long))
+    "todo" (todo)
     "plant" (plant)
     "ci" (ci)
     (println (:doc (meta (the-ns 'corpus))))))
