@@ -46,7 +46,7 @@ problem):
 | a key code uses that isn't in its function's declared contract | info |
 | a resolver input nothing produces; an `s/keys` key with no spec; unqualified malli keys | info |
 | an `init-key` for a key no config has; a resolver defined but not registered | info |
-| a re-frame event never dispatched, a subscription never subscribed to, an effect nothing registers | info |
+| an effect nothing registers; with `:report-unused`, a re-frame event never dispatched, a subscription never subscribed to | info |
 | a form a pack couldn't read, and why | info |
 | one of your own rules, broken (`:rule-violated`), at the rule's severity; a rule not understood | yours; error |
 

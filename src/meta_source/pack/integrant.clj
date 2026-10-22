@@ -190,11 +190,17 @@
 ;; Checks and the hover
 ;; =============================================================================
 
+;; the keys a duct module adds to the system at prep time, when configured
+(def ^:private duct-modules
+  {:duct.module/logging #{:duct/logger}
+   :duct.module/sql #{:duct.database/sql}})
+
 (defn- checks
   "- :ref-to-undefined (warning): a component refers to a key no config
-     read defines, directly or as a composite key's parent, and that
-     :provided doesn't list. Integrant can't init the system unless
-     something adds it (a duct module does, at prep time);
+     read defines, directly or as a composite key's parent, that no
+     configured duct module adds (:duct.module/logging adds :duct/logger,
+     :duct.module/sql :duct.database/sql), and that :provided doesn't list.
+     Integrant can't init the system unless something adds it;
    - :init-key-without-config (info): the code has an init-key method for
      a key no config defines, and no composite key derives from: unused, or
      configured somewhere not read. A key some configured component
@@ -205,6 +211,7 @@
         parents #(concat (get-in (val %) [:entry :integrant/derives]) (get-in (val %) [:entry :integrant/isa]))
         defined (-> (set (map key configured))
                     (into (mapcat parents) configured)
+                    (into (mapcat duct-modules) (map key configured))
                     (into (get-in opts [:integrant :provided])))]
     (concat
      (for [[id e] configured

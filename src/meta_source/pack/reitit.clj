@@ -269,8 +269,9 @@
 
 (defn- checks
   "- :route-not-defined (warning): a link to a route name no route read
-     defines, at the place that links to it; info, with :unread-trees,
-     when some route trees couldn't be read, since it may be in one;
+     defines, at the place that links to it. Not reported while some route
+     trees couldn't be read (a fn builds them): the name may be in one, and
+     :pack-form-not-read already says which;
    - :handler-not-found (warning): a route's handler, written with a
      namespace (api/login), names a var in a namespace the analysis read,
      which defines no such var. A bare symbol may be a local, and isn't
@@ -280,11 +281,10 @@
         unread (not-read kind)]
     (concat
      (for [[id e] routes
-           :when (not (get-in e [:entry :reitit/path]))
+           :when (and (zero? unread) (not (get-in e [:entry :reitit/path])))
            d (:definitions e)
            :when (some #{:reitit/linked} (:keys d))]
-       (cond-> {:severity (if (pos? unread) :info :warning) :problem :route-not-defined :dev-id id :definition (loc d)}
-         (pos? unread) (assoc :unread-trees unread)))
+       {:severity :warning :problem :route-not-defined :dev-id id :definition (loc d)})
      (for [[id e] routes
            h (get-in e [:entry :reitit/handlers])
            :when (and (not= (namespace h) (get-in e [:entry :reitit/ns])) (false? (var-defined? h)))]
