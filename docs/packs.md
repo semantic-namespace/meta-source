@@ -1,6 +1,120 @@
 # Packs
 
-A pack reads one library's own registry, where it is. This page describes the built-in packs, how a key several sources describe is identified, which keys carry data, and how to write a pack of your own. Enable packs under `:packs` in `meta-source.edn`.
+A pack reads one library's own registry, where it is. Enable packs under
+`:packs` in `meta-source.edn`.
+
+This page starts with how to write a pack, and the two rules every pack
+shares: how a key several sources describe is identified, and which keys
+carry data. Then it describes the built-in packs:
+
+- [Data keys from clojure.spec and malli: the schema pack](#data-keys-from-clojurespec-and-malli-the-schema-pack)
+- [Resolvers and mutations: the Pathom pack](#resolvers-and-mutations-the-pathom-pack)
+- [A system's components: the integrant pack](#a-systems-components-the-integrant-pack)
+- [A config's environment and includes: the aero pack](#a-configs-environment-and-includes-the-aero-pack)
+- [Events and subscriptions: the re-frame pack](#events-and-subscriptions-the-re-frame-pack)
+- [Routes: the reitit pack](#routes-the-reitit-pack)
+- [A database's attributes: the Datascript pack](#a-databases-attributes-the-datascript-pack)
+- [State machines: the tilakone pack](#state-machines-the-tilakone-pack)
+
+For how packs fit into meta-source (the build each pack takes part in, and
+what the index does for every pack), see [architecture.md](architecture.md#packs-one-contract-shared-machinery).
+
+## Writing a pack
+
+A pack is a map; the built-in ones are `meta-source.pack.schema/pack`,
+`meta-source.pack.pathom/pack` and `meta-source.pack.integrant/pack`. A project enables its own by naming the var
+under `:packs`, with its options as the value:
+
+```clojure
+{:packs {:spec {} app.source/job-pack {}}
+ :deps {app/source-packs {:local/root "tools/source"}}}   ; when the pack isn't under :src
+```
+
+`:deps` puts the pack's code on meta-source's classpath, resolved as a
+`deps.edn` would; a pack in the project's own `src` doesn't need it.
+
+A pack needs `:pack/find` and `:pack/read` (forms in code), or
+`:pack/data-files` and `:pack/read-data` (data files), or both. This one reads a project's
+own `defjob` macro, and makes a job a consumer of the data keys it lists:
+
+```clojure
+(def job-pack
+  {:pack/id :jobs
+   :pack/kinds #{:job}                       ; the :kind of its sources; one pack per kind
+   :pack/vocabulary #{"job"}                 ; the key namespaces its entries use
+   :pack/dataflow {:consumes [:job/reads]}
+   ;; where its forms are, from clj-kondo's analysis
+   :pack/find (fn [analysis opts]
+                (for [u (:var-usages analysis)
+                      :when (and (= 'app.scheduler (:to u)) (= 'defjob (:name u)))]
+                  (select-keys u [:filename :row :name-row :name-col])))
+   ;; one file's forms, read as data; what it returns is cached, so it is data
+   :pack/read (fn [sites {:keys [form-at own-ns]} opts]
+                (vec (for [{:keys [row name-row name-col]} sites
+                           :let [[_ nm job] (form-at name-row name-col)]]
+                       {:row row :kind :job :dev-id (keyword own-ns (name nm)) :entry job})))
+   :pack/describe (fn [entry] (some->> (:job/schedule entry) (str "job  ")))})
+```
+
+The optional keys:
+
+| Key | What it gives |
+|---|---|
+| `:pack/config-keys` | for a built-in pack, the `:packs` keys that enable it |
+| `:pack/data-keys?` | true when its entities are data keys, as a schema's are |
+| `:pack/describes?` | true when it describes what other packs declare, as atlas's registry describes an integrant component under its key: sharing their ids is no `:id-in-several-packs`, and their source stays the id's primary definition |
+| `:pack/checks` | `(fn [view])` → problems; `view` has `:entities`, `:of-kinds`, `:data-key?`, `:loc`, `:flow`, `:opts`, `:var-defined?` (a qualified symbol: true, false, or nil when its namespace wasn't read), `:not-read` (a kind: how many forms couldn't be read), `:impl` (an id: where its var is, or nil) and `:linked-by` (an id: the pack whose `:pack/id-key` linked its var, or nil) |
+| `:pack/inline-data-keys` | `(fn [entities])` → data keys its entities define with no entity of their own |
+| `:pack/shape`, `:pack/members` | a data key's shape as text, and the keys a schema is made of |
+| `:pack/describe` | one line for the hover |
+| `:pack/merge` | `{key :union}`: keys whose values it unions across sources, rather than reporting different values as a conflict |
+| `:pack/dataflow` | `{:consumes [k ...] :produces [k ...]}`: entry keys listing the data keys its entities read and give |
+| `:pack/dataflow-of` | `(fn [entries])` → the same, derived from what was read (`{id entry}`): atlas's pack takes a project's ontologies' context and response keys, so a project's own entity types need no `:dataflow` line |
+| `:pack/rules-of` | `(fn [entries])` → `{rule-id rule}`, rules as a rules file holds them, derived from what was read: atlas's pack takes the rules a project's invariants carry. They are checked with the project's own, and a rule whose id is an entity's is located at that entity |
+| `:pack/id-key` | its library's meta key linking a var to an id (atlas's `:atlas.source/id`), read as `:id-key` is, with no configuration. A var it links that no source describes is the pack's to report, so meta-source's `:binding-only` is left out for it |
+| `:pack/var-meta` | meta keys whose values clj-kondo's analysis gives on each var definition, for `:pack/find` (the function-contracts pack reads `:malli/schema`) |
+| `:pack/kondo-config` | clj-kondo config the analysis adds, as a library's own exported config would (`{:lint-as {malli.experimental/defn schema.core/defn}}`) |
+| `:pack/data-files`, `:pack/read-data` | a pack that reads data files rather than code: `(fn [opts])` gives paths (files, or directories of `.edn`), and `(fn [files opts])` reads all of them at once, so a key several files define can be one result. `meta-source.read/keyed-lines` reads EDN with each key's line, keeping unknown tags |
+| `:pack/runtime-fill`, `:pack/runtime-diff` | its runtime half: `(fn [entry runtime])`, filling what static reading couldn't read, and saying where code and the running process disagree. The process writes `{:pack id :written ms :entities {...}}` to `.meta-source/packs/<id>.edn` (or the pack's `:snapshot` option) |
+| `:pack/runtime-kinds` | the source kinds its runtime snapshot is compared with, by default its own; a pack whose declarations also live in EDN registry files includes `:edn` |
+
+`form-at` reads the form whose head symbol is at a row and column, with
+`::keywords` resolved and `.cljc` reader conditionals read as `:clj`;
+`find-row` gives the first line from a row on where some text is written,
+to place what a form holds at its own line. A result is
+`{:row :kind :dev-id :entry}`, or `{:row :kind :skipped reason}` when the
+form can't be read. With `:refers true`, it is a place that refers to the
+id (a dispatch, a link), never its primary definition; with `:var ns/name`,
+that var implements the id, as the meta key does. Failures are reported,
+never thrown: the index reports those as `:pack-form-not-read` and
+counts each kind's reads in `meta-source summary`. A pack that throws on a
+file is reported the same way, for that file, and one whose `:pack/find`
+throws, at the first file. Two packs giving the same
+`:kind` are refused; a `:refer` in an `ns` form is never handed to a pack. `bb smoke` runs a pack like this one.
+
+## One id, two packs
+
+Data keys are global: a spec and a malli schema shaping `:user/email` are one
+entity. A spec under a component's own key, as integrant systems often have, is
+that component's shape: the entity stays a component, with `:spec/form` beside
+its `:integrant/*` keys. Two packs that declare things giving one id (a Pathom
+resolver and an integrant component, say) are two things under one name, and
+`check` reports `:id-in-several-packs` (warning).
+
+## Which keys carry data: `:dataflow`
+
+An entry consumes or produces data keys through the keys `:dataflow` lists, in
+`meta-source.edn`, in any vocabulary:
+
+```clojure
+{:dataflow {:consumes [:job/reads] :produces [:job/writes]}}
+```
+
+Each pack adds its own (the Pathom pack: `:pathom/input`, `:pathom/params`,
+`:pathom/output`). With this, a nightly job written as
+`{:job/nightly-digest {:job/reads [:user/email]}}` is a consumer of
+`:user/email`. The shop fixture describes its plain functions this way
+(`:fn/reads`, `:fn/returns`).
 
 ## Data keys from clojure.spec and malli: the schema pack
 
@@ -563,101 +677,3 @@ Not read: a state whose name is code (a template machine), reported as not
 read; transitions added at runtime; guards and actions, which are fns.
 
 ![A tilakone machine: a renamed state, the transition left behind, in Emacs](images/meta-source-tilakone.gif)
-
-## One id, two packs
-
-Data keys are global: a spec and a malli schema shaping `:user/email` are one
-entity. A spec under a component's own key, as integrant systems often have, is
-that component's shape: the entity stays a component, with `:spec/form` beside
-its `:integrant/*` keys. Two packs that declare things giving one id (a Pathom
-resolver and an integrant component, say) are two things under one name, and
-`check` reports `:id-in-several-packs` (warning).
-
-## Which keys carry data: `:dataflow`
-
-An entry consumes or produces data keys through the keys `:dataflow` lists, in
-`meta-source.edn`, in any vocabulary:
-
-```clojure
-{:dataflow {:consumes [:job/reads] :produces [:job/writes]}}
-```
-
-Each pack adds its own (the Pathom pack: `:pathom/input`, `:pathom/params`,
-`:pathom/output`). With this, a nightly job written as
-`{:job/nightly-digest {:job/reads [:user/email]}}` is a consumer of
-`:user/email`. The shop fixture describes its plain functions this way
-(`:fn/reads`, `:fn/returns`).
-
-## Writing a pack
-
-A pack is a map; the built-in ones are `meta-source.pack.schema/pack`,
-`meta-source.pack.pathom/pack` and `meta-source.pack.integrant/pack`. A project enables its own by naming the var
-under `:packs`, with its options as the value:
-
-```clojure
-{:packs {:spec {} app.source/job-pack {}}
- :deps {app/source-packs {:local/root "tools/source"}}}   ; when the pack isn't under :src
-```
-
-`:deps` puts the pack's code on meta-source's classpath, resolved as a
-`deps.edn` would; a pack in the project's own `src` doesn't need it.
-
-A pack needs `:pack/find` and `:pack/read` (forms in code), or
-`:pack/data-files` and `:pack/read-data` (data files), or both. This one reads a project's
-own `defjob` macro, and makes a job a consumer of the data keys it lists:
-
-```clojure
-(def job-pack
-  {:pack/id :jobs
-   :pack/kinds #{:job}                       ; the :kind of its sources; one pack per kind
-   :pack/vocabulary #{"job"}                 ; the key namespaces its entries use
-   :pack/dataflow {:consumes [:job/reads]}
-   ;; where its forms are, from clj-kondo's analysis
-   :pack/find (fn [analysis opts]
-                (for [u (:var-usages analysis)
-                      :when (and (= 'app.scheduler (:to u)) (= 'defjob (:name u)))]
-                  (select-keys u [:filename :row :name-row :name-col])))
-   ;; one file's forms, read as data; what it returns is cached, so it is data
-   :pack/read (fn [sites {:keys [form-at own-ns]} opts]
-                (vec (for [{:keys [row name-row name-col]} sites
-                           :let [[_ nm job] (form-at name-row name-col)]]
-                       {:row row :kind :job :dev-id (keyword own-ns (name nm)) :entry job})))
-   :pack/describe (fn [entry] (some->> (:job/schedule entry) (str "job  ")))})
-```
-
-The optional keys:
-
-| Key | What it gives |
-|---|---|
-| `:pack/config-keys` | for a built-in pack, the `:packs` keys that enable it |
-| `:pack/data-keys?` | true when its entities are data keys, as a schema's are |
-| `:pack/describes?` | true when it describes what other packs declare, as atlas's registry describes an integrant component under its key: sharing their ids is no `:id-in-several-packs`, and their source stays the id's primary definition |
-| `:pack/checks` | `(fn [view])` → problems; `view` has `:entities`, `:of-kinds`, `:data-key?`, `:loc`, `:flow`, `:opts`, `:var-defined?` (a qualified symbol: true, false, or nil when its namespace wasn't read), `:not-read` (a kind: how many forms couldn't be read), `:impl` (an id: where its var is, or nil) and `:linked-by` (an id: the pack whose `:pack/id-key` linked its var, or nil) |
-| `:pack/inline-data-keys` | `(fn [entities])` → data keys its entities define with no entity of their own |
-| `:pack/shape`, `:pack/members` | a data key's shape as text, and the keys a schema is made of |
-| `:pack/describe` | one line for the hover |
-| `:pack/merge` | `{key :union}`: keys whose values it unions across sources, rather than reporting different values as a conflict |
-| `:pack/dataflow` | `{:consumes [k ...] :produces [k ...]}`: entry keys listing the data keys its entities read and give |
-| `:pack/dataflow-of` | `(fn [entries])` → the same, derived from what was read (`{id entry}`): atlas's pack takes a project's ontologies' context and response keys, so a project's own entity types need no `:dataflow` line |
-| `:pack/rules-of` | `(fn [entries])` → `{rule-id rule}`, rules as a rules file holds them, derived from what was read: atlas's pack takes the rules a project's invariants carry. They are checked with the project's own, and a rule whose id is an entity's is located at that entity |
-| `:pack/id-key` | its library's meta key linking a var to an id (atlas's `:atlas.source/id`), read as `:id-key` is, with no configuration. A var it links that no source describes is the pack's to report, so meta-source's `:binding-only` is left out for it |
-| `:pack/var-meta` | meta keys whose values clj-kondo's analysis gives on each var definition, for `:pack/find` (the function-contracts pack reads `:malli/schema`) |
-| `:pack/kondo-config` | clj-kondo config the analysis adds, as a library's own exported config would (`{:lint-as {malli.experimental/defn schema.core/defn}}`) |
-| `:pack/data-files`, `:pack/read-data` | a pack that reads data files rather than code: `(fn [opts])` gives paths (files, or directories of `.edn`), and `(fn [files opts])` reads all of them at once, so a key several files define can be one result. `meta-source.read/keyed-lines` reads EDN with each key's line, keeping unknown tags |
-| `:pack/runtime-fill`, `:pack/runtime-diff` | its runtime half: `(fn [entry runtime])`, filling what static reading couldn't read, and saying where code and the running process disagree. The process writes `{:pack id :written ms :entities {...}}` to `.meta-source/packs/<id>.edn` (or the pack's `:snapshot` option) |
-| `:pack/runtime-kinds` | the source kinds its runtime snapshot is compared with, by default its own; a pack whose declarations also live in EDN registry files includes `:edn` |
-
-`form-at` reads the form whose head symbol is at a row and column, with
-`::keywords` resolved and `.cljc` reader conditionals read as `:clj`;
-`find-row` gives the first line from a row on where some text is written,
-to place what a form holds at its own line. A result is
-`{:row :kind :dev-id :entry}`, or `{:row :kind :skipped reason}` when the
-form can't be read. With `:refers true`, it is a place that refers to the
-id (a dispatch, a link), never its primary definition; with `:var ns/name`,
-that var implements the id, as the meta key does. Failures are reported,
-never thrown: the index reports those as `:pack-form-not-read` and
-counts each kind's reads in `meta-source summary`. A pack that throws on a
-file is reported the same way, for that file, and one whose `:pack/find`
-throws, at the first file. Two packs giving the same
-`:kind` are refused; a `:refer` in an `ns` form is never handed to a pack. `bb smoke` runs a pack like this one.
-
