@@ -96,6 +96,134 @@ to a key a spec defines.
    what was read (atlas's ontologies). It is what makes a data key's
    producers and consumers answerable.
 
+## Packs: one contract, shared machinery
+
+A pack teaches meta-source one library: which forms declare things, how
+to read one as an entry, and what can be wrong with them. Everything else,
+from running the analysis to showing a finding in the editor, is done the
+same way for every pack.
+
+### The contract is a map
+
+A pack is a plain map of data and functions keyed `:pack/…`. It isn't a
+`defprotocol`, a multimethod or a record. So:
+
+- **No dependency on meta-source.** A library ships a pack as a var
+  holding a map (atlas's is `atlas.meta-source/pack`) without depending on
+  meta-source, and a project names it by that symbol in `meta-source.edn`'s
+  `:packs`.
+- **Every key is optional**, except one pair or both:
+  - **from code:** `:pack/find` and `:pack/read`;
+  - **from data files:** `:pack/data-files` and `:pack/read-data`.
+- **Checked when enabled.** A map missing both pairs is refused, and so is a
+  second pack giving the same source `:kind`.
+
+Each key is a function meta-source calls at one point of a build. Listed in
+the order they're called (every key is described in
+[packs.md](packs.md#writing-a-pack)):
+
+| When | Keys | What the pack gives |
+|---|---|---|
+| **enabling** | `:pack/config-keys` | for a built-in pack, the `:packs` keys that turn it on; a project's pack is turned on by its symbol |
+| **analysis** | `:pack/kondo-config`, `:pack/var-meta`, `:pack/id-key` | clj-kondo config its library would export (`:lint-as`), meta keys to keep on var definitions, and its own meta key linking a var to an id (atlas's `:atlas.source/id`) |
+| **finding** | `:pack/find` | from the analysis of every file, the sites where its forms are: file, row, and the head symbol's position |
+| **reading** | `:pack/read`; `:pack/data-files`, `:pack/read-data` | for one file's sites, each form read as data into `{:row :kind :dev-id :entry}`; for data files, all of them at once |
+| **merging** | `:pack/kinds`, `:pack/merge`, `:pack/data-keys?`, `:pack/describes?`, `:pack/vocabulary` | the kind of its sources, keys it unions, and its role: declaring things, shaping data keys, or describing what others declare |
+| **deriving** | `:pack/dataflow`, `:pack/dataflow-of`, `:pack/rules-of`, `:pack/inline-data-keys` | which entry keys list data read and given (declared, or derived from what was read), rules derived from entries (atlas's invariants), data keys defined inline |
+| **the running system** | `:pack/runtime-fill`, `:pack/runtime-diff`, `:pack/runtime-kinds` | given its snapshot: what static reading couldn't read, and where code and process disagree |
+| **checking** | `:pack/checks` | its library's problems, given a view of the index |
+| **showing** | `:pack/describe`, `:pack/shape`, `:pack/members` | a hover's one line, a data key's shape, the keys a schema is made of |
+
+### What meta-source does for every pack
+
+The logic every pack would otherwise repeat lives in the index:
+
+- **One analysis.** clj-kondo runs once over every file, with every enabled
+  pack's config merged in, so a pack only looks through the result.
+  A `:refer` in an `ns` form is removed first, since it names a var and
+  declares nothing.
+- **Reading forms as data.** `:pack/read` is handed the file:
+  - `form-at` reads the form whose head symbol is at a row and column, with
+    `::keywords` resolved through the file's aliases, `.cljc` read as
+    `:clj`, and `*read-eval*` off;
+  - `read` reads any text the same way;
+  - `find-row` places a part of the form on its own line.
+
+  Nothing is evaluated. A form that can't be read as data comes back as
+  `{:skipped reason}`, and is reported as not read rather than guessed.
+- **Caching.** What `:pack/read` returns is kept with the file's analysis
+  and reused until the file changes, so it must be data.
+- **The merge.** Each result becomes a source, merged per id with every
+  other source: provenance, conflicts, and `:pack/merge`'s unions. The
+  pack's role decides the primary definition:
+  - a data-key pack's schema wins;
+  - then a declaring pack's form;
+  - then a describing pack's, then an EDN file's;
+  - and a place that only refers to the id only when nothing else defines it.
+- **Locations and underlining.** A result's `:row`, and the line each key is
+  on, become the definition, `M-.`'s targets, and the columns the editor
+  underlines.
+- **Failures cost the least they can.** A pack that throws reading a file
+  loses that file, reported as `:pack-form-not-read`. One that throws
+  finding its forms is reported once. The index is still built, and
+  `meta-source summary` counts each kind's forms read and not read.
+- **The view `:pack/checks` gets** answers the questions a check needs:
+  - `:entities` and `:of-kinds`, the entities and those of given kinds;
+  - `:data-key?`, whether an id is a data key;
+  - `:flow`, the keys an entry consumes and produces;
+  - `:var-defined?`, whether a symbol is a var in the code read;
+  - `:impl`, where the var implementing an id is;
+  - `:linked-by`, which pack's meta key linked that var;
+  - `:not-read`, how many forms of a kind couldn't be read;
+  - `:loc`, where something is.
+
+  A pack's problems are then shown, counted and failed on like
+  meta-source's own.
+
+What's left to the pack is what only it knows: its library's forms, how
+they read as entries, and the mistakes its library lets through.
+
+### What a result says
+
+```clojure
+{:row 12 :kind :pathom :dev-id :shop.resolvers/user-by-id
+ :entry {:pathom/input [:user/id] :pathom/output [:user/email]}}
+```
+
+- **`:skipped reason`:** the form couldn't be read.
+- **`:refers true`:** the place only refers to the id, such as a dispatch
+  or a link. It is never the id's primary definition.
+- **`:var ns/name`:** that var implements the id, as the meta key does (an
+  `s/fdef` names its function).
+
+### Three roles
+
+- **Declaring packs** (integrant, Pathom, re-frame, reitit, tilakone,
+  Datascript, aero). Their forms are what an id is. Two of them giving one
+  id is two things under one name: `:id-in-several-packs`.
+- **Data-key packs** (clojure.spec, malli: `:pack/data-keys? true`). They
+  shape keys, and a spec under a component's key is that component's
+  shape.
+- **Describing packs** (atlas: `:pack/describes? true`). They say more
+  about what other packs declare. atlas's registry describes an integrant
+  component under its key without a conflict, and its source isn't the
+  component's primary definition.
+
+### JavaScript packs
+
+The JavaScript reader's packs have a smaller contract, a module exporting
+`id` and any of:
+- `entities(ctx)`: sources merged like any other;
+- `check(ctx)`: problems;
+- `describe(ctx, id, entry)`: a hover's line.
+
+`ctx` gives the TypeScript ASTs (`sourceFile`, `ts`), the declarations and
+the references read, and the index's entities. The reader does the rest:
+parsing, the merge, locations, `check`, `serve`. A pack named by a module
+is looked up in the project, then next to meta-source, so a library's
+pack runs without being added to the project
+([js/README.md](../js/README.md#packs)).
+
 ## Questions and checks
 
 Over the index, a few questions answer everything an editor or CI needs:
@@ -157,12 +285,10 @@ conformance` and `npm test` check each reader against it.
 
 ## Extending it
 
-- **A pack** is one map of functions (`:pack/find`, `:pack/read`,
-  `:pack/checks`, `:pack/describe`…). Name yours by its qualified symbol in
-  `meta-source.edn`'s `:packs`, with `:deps` to put it on the classpath
-  ([docs/packs.md](packs.md)). A JS pack is a module with `entities`,
-  `check` and `describe` ([js/README.md](../js/README.md#packs)). Libraries
-  ship their own: atlas's registry is `atlas.meta-source/pack`, and its JS
+- **A pack** (see [Packs](#packs-one-contract-shared-machinery)): name yours by its
+  qualified symbol in `meta-source.edn`'s `:packs`, with `:deps` to put it
+  on the classpath ([packs.md](packs.md#writing-a-pack)). Libraries ship
+  their own: atlas's registry is `atlas.meta-source/pack`, and its JS
   module adds an endpoint-call pack.
 - **Rules** are EDN files of `{:when … :require …}` over entities and their
   relations.
