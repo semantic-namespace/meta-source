@@ -1361,6 +1361,51 @@
                     (not-any? #(re-find #"failed reading" (str (:reason %))) (problems declared :pack-form-not-read)))))
       (fs/delete-tree dir))
 
+    ;; ---- the overarch pack: an architecture model read as data
+    (let [dir (str (fs/create-temp-dir))]
+      (fs/create-dirs (str dir "/models/shop"))
+      (fs/create-dirs (str dir "/registry"))
+      (spit (str dir "/models/shop/model.edn")
+            (str "#{{:el :person :id :shop/customer :name \"Customer\"}\n"
+                 "  {:el :system :id :shop/system :name \"Shop\"\n"
+                 "   :ct #{{:el :container :id :shop/api :name \"API\" :tech \"Clojure\"}\n"
+                 "         {:el :container :id :shop/orders-db :name \"Orders DB\"}\n"
+                 "         {:el :container :id :shop/mailer :name \"Mailer\"}\n"
+                 "         {:el :container :id :shop/audit-log :name \"Audit log\"}}}\n"
+                 "  {:el :rel :id :shop/api-uses-db :from :shop/api :to :shop/orders-db :name \"reads and writes\"}\n"
+                 "  {:el :rel :id :shop/api-uses-mailer :from :shop/api :to :shop/mailer :name \"sends\"}\n"
+                 "  {:el :rel :id :shop/api-uses-cache :from :shop/api :to :shop/cache :name \"caches\"}}\n"))
+      (spit (str dir "/models/shop/views.edn")
+            (str "#{{:el :container-view :id :shop/containers :title \"Shop containers\"\n"
+                 "   :ct [{:ref :shop/api} {:ref :shop/orders-db} {:ref :shop/mailer} {:ref :shop/ghost}]}}\n"))
+      ;; what the system itself says, in its own words
+      (spit (str dir "/registry/app.edn")
+            (str "{:shop/api {:app/calls [:shop/orders-db :shop/audit-log :shop/payments]}\n"
+                 " :shop/orders-db {:app/kind :db}\n"
+                 " :shop/mailer {:app/kind :smtp}\n"
+                 " :shop/audit-log {:app/kind :log}}\n"))
+      (let [oi (index/build {:root dir :src [] :registry ["registry"] :packs {:overarch {:models ["models"]}}})
+            ps (fn [p] (set (map (juxt :dev-id :to (comp :line :definition)) (problems oi p))))]
+        (check "overarch: a relation to no element, at the relation"
+               (= #{[:shop/api-uses-cache :shop/cache 9]} (ps :relation-to-nothing)))
+        (check "overarch: a view of an id the model doesn't define"
+               (= #{[:shop/containers :shop/ghost 1]} (ps :view-of-nothing)))
+        (check "overarch: an element no view shows, itself, its ancestors or its descendants, is info"
+               (= #{:shop/customer :shop/audit-log} (set (map :dev-id (problems oi :element-in-no-view)))))
+        (check "overarch: the model relates what the system doesn't (api -> mailer), as a warning"
+               (= #{[:shop/api :shop/mailer 3]} (ps :model-relation-not-declared)))
+        (check "overarch: the system names a model element the model doesn't relate to (api -> audit-log)"
+               (= #{[:shop/api :shop/audit-log 3]} (ps :relation-missing-from-model)))
+        (check "overarch: an element is an entity; a relation is a fact on the element it starts from"
+               (and (= #{:shop/orders-db :shop/mailer :shop/cache}
+                       (set (get-in (index/where oi :shop/api) [:entry :overarch/relates-to])))
+                    (= :shop/system (get-in (index/where oi :shop/api) [:entry :overarch/parent]))
+                    (= :db (get-in (index/where oi :shop/orders-db) [:entry :app/kind]))))
+        (check "overarch: uses on an element lists the relations reaching it and the views showing it"
+               (= #{:shop/api :shop/api-uses-db :shop/containers :shop/system}
+                  (set (map :dev-id (:referenced-by (index/uses oi :shop/orders-db)))))))
+      (fs/delete-tree dir))
+
     ;; ---- check --fail-on: which problems fail a CI run
     (let [ps [{:severity :error} {:severity :warning} {:severity :info}]]
       (check "--fail-on error fails on errors only; warning on warnings and errors; info on all"

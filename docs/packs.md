@@ -821,3 +821,59 @@ Not read: a state whose name is code (a template machine), reported as not
 read; transitions added at runtime; guards and actions, which are fns.
 
 ![A tilakone machine: a renamed state, the transition left behind, in Emacs](images/meta-source-tilakone.gif)
+
+## An architecture model: the Overarch pack
+
+```clojure
+:overarch {:models ["models/shop"]}   ; model and view EDN files, or directories of them
+```
+
+An [Overarch](https://github.com/soulspace-org/overarch) model is EDN: sets of
+element maps, read as data. Nothing is loaded or run. Each element is an
+entity under its `:id`, with what the model says of it, the element whose
+`:ct` holds it, and the elements its `:ct` holds:
+
+```clojure
+:shop/api #:overarch{:el :container :name "Shop API" :tech "Clojure"
+                     :parent :shop/system}
+```
+
+A relation (any element with `:from` and `:to`: `:rel`, `:uses`,
+`:dataflow`, `:inheritance`...) is an entity too, and on the element it starts
+from, `:overarch/relates-to` (unioned across relations). So `deps` on an element
+lists what the model says it relates to, and `uses` the elements relating to it and the
+views showing it. A view (an element whose `:el` ends in `-view`) gives
+`:overarch/shows`, the ids its `:ct` refers to, or `:overarch/selection`, the
+criteria Overarch resolves when it renders.
+
+The pack describes its elements, as atlas describes an integrant key: the
+atlas adapter exports atlas ids as they are, so a model element is often an
+entity a registry or another pack declares, and that declaration stays
+primary. That is what lets `check` compare the model with what the system
+says. `check` adds:
+
+- `:relation-to-nothing` (error): a relation's `:from` or `:to` names no
+  element of the model; Overarch can't draw it;
+- `:view-of-nothing` (error): a view refers to an id the model doesn't define;
+- `:element-defined-twice` (error): two elements share an id;
+- `:element-in-no-view` (info): no view shows the element, its ancestors or
+  its descendants. Not reported when a view selects by criteria;
+- `:model-relation-not-declared` (warning): the model relates two elements
+  that other sources describe too, and nothing else said about the first
+  names the second. The diagram says something the system doesn't;
+- `:relation-missing-from-model` (info): what another source says about an
+  element names a second element of the model, and the model has no relation
+  between them.
+
+The last two are the model against the rest: an element `:shop/api` whose
+registry entry says `{:app/calls [:shop/orders-db :shop/payments]}` and a
+model relating it to `:shop/mailer` gives a warning for the mailer and an
+info for the payments, when both are model elements.
+
+| | Read | Found |
+|---|---|---|
+| [overarch](https://github.com/soulspace-org/overarch) `models/overarch` | 626 entities: 161 classes, 53 concepts, 17 components, 347 relations of 10 kinds, 19 views (6 selecting by criteria) | nothing: every relation and view refers to an element |
+| atlas's [grain-counter export](https://github.com/semantic-namespace/atlas/tree/main/docs/adapter-overarch/grain-counter) | 21 entities, 8 relations, 2 views | nothing |
+
+Not read: models written in code, `:spec` selections (they are kept, not
+resolved), and Overarch's templates and plugins.
