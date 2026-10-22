@@ -429,8 +429,8 @@
              (= {:public true} (:reitit/data (entry :shop.routes/route.post.api.login))))
       (check "each route is at the line its path is written on, an inlined def's at the def"
              (= [16 9 21] (map line [:shop.routes/user :shop.routes/users :shop.routes/route.post.api.login])))
-      (check "a link to a route name is not reported while a child route is written as code; a handler its namespace doesn't define is"
-             (and (empty? (problems ri :route-not-defined))
+      (check "a link to a route name nothing defines is info while a child route is written as code; a handler its namespace doesn't define is a warning"
+             (and (= [[:shop.routes/userz 41 :info 1]] (map (juxt :dev-id (comp :line :definition) :severity :unread-trees) (problems ri :route-not-defined)))
                   (= [[:shop.routes/route.post.api.login 'shop.api/login]] (map (juxt :dev-id :calls) (problems ri :handler-not-found)))))
       (let [dir (str (fs/create-temp-dir))]
         (fs/create-dirs (str dir "/src/app"))

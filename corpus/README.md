@@ -102,7 +102,9 @@ per defect.
 ## Second run: checks quiet where the pack didn't read (2026-10-22)
 
 These changes follow from the first results:
-- **`route-not-defined`:** not reported while some route tree couldn't be read.
+- **`route-not-defined`:** a name a form gives literally (`:name :about-page`
+  in an `:expand` fn) counts as defined, even when the pack can't read the
+  tree around it.
 - **`input-without-producer`:** not reported while some output couldn't be read.
 - **The never-used checks:** opt-in (`:report-unused`), and events aren't
   reported while some handler couldn't be read. The corpus turns them on:
@@ -114,25 +116,17 @@ These changes follow from the first results:
 |---|---|---|
 | `event-not-registered` | 8/9 | 8/8 |
 | `event-never-dispatched` | 13/88 | no findings: athens and repath-studio both have handlers the pack can't read |
-| `route-not-defined` | 0/26 | no findings |
+| `route-not-defined` | 0/26 | no findings: tubo's names are read from its `:expand` fn |
 | `input-without-producer` | 0/8 | 3 findings, 2 useless, 1 unjudged |
 | `ref-to-undefined` | 0/1 | no findings |
 | `sub-never-subscribed` (opt-in) | 4/33 | 4/33: subscriptions held as data still aren't seen |
 
-What it cost:
-- **A planted route typo is now missed.** tubo builds its route tree in an
-  `:expand` fn in another namespace, so `route-not-defined` stays quiet
-  there. Planted defects found: 7 of 8.
-- **The 13 real never-dispatched events found in the first run are no longer
-  reported**, for the same reason.
+What it cost: the 13 real never-dispatched events found in the first run
+are no longer reported. athens and repath-studio both have handlers the pack
+can't read. Planted defects: 8 of 8 found. The route typo planted in tubo is
+reported as info, since part of tubo's tree is still built in code.
 
 That is the trade made: the checks are right when they speak, and say less.
-
-A way to win the route typo back: the names an app gives its routes are
-usually literal (`:name :about-page`), even when the tree around them is
-built by a fn. A pack that collected `:name` values from the forms it
-couldn't read, and from fns passed as `:expand`, could count them as
-defined, and still report a link to any other name.
 
 125 labels judge findings this run no longer produces. They are kept: they
 are the record of what the first run reported, and they apply again if a
