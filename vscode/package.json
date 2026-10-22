@@ -1,0 +1,26 @@
+{
+  "name": "meta-source",
+  "displayName": "meta-source",
+  "description": "EXPERIMENTAL. The registry ids a codebase shares, in the editor: hover, go to definition, find references and problems, from meta-source's Clojure and JavaScript readers",
+  "version": "0.1.0",
+  "publisher": "semantic-namespace",
+  "license": "MIT",
+  "repository": { "type": "git", "url": "https://github.com/semantic-namespace/meta-source" },
+  "engines": { "vscode": "^1.80.0" },
+  "categories": ["Linters", "Programming Languages"],
+  "activationEvents": ["workspaceContains:meta-source.edn"],
+  "main": "./extension.js",
+  "contributes": {
+    "configuration": {
+      "title": "meta-source",
+      "properties": {
+        "metaSource.clojure.enabled": { "type": "boolean", "default": true, "description": "Run the Clojure reader (meta-source serve)" },
+        "metaSource.clojure.command": { "type": "array", "items": { "type": "string" }, "default": ["meta-source"],
+                                        "description": "The Clojure reader's command, before `serve` (bbin install io.github.semantic-namespace/meta-source)" },
+        "metaSource.javascript.enabled": { "type": "boolean", "default": true, "description": "Run the JavaScript reader (meta-source-js serve)" },
+        "metaSource.javascript.command": { "type": "array", "items": { "type": "string" }, "default": ["npx", "--yes", "github:semantic-namespace/meta-source"],
+                                           "description": "The JavaScript reader's command, before `serve`" }
+      }
+    }
+  }
+}

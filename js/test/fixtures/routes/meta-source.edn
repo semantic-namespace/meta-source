@@ -1,0 +1,6 @@
+;; a project's own JS pack, ./route-pack.js: each property of ROUTES is a
+;; :route/<key> entity, and a route that doesn't start with its prefix is
+;; a problem
+{:registry ["registry"]
+ :src ["src"]
+ :js {:packs {"./route-pack.js" {:prefix "/shop"}}}}

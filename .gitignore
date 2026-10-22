@@ -1,3 +1,5 @@
 .cpcache/
 .meta-source/
 *.elc
+node_modules/
+*.vsix

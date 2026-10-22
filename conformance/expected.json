@@ -1,0 +1,230 @@
+{
+  "check" : [ {
+    "dev-id" : "fn/apply-discount",
+    "key" : "fn/doc",
+    "problem" : "conflicting-values",
+    "severity" : "error",
+    "values" : [ {
+      "sources" : [ {
+        "file" : "registry/functions.edn",
+        "line" : 14
+      } ],
+      "value" : "A discount on the total"
+    }, {
+      "sources" : [ {
+        "file" : "registry/tags.edn",
+        "line" : 5
+      } ],
+      "value" : "Takes a code off the total"
+    } ]
+  } ],
+  "data :order/lines" : {
+    "consumers" : [ {
+      "definition" : {
+        "file" : "registry/functions.edn",
+        "line" : 2
+      },
+      "dev-id" : "fn/price"
+    }, {
+      "definition" : {
+        "file" : "registry/functions.edn",
+        "line" : 8
+      },
+      "dev-id" : "fn/render-receipt"
+    } ],
+    "data-key" : "order/lines",
+    "producers" : [ ]
+  },
+  "data :order/total" : {
+    "consumers" : [ {
+      "definition" : {
+        "file" : "registry/functions.edn",
+        "line" : 14
+      },
+      "dev-id" : "fn/apply-discount"
+    }, {
+      "definition" : {
+        "file" : "registry/functions.edn",
+        "line" : 8
+      },
+      "dev-id" : "fn/render-receipt"
+    } ],
+    "data-key" : "order/total",
+    "producers" : [ {
+      "definition" : {
+        "file" : "registry/functions.edn",
+        "line" : 14
+      },
+      "dev-id" : "fn/apply-discount"
+    }, {
+      "definition" : {
+        "file" : "registry/functions.edn",
+        "line" : 2
+      },
+      "dev-id" : "fn/price"
+    } ]
+  },
+  "deps :fn/render-receipt" : {
+    "depends-on" : [ {
+      "definition" : {
+        "file" : "registry/functions.edn",
+        "line" : 2
+      },
+      "dev-id" : "fn/price",
+      "via" : "fn/calls"
+    } ],
+    "dev-id" : "fn/render-receipt"
+  },
+  "deps :page/receipt" : {
+    "depends-on" : [ {
+      "definition" : {
+        "file" : "registry/functions.edn",
+        "line" : 8
+      },
+      "dev-id" : "fn/render-receipt",
+      "via" : "page/shows"
+    } ],
+    "dev-id" : "page/receipt"
+  },
+  "hover :fn/price" : {
+    "definitions" : [ {
+      "file" : "registry/functions.edn",
+      "line" : 2,
+      "summary" : "defined: tags doc reads returns"
+    }, {
+      "file" : "registry/tags.edn",
+      "line" : 3,
+      "summary" : "defined: tags"
+    } ],
+    "kind" : "entity",
+    "references" : [ {
+      "file" : "registry/functions.edn",
+      "line" : 8,
+      "summary" : ":fn/render-receipt via :fn/calls"
+    } ]
+  },
+  "hover :nope/x" : {
+    "kind" : "none"
+  },
+  "hover :order/total" : {
+    "definitions" : [ {
+      "file" : "registry/functions.edn",
+      "line" : 14,
+      "summary" : "produced by :fn/apply-discount"
+    }, {
+      "file" : "registry/functions.edn",
+      "line" : 2,
+      "summary" : "produced by :fn/price"
+    } ],
+    "describe" : ":order/total    data key\n\nproduced by\n  :fn/apply-discount    registry/functions.edn:14\n  :fn/price    registry/functions.edn:2\n\nconsumed by\n  :fn/apply-discount    registry/functions.edn:14\n  :fn/render-receipt    registry/functions.edn:8\n\nmentioned in code (0)",
+    "eldoc" : ":order/total  data key\nproduced by :fn/apply-discount, :fn/price  ·  consumed by :fn/apply-discount, :fn/render-receipt",
+    "kind" : "data-key",
+    "references" : [ {
+      "file" : "registry/functions.edn",
+      "line" : 14,
+      "summary" : "consumed by :fn/apply-discount"
+    }, {
+      "file" : "registry/functions.edn",
+      "line" : 8,
+      "summary" : "consumed by :fn/render-receipt"
+    } ]
+  },
+  "uses :fn/price" : {
+    "dev-id" : "fn/price",
+    "referenced-by" : [ {
+      "definition" : {
+        "file" : "registry/functions.edn",
+        "line" : 8
+      },
+      "dev-id" : "fn/render-receipt",
+      "via" : "fn/calls"
+    } ]
+  },
+  "uses :fn/render-receipt" : {
+    "dev-id" : "fn/render-receipt",
+    "referenced-by" : [ {
+      "definition" : {
+        "file" : "registry/pages.edn",
+        "line" : 1
+      },
+      "dev-id" : "page/receipt",
+      "via" : "page/shows"
+    } ]
+  },
+  "where :fn/apply-discount" : {
+    "definition" : {
+      "file" : "registry/functions.edn",
+      "line" : 14
+    },
+    "dev-id" : "fn/apply-discount",
+    "entry" : {
+      "fn/reads" : [ "discount/code", "order/total" ],
+      "fn/returns" : [ "order/total" ]
+    },
+    "sources" : [ {
+      "file" : "registry/functions.edn",
+      "keys" : [ "fn/doc", "fn/reads", "fn/returns" ],
+      "line" : 14
+    }, {
+      "file" : "registry/tags.edn",
+      "keys" : [ "fn/doc" ],
+      "line" : 5
+    } ]
+  },
+  "where :fn/price" : {
+    "definition" : {
+      "file" : "registry/functions.edn",
+      "line" : 2
+    },
+    "dev-id" : "fn/price",
+    "entry" : {
+      "app/tags" : [ "billing", "money" ],
+      "fn/doc" : "The order's total from its lines",
+      "fn/reads" : [ "order/lines" ],
+      "fn/returns" : [ "order/total" ]
+    },
+    "sources" : [ {
+      "file" : "registry/functions.edn",
+      "keys" : [ "app/tags", "fn/doc", "fn/reads", "fn/returns" ],
+      "line" : 2
+    }, {
+      "file" : "registry/tags.edn",
+      "keys" : [ "app/tags" ],
+      "line" : 3
+    } ]
+  },
+  "where :fn/render-receipt" : {
+    "definition" : {
+      "file" : "registry/functions.edn",
+      "line" : 8
+    },
+    "dev-id" : "fn/render-receipt",
+    "entry" : {
+      "fn/calls" : [ "fn/price" ],
+      "fn/doc" : "The receipt page's HTML",
+      "fn/reads" : [ "order/lines", "order/total" ],
+      "fn/returns" : [ "receipt/html" ]
+    },
+    "sources" : [ {
+      "file" : "registry/functions.edn",
+      "keys" : [ "fn/calls", "fn/doc", "fn/reads", "fn/returns" ],
+      "line" : 8
+    } ]
+  },
+  "where :page/receipt" : {
+    "definition" : {
+      "file" : "registry/pages.edn",
+      "line" : 1
+    },
+    "dev-id" : "page/receipt",
+    "entry" : {
+      "page/route" : "/orders/:id/receipt",
+      "page/shows" : "fn/render-receipt"
+    },
+    "sources" : [ {
+      "file" : "registry/pages.edn",
+      "keys" : [ "page/route", "page/shows" ],
+      "line" : 1
+    } ]
+  }
+}

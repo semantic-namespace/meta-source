@@ -1,0 +1,5 @@
+;; a second source for two entities: :app/tags merge as a union; :fn/doc
+;; given twice with different values is a conflict
+{:fn/price {:app/tags #{:money}}
+
+ :fn/apply-discount {:fn/doc "Takes a code off the total"}}
