@@ -1,0 +1,15 @@
+{
+  "name": "meta-source",
+  "version": "0.1.0",
+  "private": true,
+  "description": "EXPERIMENTAL. meta-source for JavaScript and TypeScript: the registry ids a codebase shares, read from its files, for editors and CI",
+  "license": "MIT",
+  "repository": { "type": "git", "url": "https://github.com/semantic-namespace/meta-source" },
+  "bin": { "meta-source-js": "js/bin/meta-source-js.js" },
+  "files": ["js/bin", "js/src", "js/README.md", "LICENSE"],
+  "engines": { "node": ">=18" },
+  "scripts": {
+    "test": "node --test js/test/*.test.js"
+  },
+  "dependencies": { "typescript": "5.4.5" }
+}

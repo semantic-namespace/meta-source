@@ -1,0 +1,3 @@
+{:page/receipt
+ {:page/shows :fn/render-receipt
+  :page/route "/orders/:id/receipt"}}

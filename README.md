@@ -133,6 +133,25 @@ Eldoc describes the keyword at point, `M-.` goes to each place that declares
 it, `M-?` lists what uses it, `C-c .` opens the describe buffer, and Flymake
 underlines what `check` finds.
 
+## JavaScript and TypeScript
+
+EXPERIMENTAL. A second reader, for JavaScript and TypeScript code, shares
+the registry, `meta-source.edn`, the questions and the editor protocol. A
+declaration names the id it implements in its JSDoc,
+`/** @meta-source/id :fn/render-receipt */`, and a repo in both languages
+has one registry, each reader indexing its own language's code:
+
+```sh
+npx github:semantic-namespace/meta-source check --brief
+```
+
+The [VS Code extension](vscode) runs both readers: here a hover on a
+TypeScript function, an EDN id whose implementation the Clojure reader
+finds, go to definition from the EDN to the TypeScript, and an id tagged on
+two declarations. See [js/README.md](js/README.md).
+
+![VS Code: one registry, a Clojure and a TypeScript implementation](docs/images/vscode-polyglot.gif)
+
 ## How it relates to clj-kondo and clojure-lsp
 
 They know your code: namespaces, vars, calls, arities. meta-source knows
@@ -204,7 +223,8 @@ cross-reference, and it keeps the cross-reference true.
 
 Working today: the integrant, aero, spec/malli (with `s/fdef` and `m/=>`),
 Pathom, re-frame, reitit and Datascript packs, `check`, the queries, the Emacs
-package, a project's own packs, and a project's own rules. Next: snapshots of
+package, a project's own packs, and a project's own rules. New and
+experimental: the JavaScript/TypeScript reader and the VS Code extension. Next: snapshots of
 the running system for every pack, and a pinned corpus of real apps checked
 in CI.
 
@@ -218,6 +238,8 @@ in CI.
 bb smoke                   # the index, packs and diagnostics on test/fixtures/shop
 bb emacs-smoke             # meta-source.el against a real meta-source serve
 bb pathom-snapshot-check   # the fixture's Pathom snapshot, rebuilt from real Pathom
+bb conformance             # the answers every reader must give (conformance/)
+npm test                   # the JavaScript reader, against the same answers
 ```
 
 meta-source started as `atlas.source` in

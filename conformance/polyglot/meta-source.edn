@@ -1,0 +1,7 @@
+;; One registry, implemented in two languages: shop.price (Clojure, src/)
+;; and the receipt page (TypeScript, web/). Each reader indexes the code in
+;; its own language; about the registry, both must answer the same.
+{:registry ["registry"]
+ :src ["src" "web"]
+ :dataflow {:consumes [:fn/reads] :produces [:fn/returns]}
+ :merge {:app/tags :union}}

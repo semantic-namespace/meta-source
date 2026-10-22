@@ -10,6 +10,10 @@
          emacs-smoke {:doc "meta-source.el against a real meta-source serve on the shop fixture. Needs Emacs 27+ ($EMACS) and clojure-mode for the hover tests."
                       :requires ([emacs-smoke])
                       :task (emacs-smoke/-main)}
+         conformance {:doc "The Clojure reader's answers about conformance/polyglot's registry, against conformance/expected.json (--write: regenerate it)"
+                      :extra-paths ["conformance"]
+                      :requires ([conformance])
+                      :task (apply conformance/-main *command-line-args*)}
          pathom-snapshot-check {:doc "Rebuilds the shop fixture's Pathom snapshot from real Pathom 3 and 2 and checks it matches the committed one. Needs the clojure CLI."
                                 :requires ([pathom-snapshot-check])
                                 :task (pathom-snapshot-check/-main)}}}

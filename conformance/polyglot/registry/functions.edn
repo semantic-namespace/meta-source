@@ -1,0 +1,17 @@
+;; the shop's functions, in its own words: what each reads and returns
+{:fn/price
+ {:fn/doc "The order's total from its lines"
+  :fn/reads [:order/lines]
+  :fn/returns [:order/total]
+  :app/tags #{:billing}}
+
+ :fn/render-receipt
+ {:fn/doc "The receipt page's HTML"
+  :fn/reads [:order/total :order/lines]
+  :fn/returns [:receipt/html]
+  :fn/calls [:fn/price]}
+
+ :fn/apply-discount
+ {:fn/doc "A discount on the total"
+  :fn/reads [:order/total :discount/code]
+  :fn/returns [:order/total]}}
