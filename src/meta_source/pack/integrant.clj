@@ -102,7 +102,10 @@
          {:file (:file (first ds)) :row (:line (first ds)) :kind kind :dev-id id
           :entry (cond-> {:integrant/config-in (vec (for [d ds] (str (:path d) ":" (:line d))))}
                    (seq (refs (map :value ds))) (assoc :integrant/refs (refs (map :value ds)))
-                   (vector? k) (assoc :integrant/derives (vec (remove #{id} k)))
+                   ;; every composite merged into this id, not only the first:
+                   ;; [:a :done] and [:b :done] both make :done derive
+                   (some (comp vector? :key) ds)
+                   (assoc :integrant/derives (vec (distinct (for [d ds :when (vector? (:key d)) x (:key d) :when (not= id x)] x))))
                    (seq (env-vars (map :value ds))) (assoc :integrant/env (env-vars (map :value ds)))
                    (> (count values) 1) (assoc :integrant/varies true)
                    (seq (keep :profile ds)) (assoc :integrant/profiles (vec (sort (distinct (keep :profile ds))))))}))))
