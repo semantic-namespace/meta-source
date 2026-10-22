@@ -166,7 +166,18 @@ That analysis uses your project's `.clj-kondo` config, as your editor's
 clj-kondo does: a macro you've taught clj-kondo (`:lint-as`, a hook, a
 library's imported config) is read as what it defines.
 
-## How it works
+## How it's built
+
+meta-source builds one index of the ids your code shares with its
+registries. It reads clj-kondo's analysis of your code, with each library's
+pack reading that library's forms as data, plus your EDN files and any
+snapshots of the running system, and merges what they say per id. The
+CLI, `serve` (and the editors through it) and CI all ask that one index.
+[docs/architecture.md](docs/architecture.md) explains the pieces and how
+they fit together: the pipeline, the merge, the questions and checks, the
+two readers, and where each piece lives.
+
+## What it reads
 
 - **Packs** read one library's registry each: **aero** (the environment
   variables a config needs and which deployment sets them, includes,
@@ -232,6 +243,8 @@ in CI.
 
 - [docs/reference.md](docs/reference.md): every command, what `check`
   finds, EDN facts and the meta key, the Emacs package
+- [docs/architecture.md](docs/architecture.md): how it's built, and how the
+  pieces fit together
 - [docs/packs.md](docs/packs.md): each pack's options, and writing your own
 
 ```sh
