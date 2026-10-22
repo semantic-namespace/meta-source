@@ -57,6 +57,8 @@
         deps (distinct (map :dev-id (:depends-on (index/dependencies idx id))))
         ;; places that only refer to it (a dispatch) are not where it is defined
         {referring true defining false} (group-by #(boolean (:refers %)) (:sources w))
+        ;; its primary definition first: where M-. goes
+        defining (sort-by #(if (= ((juxt :file :line) %) ((juxt :file :line) (:definition w))) 0 1) defining)
         ;; keys only those places give (:re-frame/dispatched) are said by "referred to from"
         marker? (set (remove (set (mapcat :keys defining)) (mapcat :keys referring)))
         n-used (+ (count (:referenced-by u)) (count (:called-from u)) (count referring))
