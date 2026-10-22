@@ -82,6 +82,18 @@
   {:id :datascript-chat :git "https://github.com/tonsky/datascript-chat" :sha "3d4b0c456483f2feb0b9af9ab42e94928ecd2743"
    :config {:src ["src"] :packs {:datascript {}}}}
 
+  ;; ---- added for warnings: apps where the warning checks fire
+  {:id :saas-boilerplate :git "https://github.com/ovistoica/clojure-saas-boilerplate" :sha "6ee43e25416080dace8e0403723ebff94010a71a"
+   :config {:src ["src"] :packs {:integrant {:configs ["resources"]} :reitit {} :re-frame {:report-unused true}}}}
+  {:id :mercurius :git "https://github.com/eeng/mercurius" :sha "8e9a1a23b382b7a79815bda5bf6f086aed41c004"
+   :config {:src ["src"] :packs {:integrant {:configs ["resources"]} :reitit {} :re-frame {:report-unused true} :spec {}}}}
+  {:id :vetd-app :git "https://github.com/Vetd-Inc/vetd-app" :sha "9b33b1443b9d84d39305a63fc58119f8e014cf11"
+   :config {:src ["src"] :packs {:re-frame {:report-unused true} :reitit {}}}}
+  {:id :status-mobile :git "https://github.com/status-im/status-mobile" :sha "e0da660e053ae9058e6f4523292407fac21ef945"
+   :config {:src ["src"] :packs {:re-frame {:report-unused true} :reitit {} :spec {}}}}
+  {:id :logseq :git "https://github.com/logseq/logseq" :sha "05c3ae73e08498e9e20f1b11c3eac5525e5e588d"
+   :config {:src ["src/main" "deps/db/src"] :packs {:datascript {} :reitit {} :spec {} :malli {}}}}
+
   ;; ---- this repository's fixture: where defects are planted to measure recall
   ;; its findings are the fixture's own planted problems: never in precision
   {:id :shop-fixture :path "test/fixtures/shop" :plants-only true}]
