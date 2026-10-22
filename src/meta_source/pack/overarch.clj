@@ -26,7 +26,8 @@
    element's id is often another registry's id (the atlas adapter exports
    atlas ids as they are), whose declaration stays primary. That is what
    lets `check` compare the model with what the code and registries say."
-  (:require [clojure.string :as str]))
+  (:require [clojure.set :as set]
+            [clojure.string :as str]))
 
 (def kind :overarch)
 
@@ -122,12 +123,14 @@
      its descendants. Not reported when a view selects by criteria, which
      Overarch resolves when it renders;
    - :model-relation-not-declared (warning): the model relates two elements
-     that other sources describe too, and nothing else describing the first
-     names the second: the diagram says something the system doesn't;
+     that other sources describe too, nothing else describing the first
+     names the second, and no data key the first produces is one the second
+     consumes (an event a read model reads): the diagram says something the
+     system doesn't;
    - :relation-missing-from-model (info): another source describing an
      element names a second element of the model, and the model has no
      relation from the first to the second."
-  [{:keys [of-kinds loc entities]}]
+  [{:keys [of-kinds loc entities flow]}]
   (let [model (into {} (filter (fn [[_ e]] (seq (own-defs e)))) (of-kinds #{kind}))
         el-of #(get-in model [% :entry :overarch/el])
         rel? (fn [id] (some? (get-in model [id :entry :overarch/from])))
@@ -168,7 +171,11 @@
            :when (and whole (described-elsewhere? whole))
            to (sort-by str (get-in whole [:entry :overarch/relates-to]))
            :let [other (get entities to)]
-           :when (and other (described-elsewhere? other) (not (contains? (mentions (:entry whole)) to)))]
+           :when (and other (described-elsewhere? other)
+                      (not (contains? (mentions (:entry whole)) to))
+                      ;; or through data: what the first produces, the second consumes
+                      (empty? (set/intersection (:produces (flow (:entry whole)))
+                                                (:consumes (flow (:entry other))))))]
        {:severity :warning :problem :model-relation-not-declared :dev-id id :to to
         :definition (at (or (drawn [id to]) e))})
      (for [[id e] (sort-by key elements)

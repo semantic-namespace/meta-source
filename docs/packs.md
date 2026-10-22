@@ -859,8 +859,10 @@ says. `check` adds:
 - `:element-in-no-view` (info): no view shows the element, its ancestors or
   its descendants. Not reported when a view selects by criteria;
 - `:model-relation-not-declared` (warning): the model relates two elements
-  that other sources describe too, and nothing else said about the first
-  names the second. The diagram says something the system doesn't;
+  that other sources describe too, nothing else said about the first names
+  the second, and no data key the first produces is one the second consumes
+  (a command's event that a read model reads, by `:dataflow`). The diagram
+  says something the system doesn't;
 - `:relation-missing-from-model` (info): what another source says about an
   element names a second element of the model, and the model has no relation
   between them.
@@ -873,7 +875,7 @@ info for the payments, when both are model elements.
 | | Read | Found |
 |---|---|---|
 | [overarch](https://github.com/soulspace-org/overarch) `models/overarch` | 626 entities: 161 classes, 53 concepts, 17 components, 347 relations of 10 kinds, 19 views (6 selecting by criteria) | nothing: every relation and view refers to an element |
-| atlas's [grain-counter export](https://github.com/semantic-namespace/atlas/tree/main/docs/adapter-overarch/grain-counter) | 21 entities, 8 relations, 2 views | nothing |
+| atlas's [grain-counter export](https://github.com/semantic-namespace/atlas/tree/main/docs/adapter-overarch/grain-counter), with the counter's atlas registry | 21 entities, 8 relations, 2 views | every relation declared by the registry, 5 of them through an event a command emits and a read model or processor reads; one info: the processor depends on the read model, a relation the export doesn't draw |
 
 Not read: models written in code, `:spec` selections (they are kept, not
 resolved), and Overarch's templates and plugins.

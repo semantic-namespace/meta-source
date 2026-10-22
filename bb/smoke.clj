@@ -1374,17 +1374,21 @@
                  "         {:el :container :id :shop/audit-log :name \"Audit log\"}}}\n"
                  "  {:el :rel :id :shop/api-uses-db :from :shop/api :to :shop/orders-db :name \"reads and writes\"}\n"
                  "  {:el :rel :id :shop/api-uses-mailer :from :shop/api :to :shop/mailer :name \"sends\"}\n"
-                 "  {:el :rel :id :shop/api-uses-cache :from :shop/api :to :shop/cache :name \"caches\"}}\n"))
+                 "  {:el :rel :id :shop/api-uses-cache :from :shop/api :to :shop/cache :name \"caches\"}\n"
+                 "  {:el :container :id :shop/projector :name \"Order projector\"}\n"
+                 "  {:el :rel :id :shop/api-feeds-projector :from :shop/api :to :shop/projector :name \"order-placed\"}}\n"))
       (spit (str dir "/models/shop/views.edn")
             (str "#{{:el :container-view :id :shop/containers :title \"Shop containers\"\n"
-                 "   :ct [{:ref :shop/api} {:ref :shop/orders-db} {:ref :shop/mailer} {:ref :shop/ghost}]}}\n"))
+                 "   :ct [{:ref :shop/api} {:ref :shop/orders-db} {:ref :shop/mailer} {:ref :shop/projector} {:ref :shop/ghost}]}}\n"))
       ;; what the system itself says, in its own words
       (spit (str dir "/registry/app.edn")
-            (str "{:shop/api {:app/calls [:shop/orders-db :shop/audit-log :shop/payments]}\n"
+            (str "{:shop/api {:app/calls [:shop/orders-db :shop/audit-log :shop/payments] :app/emits [:shop/order-placed]}\n"
+                 " :shop/projector {:app/reads [:shop/order-placed]}\n"
                  " :shop/orders-db {:app/kind :db}\n"
                  " :shop/mailer {:app/kind :smtp}\n"
                  " :shop/audit-log {:app/kind :log}}\n"))
-      (let [oi (index/build {:root dir :src [] :registry ["registry"] :packs {:overarch {:models ["models"]}}})
+      (let [oi (index/build {:root dir :src [] :registry ["registry"] :packs {:overarch {:models ["models"]}}
+                                    :dataflow {:consumes [:app/reads] :produces [:app/emits]}})
             ps (fn [p] (set (map (juxt :dev-id :to (comp :line :definition)) (problems oi p))))]
         (check "overarch: a relation to no element, at the relation"
                (= #{[:shop/api-uses-cache :shop/cache 9]} (ps :relation-to-nothing)))
@@ -1392,12 +1396,12 @@
                (= #{[:shop/containers :shop/ghost 1]} (ps :view-of-nothing)))
         (check "overarch: an element no view shows, itself, its ancestors or its descendants, is info"
                (= #{:shop/customer :shop/audit-log} (set (map :dev-id (problems oi :element-in-no-view)))))
-        (check "overarch: the model relates what the system doesn't (api -> mailer), as a warning at the relation"
+        (check "overarch: the model relates what the system doesn't (api -> mailer), as a warning at the relation; api -> projector is declared through the data api emits and projector reads"
                (= #{[:shop/api :shop/mailer 8]} (ps :model-relation-not-declared)))
         (check "overarch: the system names a model element the model doesn't relate to (api -> audit-log)"
                (= #{[:shop/api :shop/audit-log 3]} (ps :relation-missing-from-model)))
         (check "overarch: an element is an entity; a relation is a fact on the element it starts from"
-               (and (= #{:shop/orders-db :shop/mailer :shop/cache}
+               (and (= #{:shop/orders-db :shop/mailer :shop/cache :shop/projector}
                        (set (get-in (index/where oi :shop/api) [:entry :overarch/relates-to])))
                     (contains? (set (get-in (index/where oi :shop/system) [:entry :overarch/contains])) :shop/api)
                     ;; a picture of the system: the registry's entry is the primary definition
