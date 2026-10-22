@@ -246,10 +246,10 @@
     (let [rf (index/build (assoc-in cfg [:packs :re-frame] {:provided [:http-xhrio]}))
           entry #(:entry (index/where rf %))
           found #(set (map :dev-id (problems rf %)))]
-      (check "every registration and reference is read, in a .cljs file"
-             (= {:read 19 :not-read 0} (:re-frame (:packs (index/summary rf)))))
+      (check "every registration and reference is read, in a .cljs file, with the ids held in literal vectors"
+             (= {:read 26 :not-read 0} (:re-frame (:packs (index/summary rf)))))
       (check "an event: its handler, what its effects dispatch (a callback among them), its effects and writes"
-             (= #:re-frame{:registered #{:event} :handler :fx :dispatched true
+             (= #:re-frame{:registered #{:event} :handler :fx :dispatched true :held true
                            :dispatches [:shop.ui/pay :shop.ui/paid] :effects [:http-xhrio] :writes [:order/state]}
                 (entry :shop.ui/checkout)))
       (check ":fx entries: an effect and a dispatch"
