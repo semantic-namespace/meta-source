@@ -1,0 +1,44 @@
+;; Known defects, planted one at a time in a copy of an app: the edit a
+;; developer could make by mistake, and the problem the matching check should
+;; then report. `bb corpus plant` gives recall per check: of the defects
+;; planted, how many it found. A check that never fires has no false findings;
+;; this is what tells it from a check that's blind.
+;;
+;;   :app      a corpus app; :file inside its :root
+;;   :replace  [text replacement]: the first occurrence is replaced, every
+;;             one with :all true
+;;   :expect   keys a new problem must have
+
+[;; ---- re-frame: conduit
+ {:id :dispatch-typo :app :conduit :file "src/conduit/views.cljs"
+  :replace ["#(dispatch [:delete-article slug])" "#(dispatch [:delete-artcle slug])"]
+  :expect {:problem :event-not-registered :dev-id :delete-artcle}}
+ {:id :subscribe-typo :app :conduit :file "src/conduit/views.cljs"
+  :replace ["(subscribe [:profile])" "(subscribe [:profle])"]
+  :expect {:problem :sub-not-registered :dev-id :profle}}
+ {:id :last-dispatch-removed :app :conduit :file "src/conduit/views.cljs"
+  :replace ["#(dispatch [:toggle-follow-user username])" "#(dispatch [:toggle-favorite-article username])"] :all true
+  :expect {:problem :event-never-dispatched :dev-id :toggle-follow-user}}
+
+ ;; ---- reitit: tubo
+ {:id :route-name-typo :app :tubo :file "src/frontend/tubo/views.cljs"
+  :replace ["(rfe/href :privacy-page)" "(rfe/href :privacy-pag)"]
+  :expect {:problem :route-not-defined :dev-id :privacy-pag}}
+
+ ;; ---- Datascript: athens
+ {:id :join-on-a-value :app :athens :file "src/cljs/athens/db.cljs"
+  :replace ["(d/pull db [{:block/children [:block/uid :block/order :block/open]}] [:block/uid uid])"
+            "(d/pull db [{:block/string [:block/uid :block/order :block/open]}] [:block/uid uid])"]
+  :expect {:problem :pull-join-not-ref :dev-id :block/string}}
+ {:id :lookup-on-a-value :app :athens :file "src/cljs/athens/db.cljs"
+  :replace ["(d/pull db [{:block/children [:block/uid :block/order :block/open]}] [:block/uid uid])"
+            "(d/pull db [{:block/children [:block/uid :block/order :block/open]}] [:block/string uid])"]
+  :expect {:problem :lookup-ref-not-unique :dev-id :block/string}}
+
+ ;; ---- integrant and clojure.spec: this repository's shop fixture
+ {:id :ref-typo :app :shop-fixture :file "resources/system.edn"
+  :replace [":handler #ig/ref :shop/handler}" ":handler #ig/ref :shop/handlr}"]
+  :expect {:problem :ref-to-undefined}}
+ {:id :spec-removed :app :shop-fixture :file "src/shop/spec.clj"
+  :replace ["(s/def :user/name string?)" ";; (s/def :user/name string?)"]
+  :expect {:problem :data-key-without-schema}}]

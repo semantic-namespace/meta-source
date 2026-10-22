@@ -1,0 +1,5229 @@
+;; Judgments of corpus findings: see corpus/README.md. :confirmed true
+;; only once someone other than the checks' author agrees.
+[{:finding
+  [:clojure-dap
+   :keys-outside-contract
+   :clojure-dap.protocol/parse-message
+   "src/clojure_dap/protocol.clj"
+   {:keys [:clojure-dap.protocol/message]}],
+  :label :false,
+  :confirmed false,
+  :by "claude, first pass",
+  :why
+  "::message is a schema the fn validates against, not a key it returns"}
+ {:finding
+  [:clojure-dap
+   :keys-outside-contract
+   :clojure-dap.protocol/render-message
+   "src/clojure_dap/protocol.clj"
+   {:keys [:clojure-dap.protocol/message]}],
+  :label :false,
+  :confirmed false,
+  :by "claude, first pass",
+  :why
+  "::message is a schema the fn validates against, not a key it returns"}
+ {:finding
+  [:clojure-dap
+   :keys-outside-contract
+   :clojure-dap.schema/result
+   "src/clojure_dap/schema.clj"
+   {:keys [:clojure-dap.schema/anomaly]}],
+  :label :false,
+  :confirmed false,
+  :by "claude, first pass",
+  :why
+  "::anomaly is a schema name in the [:or ...] the fn returns, not a key"}
+ {:finding
+  [:tubo
+   :route-not-defined
+   :about-page
+   "src/frontend/tubo/navigation/views.cljs"
+   {:unread-trees 2}],
+  :label :false,
+  :confirmed false,
+  :by "claude, first pass",
+  :why
+  "defined in router.cljs under :name, in a route tree a fn builds, which the pack doesn't read"}
+ {:finding
+  [:tubo
+   :route-not-defined
+   :bookmark-page
+   "src/frontend/tubo/bookmarks/views.cljs"
+   {:unread-trees 2}],
+  :label :false,
+  :confirmed false,
+  :by "claude, first pass",
+  :why
+  "defined in router.cljs under :name, in a route tree a fn builds, which the pack doesn't read"}
+ {:finding
+  [:tubo
+   :route-not-defined
+   :bookmarks-page
+   "src/frontend/tubo/navigation/views.cljs"
+   {:unread-trees 2}],
+  :label :false,
+  :confirmed false,
+  :by "claude, first pass",
+  :why
+  "defined in router.cljs under :name, in a route tree a fn builds, which the pack doesn't read"}
+ {:finding
+  [:tubo
+   :route-not-defined
+   :channel-page
+   "src/frontend/tubo/comments/views.cljs"
+   {:unread-trees 2}],
+  :label :false,
+  :confirmed false,
+  :by "claude, first pass",
+  :why
+  "defined in router.cljs under :name, in a route tree a fn builds, which the pack doesn't read"}
+ {:finding
+  [:tubo
+   :route-not-defined
+   :channel-page
+   "src/frontend/tubo/playlist/views.cljs"
+   {:unread-trees 2}],
+  :label :false,
+  :confirmed false,
+  :by "claude, first pass",
+  :why
+  "defined in router.cljs under :name, in a route tree a fn builds, which the pack doesn't read"}
+ {:finding
+  [:tubo
+   :route-not-defined
+   :channel-page
+   "src/frontend/tubo/stream/views.cljs"
+   {:unread-trees 2}],
+  :label :false,
+  :confirmed false,
+  :by "claude, first pass",
+  :why
+  "defined in router.cljs under :name, in a route tree a fn builds, which the pack doesn't read"}
+ {:finding
+  [:tubo
+   :route-not-defined
+   :channel-page
+   "src/frontend/tubo/ui.cljs"
+   {:unread-trees 2}],
+  :label :false,
+  :confirmed false,
+  :by "claude, first pass",
+  :why
+  "defined in router.cljs under :name, in a route tree a fn builds, which the pack doesn't read"}
+ {:finding
+  [:tubo
+   :route-not-defined
+   :channel-page
+   "src/frontend/tubo/ui.cljs"
+   {:unread-trees 2}],
+  :label :false,
+  :confirmed false,
+  :by "claude, first pass",
+  :why
+  "defined in router.cljs under :name, in a route tree a fn builds, which the pack doesn't read"}
+ {:finding
+  [:tubo
+   :route-not-defined
+   :channel-page
+   "src/frontend/tubo/ui.cljs"
+   {:unread-trees 2}],
+  :label :false,
+  :confirmed false,
+  :by "claude, first pass",
+  :why
+  "defined in router.cljs under :name, in a route tree a fn builds, which the pack doesn't read"}
+ {:finding
+  [:tubo
+   :route-not-defined
+   :channel-page
+   "src/frontend/tubo/ui.cljs"
+   {:unread-trees 2}],
+  :label :false,
+  :confirmed false,
+  :by "claude, first pass",
+  :why
+  "defined in router.cljs under :name, in a route tree a fn builds, which the pack doesn't read"}
+ {:finding
+  [:tubo
+   :route-not-defined
+   :channel-page
+   "src/frontend/tubo/ui.cljs"
+   {:unread-trees 2}],
+  :label :false,
+  :confirmed false,
+  :by "claude, first pass",
+  :why
+  "defined in router.cljs under :name, in a route tree a fn builds, which the pack doesn't read"}
+ {:finding
+  [:tubo
+   :route-not-defined
+   :feed-page
+   "src/frontend/tubo/navigation/views.cljs"
+   {:unread-trees 2}],
+  :label :false,
+  :confirmed false,
+  :by "claude, first pass",
+  :why
+  "defined in router.cljs under :name, in a route tree a fn builds, which the pack doesn't read"}
+ {:finding
+  [:tubo
+   :route-not-defined
+   :homepage
+   "src/frontend/tubo/navigation/views.cljs"
+   {:unread-trees 2}],
+  :label :false,
+  :confirmed false,
+  :by "claude, first pass",
+  :why
+  "defined in router.cljs under :name, in a route tree a fn builds, which the pack doesn't read"}
+ {:finding
+  [:tubo
+   :route-not-defined
+   :kiosk-page
+   "src/frontend/tubo/navigation/views.cljs"
+   {:unread-trees 2}],
+  :label :false,
+  :confirmed false,
+  :by "claude, first pass",
+  :why
+  "defined in router.cljs under :name, in a route tree a fn builds, which the pack doesn't read"}
+ {:finding
+  [:tubo
+   :route-not-defined
+   :login-page
+   "src/frontend/tubo/navigation/views.cljs"
+   {:unread-trees 2}],
+  :label :false,
+  :confirmed false,
+  :by "claude, first pass",
+  :why
+  "defined in router.cljs under :name, in a route tree a fn builds, which the pack doesn't read"}
+ {:finding
+  [:tubo
+   :route-not-defined
+   :login-page
+   "src/frontend/tubo/navigation/views.cljs"
+   {:unread-trees 2}],
+  :label :false,
+  :confirmed false,
+  :by "claude, first pass",
+  :why
+  "defined in router.cljs under :name, in a route tree a fn builds, which the pack doesn't read"}
+ {:finding
+  [:tubo
+   :route-not-defined
+   :playlist-page
+   "src/frontend/tubo/ui.cljs"
+   {:unread-trees 2}],
+  :label :false,
+  :confirmed false,
+  :by "claude, first pass",
+  :why
+  "defined in router.cljs under :name, in a route tree a fn builds, which the pack doesn't read"}
+ {:finding
+  [:tubo
+   :route-not-defined
+   :playlist-page
+   "src/frontend/tubo/ui.cljs"
+   {:unread-trees 2}],
+  :label :false,
+  :confirmed false,
+  :by "claude, first pass",
+  :why
+  "defined in router.cljs under :name, in a route tree a fn builds, which the pack doesn't read"}
+ {:finding
+  [:tubo
+   :route-not-defined
+   :privacy-page
+   "src/frontend/tubo/views.cljs"
+   {:unread-trees 2}],
+  :label :false,
+  :confirmed false,
+  :by "claude, first pass",
+  :why
+  "defined in router.cljs under :name, in a route tree a fn builds, which the pack doesn't read"}
+ {:finding
+  [:tubo
+   :route-not-defined
+   :register-page
+   "src/frontend/tubo/navigation/views.cljs"
+   {:unread-trees 2}],
+  :label :false,
+  :confirmed false,
+  :by "claude, first pass",
+  :why
+  "defined in router.cljs under :name, in a route tree a fn builds, which the pack doesn't read"}
+ {:finding
+  [:tubo
+   :route-not-defined
+   :register-page
+   "src/frontend/tubo/navigation/views.cljs"
+   {:unread-trees 2}],
+  :label :false,
+  :confirmed false,
+  :by "claude, first pass",
+  :why
+  "defined in router.cljs under :name, in a route tree a fn builds, which the pack doesn't read"}
+ {:finding
+  [:tubo
+   :route-not-defined
+   :settings-page
+   "src/frontend/tubo/navigation/views.cljs"
+   {:unread-trees 2}],
+  :label :false,
+  :confirmed false,
+  :by "claude, first pass",
+  :why
+  "defined in router.cljs under :name, in a route tree a fn builds, which the pack doesn't read"}
+ {:finding
+  [:tubo
+   :route-not-defined
+   :settings-page
+   "src/frontend/tubo/navigation/views.cljs"
+   {:unread-trees 2}],
+  :label :false,
+  :confirmed false,
+  :by "claude, first pass",
+  :why
+  "defined in router.cljs under :name, in a route tree a fn builds, which the pack doesn't read"}
+ {:finding
+  [:tubo
+   :route-not-defined
+   :stream-page
+   "src/frontend/tubo/ui.cljs"
+   {:unread-trees 2}],
+  :label :false,
+  :confirmed false,
+  :by "claude, first pass",
+  :why
+  "defined in router.cljs under :name, in a route tree a fn builds, which the pack doesn't read"}
+ {:finding
+  [:tubo
+   :route-not-defined
+   :stream-page
+   "src/frontend/tubo/ui.cljs"
+   {:unread-trees 2}],
+  :label :false,
+  :confirmed false,
+  :by "claude, first pass",
+  :why
+  "defined in router.cljs under :name, in a route tree a fn builds, which the pack doesn't read"}
+ {:finding
+  [:tubo
+   :route-not-defined
+   :subscriptions-page
+   "src/frontend/tubo/navigation/views.cljs"
+   {:unread-trees 2}],
+  :label :false,
+  :confirmed false,
+  :by "claude, first pass",
+  :why
+  "defined in router.cljs under :name, in a route tree a fn builds, which the pack doesn't read"}
+ {:finding
+  [:repath-studio
+   :event-not-registered
+   :re-pressed.core/add-keyboard-event-listener
+   "src/renderer/core.cljs"
+   {}],
+  :label :false,
+  :confirmed false,
+  :by "claude, first pass",
+  :why "re-pressed (a library) registers it; :provided would say so"}
+ {:finding
+  [:repath-studio
+   :event-not-registered
+   :renderer.element.events/boolean-divide
+   "src/user.cljs"
+   {}],
+  :label :real,
+  :confirmed false,
+  :by "claude, first pass",
+  :why
+  "user.cljs dispatches ::boolean-divide; the event is [::boolean-operation :divide]"}
+ {:finding
+  [:repath-studio
+   :event-not-registered
+   :renderer.element.events/boolean-exclude
+   "src/user.cljs"
+   {}],
+  :label :real,
+  :confirmed false,
+  :by "claude, first pass",
+  :why
+  "user.cljs dispatches ::boolean-exclude; the event is [::boolean-operation :exclude]"}
+ {:finding
+  [:repath-studio
+   :event-not-registered
+   :renderer.element.events/boolean-intersect
+   "src/user.cljs"
+   {}],
+  :label :real,
+  :confirmed false,
+  :by "claude, first pass",
+  :why
+  "user.cljs dispatches ::boolean-intersect; the event is [::boolean-operation :intersect]"}
+ {:finding
+  [:repath-studio
+   :event-not-registered
+   :renderer.element.events/boolean-subtract
+   "src/user.cljs"
+   {}],
+  :label :real,
+  :confirmed false,
+  :by "claude, first pass",
+  :why
+  "user.cljs dispatches ::boolean-subtract; the event is [::boolean-operation :subtract]"}
+ {:finding
+  [:repath-studio
+   :event-not-registered
+   :renderer.element.events/boolean-unite
+   "src/user.cljs"
+   {}],
+  :label :real,
+  :confirmed false,
+  :by "claude, first pass",
+  :why
+  "user.cljs dispatches ::boolean-unite; the event is [::boolean-operation :unite]"}
+ {:finding
+  [:repath-studio
+   :event-never-dispatched
+   :renderer.a11y.events/toggle-active-filter
+   "src/renderer/a11y/events.cljs"
+   {:unread-handlers
+    [:renderer.a11y.subs/filter-active?
+     :renderer.action.subs/action-group
+     :renderer.app.subs/desktop?
+     :renderer.app.subs/mac?
+     :renderer.app.subs/supported-feature?
+     :renderer.app.subs/web?
+     :renderer.dialog.subs/active
+     :renderer.document.subs/active-saved?
+     :renderer.document.subs/active?
+     :renderer.document.subs/attr
+     :renderer.document.subs/entities
+     :renderer.document.subs/entity
+     :renderer.document.subs/saved?
+     :renderer.element.subs/ancestor-ids
+     :renderer.element.subs/area
+     :renderer.element.subs/bbox
+     :renderer.element.subs/edit-attributes
+     :renderer.element.subs/entities
+     :renderer.element.subs/entity
+     :renderer.element.subs/hovered-svg
+     :renderer.element.subs/hovered?
+     :renderer.element.subs/not-every-top-level?
+     :renderer.element.subs/root
+     :renderer.element.subs/some-selected-tag?
+     :renderer.element.subs/some-selected-unlocked?
+     :renderer.frame.subs/viewbox-bounds
+     :renderer.history.subs/history
+     :renderer.history.subs/redos
+     :renderer.history.subs/redos?
+     :renderer.history.subs/undos
+     :renderer.history.subs/undos?
+     :renderer.i18n.subs/options
+     :renderer.i18n.subs/selected-lang?
+     :renderer.input.subs/drag?
+     :renderer.input.subs/snapped-offset
+     :renderer.input.subs/snapped-position
+     :renderer.ruler.subs/step
+     :renderer.shell.subs/active-language?
+     :renderer.snap.subs/option-enabled?
+     :renderer.theme.subs/selected-mode?
+     :renderer.tool.subs/active?
+     :renderer.tool.subs/help
+     :renderer.window.subs/lg?
+     :renderer.window.subs/md?
+     :renderer.window.subs/sm?
+     :renderer.window.subs/xl?]}],
+  :label :false,
+  :confirmed false,
+  :by "claude, first pass",
+  :why
+  "referenced as data, an action's :event, :available or :active vector, or dispatched in a test"}
+ {:finding
+  [:repath-studio
+   :sub-never-subscribed
+   :renderer.a11y.subs/filter-active?
+   "src/renderer/a11y/subs.cljs"
+   {}],
+  :label :false,
+  :confirmed false,
+  :by "claude, first pass",
+  :why
+  "referenced as data, an action's :event, :available or :active vector, or dispatched in a test"}
+ {:finding
+  [:repath-studio
+   :sub-never-subscribed
+   :renderer.action.subs/action
+   "src/renderer/action/subs.cljs"
+   {}],
+  :label :false,
+  :confirmed false,
+  :by "claude, first pass",
+  :why
+  "referenced as data, an action's :event, :available or :active vector, or dispatched in a test"}
+ {:finding
+  [:repath-studio
+   :event-never-dispatched
+   :renderer.app.events/set-install-prompt
+   "src/renderer/app/events.cljs"
+   {:unread-handlers
+    [:renderer.a11y.subs/filter-active?
+     :renderer.action.subs/action-group
+     :renderer.app.subs/desktop?
+     :renderer.app.subs/mac?
+     :renderer.app.subs/supported-feature?
+     :renderer.app.subs/web?
+     :renderer.dialog.subs/active
+     :renderer.document.subs/active-saved?
+     :renderer.document.subs/active?
+     :renderer.document.subs/attr
+     :renderer.document.subs/entities
+     :renderer.document.subs/entity
+     :renderer.document.subs/saved?
+     :renderer.element.subs/ancestor-ids
+     :renderer.element.subs/area
+     :renderer.element.subs/bbox
+     :renderer.element.subs/edit-attributes
+     :renderer.element.subs/entities
+     :renderer.element.subs/entity
+     :renderer.element.subs/hovered-svg
+     :renderer.element.subs/hovered?
+     :renderer.element.subs/not-every-top-level?
+     :renderer.element.subs/root
+     :renderer.element.subs/some-selected-tag?
+     :renderer.element.subs/some-selected-unlocked?
+     :renderer.frame.subs/viewbox-bounds
+     :renderer.history.subs/history
+     :renderer.history.subs/redos
+     :renderer.history.subs/redos?
+     :renderer.history.subs/undos
+     :renderer.history.subs/undos?
+     :renderer.i18n.subs/options
+     :renderer.i18n.subs/selected-lang?
+     :renderer.input.subs/drag?
+     :renderer.input.subs/snapped-offset
+     :renderer.input.subs/snapped-position
+     :renderer.ruler.subs/step
+     :renderer.shell.subs/active-language?
+     :renderer.snap.subs/option-enabled?
+     :renderer.theme.subs/selected-mode?
+     :renderer.tool.subs/active?
+     :renderer.tool.subs/help
+     :renderer.window.subs/lg?
+     :renderer.window.subs/md?
+     :renderer.window.subs/sm?
+     :renderer.window.subs/xl?]}],
+  :label :false,
+  :confirmed false,
+  :by "claude, first pass",
+  :why
+  "referenced as data, an action's :event, :available or :active vector, or dispatched in a test"}
+ {:finding
+  [:repath-studio
+   :event-never-dispatched
+   :renderer.app.events/toggle-debug-info
+   "src/renderer/app/events.cljs"
+   {:unread-handlers
+    [:renderer.a11y.subs/filter-active?
+     :renderer.action.subs/action-group
+     :renderer.app.subs/desktop?
+     :renderer.app.subs/mac?
+     :renderer.app.subs/supported-feature?
+     :renderer.app.subs/web?
+     :renderer.dialog.subs/active
+     :renderer.document.subs/active-saved?
+     :renderer.document.subs/active?
+     :renderer.document.subs/attr
+     :renderer.document.subs/entities
+     :renderer.document.subs/entity
+     :renderer.document.subs/saved?
+     :renderer.element.subs/ancestor-ids
+     :renderer.element.subs/area
+     :renderer.element.subs/bbox
+     :renderer.element.subs/edit-attributes
+     :renderer.element.subs/entities
+     :renderer.element.subs/entity
+     :renderer.element.subs/hovered-svg
+     :renderer.element.subs/hovered?
+     :renderer.element.subs/not-every-top-level?
+     :renderer.element.subs/root
+     :renderer.element.subs/some-selected-tag?
+     :renderer.element.subs/some-selected-unlocked?
+     :renderer.frame.subs/viewbox-bounds
+     :renderer.history.subs/history
+     :renderer.history.subs/redos
+     :renderer.history.subs/redos?
+     :renderer.history.subs/undos
+     :renderer.history.subs/undos?
+     :renderer.i18n.subs/options
+     :renderer.i18n.subs/selected-lang?
+     :renderer.input.subs/drag?
+     :renderer.input.subs/snapped-offset
+     :renderer.input.subs/snapped-position
+     :renderer.ruler.subs/step
+     :renderer.shell.subs/active-language?
+     :renderer.snap.subs/option-enabled?
+     :renderer.theme.subs/selected-mode?
+     :renderer.tool.subs/active?
+     :renderer.tool.subs/help
+     :renderer.window.subs/lg?
+     :renderer.window.subs/md?
+     :renderer.window.subs/sm?
+     :renderer.window.subs/xl?]}],
+  :label :false,
+  :confirmed false,
+  :by "claude, first pass",
+  :why
+  "referenced as data, an action's :event, :available or :active vector, or dispatched in a test"}
+ {:finding
+  [:repath-studio
+   :event-never-dispatched
+   :renderer.app.events/toggle-help-bar
+   "src/renderer/app/events.cljs"
+   {:unread-handlers
+    [:renderer.a11y.subs/filter-active?
+     :renderer.action.subs/action-group
+     :renderer.app.subs/desktop?
+     :renderer.app.subs/mac?
+     :renderer.app.subs/supported-feature?
+     :renderer.app.subs/web?
+     :renderer.dialog.subs/active
+     :renderer.document.subs/active-saved?
+     :renderer.document.subs/active?
+     :renderer.document.subs/attr
+     :renderer.document.subs/entities
+     :renderer.document.subs/entity
+     :renderer.document.subs/saved?
+     :renderer.element.subs/ancestor-ids
+     :renderer.element.subs/area
+     :renderer.element.subs/bbox
+     :renderer.element.subs/edit-attributes
+     :renderer.element.subs/entities
+     :renderer.element.subs/entity
+     :renderer.element.subs/hovered-svg
+     :renderer.element.subs/hovered?
+     :renderer.element.subs/not-every-top-level?
+     :renderer.element.subs/root
+     :renderer.element.subs/some-selected-tag?
+     :renderer.element.subs/some-selected-unlocked?
+     :renderer.frame.subs/viewbox-bounds
+     :renderer.history.subs/history
+     :renderer.history.subs/redos
+     :renderer.history.subs/redos?
+     :renderer.history.subs/undos
+     :renderer.history.subs/undos?
+     :renderer.i18n.subs/options
+     :renderer.i18n.subs/selected-lang?
+     :renderer.input.subs/drag?
+     :renderer.input.subs/snapped-offset
+     :renderer.input.subs/snapped-position
+     :renderer.ruler.subs/step
+     :renderer.shell.subs/active-language?
+     :renderer.snap.subs/option-enabled?
+     :renderer.theme.subs/selected-mode?
+     :renderer.tool.subs/active?
+     :renderer.tool.subs/help
+     :renderer.window.subs/lg?
+     :renderer.window.subs/md?
+     :renderer.window.subs/sm?
+     :renderer.window.subs/xl?]}],
+  :label :false,
+  :confirmed false,
+  :by "claude, first pass",
+  :why
+  "referenced as data, an action's :event, :available or :active vector, or dispatched in a test"}
+ {:finding
+  [:repath-studio
+   :sub-never-subscribed
+   :renderer.app.subs/not-mobile?
+   "src/renderer/app/subs.cljs"
+   {}],
+  :label :false,
+  :confirmed false,
+  :by "claude, first pass",
+  :why
+  "referenced as data, an action's :event, :available or :active vector, or dispatched in a test"}
+ {:finding
+  [:repath-studio
+   :sub-never-subscribed
+   :renderer.app.subs/unsupported-feature?
+   "src/renderer/app/subs.cljs"
+   {}],
+  :label :false,
+  :confirmed false,
+  :by "claude, first pass",
+  :why
+  "referenced as data, an action's :event, :available or :active vector, or dispatched in a test"}
+ {:finding
+  [:repath-studio
+   :event-never-dispatched
+   :renderer.attribute.impl.href/success
+   "src/renderer/attribute/impl/href.cljs"
+   {:unread-handlers
+    [:renderer.a11y.subs/filter-active?
+     :renderer.action.subs/action-group
+     :renderer.app.subs/desktop?
+     :renderer.app.subs/mac?
+     :renderer.app.subs/supported-feature?
+     :renderer.app.subs/web?
+     :renderer.dialog.subs/active
+     :renderer.document.subs/active-saved?
+     :renderer.document.subs/active?
+     :renderer.document.subs/attr
+     :renderer.document.subs/entities
+     :renderer.document.subs/entity
+     :renderer.document.subs/saved?
+     :renderer.element.subs/ancestor-ids
+     :renderer.element.subs/area
+     :renderer.element.subs/bbox
+     :renderer.element.subs/edit-attributes
+     :renderer.element.subs/entities
+     :renderer.element.subs/entity
+     :renderer.element.subs/hovered-svg
+     :renderer.element.subs/hovered?
+     :renderer.element.subs/not-every-top-level?
+     :renderer.element.subs/root
+     :renderer.element.subs/some-selected-tag?
+     :renderer.element.subs/some-selected-unlocked?
+     :renderer.frame.subs/viewbox-bounds
+     :renderer.history.subs/history
+     :renderer.history.subs/redos
+     :renderer.history.subs/redos?
+     :renderer.history.subs/undos
+     :renderer.history.subs/undos?
+     :renderer.i18n.subs/options
+     :renderer.i18n.subs/selected-lang?
+     :renderer.input.subs/drag?
+     :renderer.input.subs/snapped-offset
+     :renderer.input.subs/snapped-position
+     :renderer.ruler.subs/step
+     :renderer.shell.subs/active-language?
+     :renderer.snap.subs/option-enabled?
+     :renderer.theme.subs/selected-mode?
+     :renderer.tool.subs/active?
+     :renderer.tool.subs/help
+     :renderer.window.subs/lg?
+     :renderer.window.subs/md?
+     :renderer.window.subs/sm?
+     :renderer.window.subs/xl?]}],
+  :label :false,
+  :confirmed false,
+  :by "claude, first pass",
+  :why
+  "referenced as data, an action's :event, :available or :active vector, or dispatched in a test"}
+ {:finding
+  [:repath-studio
+   :event-never-dispatched
+   :renderer.dialog.events/confirm-irreversible-action
+   "src/renderer/dialog/events.cljs"
+   {:unread-handlers
+    [:renderer.a11y.subs/filter-active?
+     :renderer.action.subs/action-group
+     :renderer.app.subs/desktop?
+     :renderer.app.subs/mac?
+     :renderer.app.subs/supported-feature?
+     :renderer.app.subs/web?
+     :renderer.dialog.subs/active
+     :renderer.document.subs/active-saved?
+     :renderer.document.subs/active?
+     :renderer.document.subs/attr
+     :renderer.document.subs/entities
+     :renderer.document.subs/entity
+     :renderer.document.subs/saved?
+     :renderer.element.subs/ancestor-ids
+     :renderer.element.subs/area
+     :renderer.element.subs/bbox
+     :renderer.element.subs/edit-attributes
+     :renderer.element.subs/entities
+     :renderer.element.subs/entity
+     :renderer.element.subs/hovered-svg
+     :renderer.element.subs/hovered?
+     :renderer.element.subs/not-every-top-level?
+     :renderer.element.subs/root
+     :renderer.element.subs/some-selected-tag?
+     :renderer.element.subs/some-selected-unlocked?
+     :renderer.frame.subs/viewbox-bounds
+     :renderer.history.subs/history
+     :renderer.history.subs/redos
+     :renderer.history.subs/redos?
+     :renderer.history.subs/undos
+     :renderer.history.subs/undos?
+     :renderer.i18n.subs/options
+     :renderer.i18n.subs/selected-lang?
+     :renderer.input.subs/drag?
+     :renderer.input.subs/snapped-offset
+     :renderer.input.subs/snapped-position
+     :renderer.ruler.subs/step
+     :renderer.shell.subs/active-language?
+     :renderer.snap.subs/option-enabled?
+     :renderer.theme.subs/selected-mode?
+     :renderer.tool.subs/active?
+     :renderer.tool.subs/help
+     :renderer.window.subs/lg?
+     :renderer.window.subs/md?
+     :renderer.window.subs/sm?
+     :renderer.window.subs/xl?]}],
+  :label :false,
+  :confirmed false,
+  :by "claude, first pass",
+  :why
+  "referenced as data, an action's :event, :available or :active vector, or dispatched in a test"}
+ {:finding
+  [:repath-studio
+   :event-never-dispatched
+   :renderer.dialog.events/show-about
+   "src/renderer/dialog/events.cljs"
+   {:unread-handlers
+    [:renderer.a11y.subs/filter-active?
+     :renderer.action.subs/action-group
+     :renderer.app.subs/desktop?
+     :renderer.app.subs/mac?
+     :renderer.app.subs/supported-feature?
+     :renderer.app.subs/web?
+     :renderer.dialog.subs/active
+     :renderer.document.subs/active-saved?
+     :renderer.document.subs/active?
+     :renderer.document.subs/attr
+     :renderer.document.subs/entities
+     :renderer.document.subs/entity
+     :renderer.document.subs/saved?
+     :renderer.element.subs/ancestor-ids
+     :renderer.element.subs/area
+     :renderer.element.subs/bbox
+     :renderer.element.subs/edit-attributes
+     :renderer.element.subs/entities
+     :renderer.element.subs/entity
+     :renderer.element.subs/hovered-svg
+     :renderer.element.subs/hovered?
+     :renderer.element.subs/not-every-top-level?
+     :renderer.element.subs/root
+     :renderer.element.subs/some-selected-tag?
+     :renderer.element.subs/some-selected-unlocked?
+     :renderer.frame.subs/viewbox-bounds
+     :renderer.history.subs/history
+     :renderer.history.subs/redos
+     :renderer.history.subs/redos?
+     :renderer.history.subs/undos
+     :renderer.history.subs/undos?
+     :renderer.i18n.subs/options
+     :renderer.i18n.subs/selected-lang?
+     :renderer.input.subs/drag?
+     :renderer.input.subs/snapped-offset
+     :renderer.input.subs/snapped-position
+     :renderer.ruler.subs/step
+     :renderer.shell.subs/active-language?
+     :renderer.snap.subs/option-enabled?
+     :renderer.theme.subs/selected-mode?
+     :renderer.tool.subs/active?
+     :renderer.tool.subs/help
+     :renderer.window.subs/lg?
+     :renderer.window.subs/md?
+     :renderer.window.subs/sm?
+     :renderer.window.subs/xl?]}],
+  :label :false,
+  :confirmed false,
+  :by "claude, first pass",
+  :why
+  "referenced as data, an action's :event, :available or :active vector, or dispatched in a test"}
+ {:finding
+  [:repath-studio
+   :event-never-dispatched
+   :renderer.dialog.events/show-cmdk
+   "src/renderer/dialog/events.cljs"
+   {:unread-handlers
+    [:renderer.a11y.subs/filter-active?
+     :renderer.action.subs/action-group
+     :renderer.app.subs/desktop?
+     :renderer.app.subs/mac?
+     :renderer.app.subs/supported-feature?
+     :renderer.app.subs/web?
+     :renderer.dialog.subs/active
+     :renderer.document.subs/active-saved?
+     :renderer.document.subs/active?
+     :renderer.document.subs/attr
+     :renderer.document.subs/entities
+     :renderer.document.subs/entity
+     :renderer.document.subs/saved?
+     :renderer.element.subs/ancestor-ids
+     :renderer.element.subs/area
+     :renderer.element.subs/bbox
+     :renderer.element.subs/edit-attributes
+     :renderer.element.subs/entities
+     :renderer.element.subs/entity
+     :renderer.element.subs/hovered-svg
+     :renderer.element.subs/hovered?
+     :renderer.element.subs/not-every-top-level?
+     :renderer.element.subs/root
+     :renderer.element.subs/some-selected-tag?
+     :renderer.element.subs/some-selected-unlocked?
+     :renderer.frame.subs/viewbox-bounds
+     :renderer.history.subs/history
+     :renderer.history.subs/redos
+     :renderer.history.subs/redos?
+     :renderer.history.subs/undos
+     :renderer.history.subs/undos?
+     :renderer.i18n.subs/options
+     :renderer.i18n.subs/selected-lang?
+     :renderer.input.subs/drag?
+     :renderer.input.subs/snapped-offset
+     :renderer.input.subs/snapped-position
+     :renderer.ruler.subs/step
+     :renderer.shell.subs/active-language?
+     :renderer.snap.subs/option-enabled?
+     :renderer.theme.subs/selected-mode?
+     :renderer.tool.subs/active?
+     :renderer.tool.subs/help
+     :renderer.window.subs/lg?
+     :renderer.window.subs/md?
+     :renderer.window.subs/sm?
+     :renderer.window.subs/xl?]}],
+  :label :false,
+  :confirmed false,
+  :by "claude, first pass",
+  :why
+  "referenced as data, an action's :event, :available or :active vector, or dispatched in a test"}
+ {:finding
+  [:repath-studio
+   :event-never-dispatched
+   :renderer.document.events/clear-recent
+   "src/renderer/document/events.cljs"
+   {:unread-handlers
+    [:renderer.a11y.subs/filter-active?
+     :renderer.action.subs/action-group
+     :renderer.app.subs/desktop?
+     :renderer.app.subs/mac?
+     :renderer.app.subs/supported-feature?
+     :renderer.app.subs/web?
+     :renderer.dialog.subs/active
+     :renderer.document.subs/active-saved?
+     :renderer.document.subs/active?
+     :renderer.document.subs/attr
+     :renderer.document.subs/entities
+     :renderer.document.subs/entity
+     :renderer.document.subs/saved?
+     :renderer.element.subs/ancestor-ids
+     :renderer.element.subs/area
+     :renderer.element.subs/bbox
+     :renderer.element.subs/edit-attributes
+     :renderer.element.subs/entities
+     :renderer.element.subs/entity
+     :renderer.element.subs/hovered-svg
+     :renderer.element.subs/hovered?
+     :renderer.element.subs/not-every-top-level?
+     :renderer.element.subs/root
+     :renderer.element.subs/some-selected-tag?
+     :renderer.element.subs/some-selected-unlocked?
+     :renderer.frame.subs/viewbox-bounds
+     :renderer.history.subs/history
+     :renderer.history.subs/redos
+     :renderer.history.subs/redos?
+     :renderer.history.subs/undos
+     :renderer.history.subs/undos?
+     :renderer.i18n.subs/options
+     :renderer.i18n.subs/selected-lang?
+     :renderer.input.subs/drag?
+     :renderer.input.subs/snapped-offset
+     :renderer.input.subs/snapped-position
+     :renderer.ruler.subs/step
+     :renderer.shell.subs/active-language?
+     :renderer.snap.subs/option-enabled?
+     :renderer.theme.subs/selected-mode?
+     :renderer.tool.subs/active?
+     :renderer.tool.subs/help
+     :renderer.window.subs/lg?
+     :renderer.window.subs/md?
+     :renderer.window.subs/sm?
+     :renderer.window.subs/xl?]}],
+  :label :false,
+  :confirmed false,
+  :by "claude, first pass",
+  :why
+  "referenced as data, an action's :event, :available or :active vector, or dispatched in a test"}
+ {:finding
+  [:repath-studio
+   :event-never-dispatched
+   :renderer.document.events/close-active
+   "src/renderer/document/events.cljs"
+   {:unread-handlers
+    [:renderer.a11y.subs/filter-active?
+     :renderer.action.subs/action-group
+     :renderer.app.subs/desktop?
+     :renderer.app.subs/mac?
+     :renderer.app.subs/supported-feature?
+     :renderer.app.subs/web?
+     :renderer.dialog.subs/active
+     :renderer.document.subs/active-saved?
+     :renderer.document.subs/active?
+     :renderer.document.subs/attr
+     :renderer.document.subs/entities
+     :renderer.document.subs/entity
+     :renderer.document.subs/saved?
+     :renderer.element.subs/ancestor-ids
+     :renderer.element.subs/area
+     :renderer.element.subs/bbox
+     :renderer.element.subs/edit-attributes
+     :renderer.element.subs/entities
+     :renderer.element.subs/entity
+     :renderer.element.subs/hovered-svg
+     :renderer.element.subs/hovered?
+     :renderer.element.subs/not-every-top-level?
+     :renderer.element.subs/root
+     :renderer.element.subs/some-selected-tag?
+     :renderer.element.subs/some-selected-unlocked?
+     :renderer.frame.subs/viewbox-bounds
+     :renderer.history.subs/history
+     :renderer.history.subs/redos
+     :renderer.history.subs/redos?
+     :renderer.history.subs/undos
+     :renderer.history.subs/undos?
+     :renderer.i18n.subs/options
+     :renderer.i18n.subs/selected-lang?
+     :renderer.input.subs/drag?
+     :renderer.input.subs/snapped-offset
+     :renderer.input.subs/snapped-position
+     :renderer.ruler.subs/step
+     :renderer.shell.subs/active-language?
+     :renderer.snap.subs/option-enabled?
+     :renderer.theme.subs/selected-mode?
+     :renderer.tool.subs/active?
+     :renderer.tool.subs/help
+     :renderer.window.subs/lg?
+     :renderer.window.subs/md?
+     :renderer.window.subs/sm?
+     :renderer.window.subs/xl?]}],
+  :label :false,
+  :confirmed false,
+  :by "claude, first pass",
+  :why
+  "referenced as data, an action's :event, :available or :active vector, or dispatched in a test"}
+ {:finding
+  [:repath-studio
+   :event-never-dispatched
+   :renderer.document.events/close-all
+   "src/renderer/document/events.cljs"
+   {:unread-handlers
+    [:renderer.a11y.subs/filter-active?
+     :renderer.action.subs/action-group
+     :renderer.app.subs/desktop?
+     :renderer.app.subs/mac?
+     :renderer.app.subs/supported-feature?
+     :renderer.app.subs/web?
+     :renderer.dialog.subs/active
+     :renderer.document.subs/active-saved?
+     :renderer.document.subs/active?
+     :renderer.document.subs/attr
+     :renderer.document.subs/entities
+     :renderer.document.subs/entity
+     :renderer.document.subs/saved?
+     :renderer.element.subs/ancestor-ids
+     :renderer.element.subs/area
+     :renderer.element.subs/bbox
+     :renderer.element.subs/edit-attributes
+     :renderer.element.subs/entities
+     :renderer.element.subs/entity
+     :renderer.element.subs/hovered-svg
+     :renderer.element.subs/hovered?
+     :renderer.element.subs/not-every-top-level?
+     :renderer.element.subs/root
+     :renderer.element.subs/some-selected-tag?
+     :renderer.element.subs/some-selected-unlocked?
+     :renderer.frame.subs/viewbox-bounds
+     :renderer.history.subs/history
+     :renderer.history.subs/redos
+     :renderer.history.subs/redos?
+     :renderer.history.subs/undos
+     :renderer.history.subs/undos?
+     :renderer.i18n.subs/options
+     :renderer.i18n.subs/selected-lang?
+     :renderer.input.subs/drag?
+     :renderer.input.subs/snapped-offset
+     :renderer.input.subs/snapped-position
+     :renderer.ruler.subs/step
+     :renderer.shell.subs/active-language?
+     :renderer.snap.subs/option-enabled?
+     :renderer.theme.subs/selected-mode?
+     :renderer.tool.subs/active?
+     :renderer.tool.subs/help
+     :renderer.window.subs/lg?
+     :renderer.window.subs/md?
+     :renderer.window.subs/sm?
+     :renderer.window.subs/xl?]}],
+  :label :false,
+  :confirmed false,
+  :by "claude, first pass",
+  :why
+  "referenced as data, an action's :event, :available or :active vector, or dispatched in a test"}
+ {:finding
+  [:repath-studio
+   :event-never-dispatched
+   :renderer.document.events/close-others
+   "src/renderer/document/events.cljs"
+   {:unread-handlers
+    [:renderer.a11y.subs/filter-active?
+     :renderer.action.subs/action-group
+     :renderer.app.subs/desktop?
+     :renderer.app.subs/mac?
+     :renderer.app.subs/supported-feature?
+     :renderer.app.subs/web?
+     :renderer.dialog.subs/active
+     :renderer.document.subs/active-saved?
+     :renderer.document.subs/active?
+     :renderer.document.subs/attr
+     :renderer.document.subs/entities
+     :renderer.document.subs/entity
+     :renderer.document.subs/saved?
+     :renderer.element.subs/ancestor-ids
+     :renderer.element.subs/area
+     :renderer.element.subs/bbox
+     :renderer.element.subs/edit-attributes
+     :renderer.element.subs/entities
+     :renderer.element.subs/entity
+     :renderer.element.subs/hovered-svg
+     :renderer.element.subs/hovered?
+     :renderer.element.subs/not-every-top-level?
+     :renderer.element.subs/root
+     :renderer.element.subs/some-selected-tag?
+     :renderer.element.subs/some-selected-unlocked?
+     :renderer.frame.subs/viewbox-bounds
+     :renderer.history.subs/history
+     :renderer.history.subs/redos
+     :renderer.history.subs/redos?
+     :renderer.history.subs/undos
+     :renderer.history.subs/undos?
+     :renderer.i18n.subs/options
+     :renderer.i18n.subs/selected-lang?
+     :renderer.input.subs/drag?
+     :renderer.input.subs/snapped-offset
+     :renderer.input.subs/snapped-position
+     :renderer.ruler.subs/step
+     :renderer.shell.subs/active-language?
+     :renderer.snap.subs/option-enabled?
+     :renderer.theme.subs/selected-mode?
+     :renderer.tool.subs/active?
+     :renderer.tool.subs/help
+     :renderer.window.subs/lg?
+     :renderer.window.subs/md?
+     :renderer.window.subs/sm?
+     :renderer.window.subs/xl?]}],
+  :label :false,
+  :confirmed false,
+  :by "claude, first pass",
+  :why
+  "referenced as data, an action's :event, :available or :active vector, or dispatched in a test"}
+ {:finding
+  [:repath-studio
+   :event-never-dispatched
+   :renderer.document.events/close-saved
+   "src/renderer/document/events.cljs"
+   {:unread-handlers
+    [:renderer.a11y.subs/filter-active?
+     :renderer.action.subs/action-group
+     :renderer.app.subs/desktop?
+     :renderer.app.subs/mac?
+     :renderer.app.subs/supported-feature?
+     :renderer.app.subs/web?
+     :renderer.dialog.subs/active
+     :renderer.document.subs/active-saved?
+     :renderer.document.subs/active?
+     :renderer.document.subs/attr
+     :renderer.document.subs/entities
+     :renderer.document.subs/entity
+     :renderer.document.subs/saved?
+     :renderer.element.subs/ancestor-ids
+     :renderer.element.subs/area
+     :renderer.element.subs/bbox
+     :renderer.element.subs/edit-attributes
+     :renderer.element.subs/entities
+     :renderer.element.subs/entity
+     :renderer.element.subs/hovered-svg
+     :renderer.element.subs/hovered?
+     :renderer.element.subs/not-every-top-level?
+     :renderer.element.subs/root
+     :renderer.element.subs/some-selected-tag?
+     :renderer.element.subs/some-selected-unlocked?
+     :renderer.frame.subs/viewbox-bounds
+     :renderer.history.subs/history
+     :renderer.history.subs/redos
+     :renderer.history.subs/redos?
+     :renderer.history.subs/undos
+     :renderer.history.subs/undos?
+     :renderer.i18n.subs/options
+     :renderer.i18n.subs/selected-lang?
+     :renderer.input.subs/drag?
+     :renderer.input.subs/snapped-offset
+     :renderer.input.subs/snapped-position
+     :renderer.ruler.subs/step
+     :renderer.shell.subs/active-language?
+     :renderer.snap.subs/option-enabled?
+     :renderer.theme.subs/selected-mode?
+     :renderer.tool.subs/active?
+     :renderer.tool.subs/help
+     :renderer.window.subs/lg?
+     :renderer.window.subs/md?
+     :renderer.window.subs/sm?
+     :renderer.window.subs/xl?]}],
+  :label :false,
+  :confirmed false,
+  :by "claude, first pass",
+  :why
+  "referenced as data, an action's :event, :available or :active vector, or dispatched in a test"}
+ {:finding
+  [:repath-studio
+   :event-never-dispatched
+   :renderer.document.events/export
+   "src/renderer/document/events.cljs"
+   {:unread-handlers
+    [:renderer.a11y.subs/filter-active?
+     :renderer.action.subs/action-group
+     :renderer.app.subs/desktop?
+     :renderer.app.subs/mac?
+     :renderer.app.subs/supported-feature?
+     :renderer.app.subs/web?
+     :renderer.dialog.subs/active
+     :renderer.document.subs/active-saved?
+     :renderer.document.subs/active?
+     :renderer.document.subs/attr
+     :renderer.document.subs/entities
+     :renderer.document.subs/entity
+     :renderer.document.subs/saved?
+     :renderer.element.subs/ancestor-ids
+     :renderer.element.subs/area
+     :renderer.element.subs/bbox
+     :renderer.element.subs/edit-attributes
+     :renderer.element.subs/entities
+     :renderer.element.subs/entity
+     :renderer.element.subs/hovered-svg
+     :renderer.element.subs/hovered?
+     :renderer.element.subs/not-every-top-level?
+     :renderer.element.subs/root
+     :renderer.element.subs/some-selected-tag?
+     :renderer.element.subs/some-selected-unlocked?
+     :renderer.frame.subs/viewbox-bounds
+     :renderer.history.subs/history
+     :renderer.history.subs/redos
+     :renderer.history.subs/redos?
+     :renderer.history.subs/undos
+     :renderer.history.subs/undos?
+     :renderer.i18n.subs/options
+     :renderer.i18n.subs/selected-lang?
+     :renderer.input.subs/drag?
+     :renderer.input.subs/snapped-offset
+     :renderer.input.subs/snapped-position
+     :renderer.ruler.subs/step
+     :renderer.shell.subs/active-language?
+     :renderer.snap.subs/option-enabled?
+     :renderer.theme.subs/selected-mode?
+     :renderer.tool.subs/active?
+     :renderer.tool.subs/help
+     :renderer.window.subs/lg?
+     :renderer.window.subs/md?
+     :renderer.window.subs/sm?
+     :renderer.window.subs/xl?]}],
+  :label :false,
+  :confirmed false,
+  :by "claude, first pass",
+  :why
+  "referenced as data, an action's :event, :available or :active vector, or dispatched in a test"}
+ {:finding
+  [:repath-studio
+   :event-never-dispatched
+   :renderer.document.events/import
+   "src/renderer/document/events.cljs"
+   {:unread-handlers
+    [:renderer.a11y.subs/filter-active?
+     :renderer.action.subs/action-group
+     :renderer.app.subs/desktop?
+     :renderer.app.subs/mac?
+     :renderer.app.subs/supported-feature?
+     :renderer.app.subs/web?
+     :renderer.dialog.subs/active
+     :renderer.document.subs/active-saved?
+     :renderer.document.subs/active?
+     :renderer.document.subs/attr
+     :renderer.document.subs/entities
+     :renderer.document.subs/entity
+     :renderer.document.subs/saved?
+     :renderer.element.subs/ancestor-ids
+     :renderer.element.subs/area
+     :renderer.element.subs/bbox
+     :renderer.element.subs/edit-attributes
+     :renderer.element.subs/entities
+     :renderer.element.subs/entity
+     :renderer.element.subs/hovered-svg
+     :renderer.element.subs/hovered?
+     :renderer.element.subs/not-every-top-level?
+     :renderer.element.subs/root
+     :renderer.element.subs/some-selected-tag?
+     :renderer.element.subs/some-selected-unlocked?
+     :renderer.frame.subs/viewbox-bounds
+     :renderer.history.subs/history
+     :renderer.history.subs/redos
+     :renderer.history.subs/redos?
+     :renderer.history.subs/undos
+     :renderer.history.subs/undos?
+     :renderer.i18n.subs/options
+     :renderer.i18n.subs/selected-lang?
+     :renderer.input.subs/drag?
+     :renderer.input.subs/snapped-offset
+     :renderer.input.subs/snapped-position
+     :renderer.ruler.subs/step
+     :renderer.shell.subs/active-language?
+     :renderer.snap.subs/option-enabled?
+     :renderer.theme.subs/selected-mode?
+     :renderer.tool.subs/active?
+     :renderer.tool.subs/help
+     :renderer.window.subs/lg?
+     :renderer.window.subs/md?
+     :renderer.window.subs/sm?
+     :renderer.window.subs/xl?]}],
+  :label :false,
+  :confirmed false,
+  :by "claude, first pass",
+  :why
+  "referenced as data, an action's :event, :available or :active vector, or dispatched in a test"}
+ {:finding
+  [:repath-studio
+   :event-never-dispatched
+   :renderer.document.events/load-from-args
+   "src/renderer/document/events.cljs"
+   {:unread-handlers
+    [:renderer.a11y.subs/filter-active?
+     :renderer.action.subs/action-group
+     :renderer.app.subs/desktop?
+     :renderer.app.subs/mac?
+     :renderer.app.subs/supported-feature?
+     :renderer.app.subs/web?
+     :renderer.dialog.subs/active
+     :renderer.document.subs/active-saved?
+     :renderer.document.subs/active?
+     :renderer.document.subs/attr
+     :renderer.document.subs/entities
+     :renderer.document.subs/entity
+     :renderer.document.subs/saved?
+     :renderer.element.subs/ancestor-ids
+     :renderer.element.subs/area
+     :renderer.element.subs/bbox
+     :renderer.element.subs/edit-attributes
+     :renderer.element.subs/entities
+     :renderer.element.subs/entity
+     :renderer.element.subs/hovered-svg
+     :renderer.element.subs/hovered?
+     :renderer.element.subs/not-every-top-level?
+     :renderer.element.subs/root
+     :renderer.element.subs/some-selected-tag?
+     :renderer.element.subs/some-selected-unlocked?
+     :renderer.frame.subs/viewbox-bounds
+     :renderer.history.subs/history
+     :renderer.history.subs/redos
+     :renderer.history.subs/redos?
+     :renderer.history.subs/undos
+     :renderer.history.subs/undos?
+     :renderer.i18n.subs/options
+     :renderer.i18n.subs/selected-lang?
+     :renderer.input.subs/drag?
+     :renderer.input.subs/snapped-offset
+     :renderer.input.subs/snapped-position
+     :renderer.ruler.subs/step
+     :renderer.shell.subs/active-language?
+     :renderer.snap.subs/option-enabled?
+     :renderer.theme.subs/selected-mode?
+     :renderer.tool.subs/active?
+     :renderer.tool.subs/help
+     :renderer.window.subs/lg?
+     :renderer.window.subs/md?
+     :renderer.window.subs/sm?
+     :renderer.window.subs/xl?]}],
+  :label :false,
+  :confirmed false,
+  :by "claude, first pass",
+  :why
+  "referenced as data, an action's :event, :available or :active vector, or dispatched in a test"}
+ {:finding
+  [:repath-studio
+   :event-never-dispatched
+   :renderer.document.events/new
+   "src/renderer/document/events.cljs"
+   {:unread-handlers
+    [:renderer.a11y.subs/filter-active?
+     :renderer.action.subs/action-group
+     :renderer.app.subs/desktop?
+     :renderer.app.subs/mac?
+     :renderer.app.subs/supported-feature?
+     :renderer.app.subs/web?
+     :renderer.dialog.subs/active
+     :renderer.document.subs/active-saved?
+     :renderer.document.subs/active?
+     :renderer.document.subs/attr
+     :renderer.document.subs/entities
+     :renderer.document.subs/entity
+     :renderer.document.subs/saved?
+     :renderer.element.subs/ancestor-ids
+     :renderer.element.subs/area
+     :renderer.element.subs/bbox
+     :renderer.element.subs/edit-attributes
+     :renderer.element.subs/entities
+     :renderer.element.subs/entity
+     :renderer.element.subs/hovered-svg
+     :renderer.element.subs/hovered?
+     :renderer.element.subs/not-every-top-level?
+     :renderer.element.subs/root
+     :renderer.element.subs/some-selected-tag?
+     :renderer.element.subs/some-selected-unlocked?
+     :renderer.frame.subs/viewbox-bounds
+     :renderer.history.subs/history
+     :renderer.history.subs/redos
+     :renderer.history.subs/redos?
+     :renderer.history.subs/undos
+     :renderer.history.subs/undos?
+     :renderer.i18n.subs/options
+     :renderer.i18n.subs/selected-lang?
+     :renderer.input.subs/drag?
+     :renderer.input.subs/snapped-offset
+     :renderer.input.subs/snapped-position
+     :renderer.ruler.subs/step
+     :renderer.shell.subs/active-language?
+     :renderer.snap.subs/option-enabled?
+     :renderer.theme.subs/selected-mode?
+     :renderer.tool.subs/active?
+     :renderer.tool.subs/help
+     :renderer.window.subs/lg?
+     :renderer.window.subs/md?
+     :renderer.window.subs/sm?
+     :renderer.window.subs/xl?]}],
+  :label :false,
+  :confirmed false,
+  :by "claude, first pass",
+  :why
+  "referenced as data, an action's :event, :available or :active vector, or dispatched in a test"}
+ {:finding
+  [:repath-studio
+   :event-never-dispatched
+   :renderer.document.events/open
+   "src/renderer/document/events.cljs"
+   {:unread-handlers
+    [:renderer.a11y.subs/filter-active?
+     :renderer.action.subs/action-group
+     :renderer.app.subs/desktop?
+     :renderer.app.subs/mac?
+     :renderer.app.subs/supported-feature?
+     :renderer.app.subs/web?
+     :renderer.dialog.subs/active
+     :renderer.document.subs/active-saved?
+     :renderer.document.subs/active?
+     :renderer.document.subs/attr
+     :renderer.document.subs/entities
+     :renderer.document.subs/entity
+     :renderer.document.subs/saved?
+     :renderer.element.subs/ancestor-ids
+     :renderer.element.subs/area
+     :renderer.element.subs/bbox
+     :renderer.element.subs/edit-attributes
+     :renderer.element.subs/entities
+     :renderer.element.subs/entity
+     :renderer.element.subs/hovered-svg
+     :renderer.element.subs/hovered?
+     :renderer.element.subs/not-every-top-level?
+     :renderer.element.subs/root
+     :renderer.element.subs/some-selected-tag?
+     :renderer.element.subs/some-selected-unlocked?
+     :renderer.frame.subs/viewbox-bounds
+     :renderer.history.subs/history
+     :renderer.history.subs/redos
+     :renderer.history.subs/redos?
+     :renderer.history.subs/undos
+     :renderer.history.subs/undos?
+     :renderer.i18n.subs/options
+     :renderer.i18n.subs/selected-lang?
+     :renderer.input.subs/drag?
+     :renderer.input.subs/snapped-offset
+     :renderer.input.subs/snapped-position
+     :renderer.ruler.subs/step
+     :renderer.shell.subs/active-language?
+     :renderer.snap.subs/option-enabled?
+     :renderer.theme.subs/selected-mode?
+     :renderer.tool.subs/active?
+     :renderer.tool.subs/help
+     :renderer.window.subs/lg?
+     :renderer.window.subs/md?
+     :renderer.window.subs/sm?
+     :renderer.window.subs/xl?]}],
+  :label :false,
+  :confirmed false,
+  :by "claude, first pass",
+  :why
+  "referenced as data, an action's :event, :available or :active vector, or dispatched in a test"}
+ {:finding
+  [:repath-studio
+   :event-never-dispatched
+   :renderer.document.events/open-directory
+   "src/renderer/document/events.cljs"
+   {:unread-handlers
+    [:renderer.a11y.subs/filter-active?
+     :renderer.action.subs/action-group
+     :renderer.app.subs/desktop?
+     :renderer.app.subs/mac?
+     :renderer.app.subs/supported-feature?
+     :renderer.app.subs/web?
+     :renderer.dialog.subs/active
+     :renderer.document.subs/active-saved?
+     :renderer.document.subs/active?
+     :renderer.document.subs/attr
+     :renderer.document.subs/entities
+     :renderer.document.subs/entity
+     :renderer.document.subs/saved?
+     :renderer.element.subs/ancestor-ids
+     :renderer.element.subs/area
+     :renderer.element.subs/bbox
+     :renderer.element.subs/edit-attributes
+     :renderer.element.subs/entities
+     :renderer.element.subs/entity
+     :renderer.element.subs/hovered-svg
+     :renderer.element.subs/hovered?
+     :renderer.element.subs/not-every-top-level?
+     :renderer.element.subs/root
+     :renderer.element.subs/some-selected-tag?
+     :renderer.element.subs/some-selected-unlocked?
+     :renderer.frame.subs/viewbox-bounds
+     :renderer.history.subs/history
+     :renderer.history.subs/redos
+     :renderer.history.subs/redos?
+     :renderer.history.subs/undos
+     :renderer.history.subs/undos?
+     :renderer.i18n.subs/options
+     :renderer.i18n.subs/selected-lang?
+     :renderer.input.subs/drag?
+     :renderer.input.subs/snapped-offset
+     :renderer.input.subs/snapped-position
+     :renderer.ruler.subs/step
+     :renderer.shell.subs/active-language?
+     :renderer.snap.subs/option-enabled?
+     :renderer.theme.subs/selected-mode?
+     :renderer.tool.subs/active?
+     :renderer.tool.subs/help
+     :renderer.window.subs/lg?
+     :renderer.window.subs/md?
+     :renderer.window.subs/sm?
+     :renderer.window.subs/xl?]}],
+  :label :false,
+  :confirmed false,
+  :by "claude, first pass",
+  :why
+  "referenced as data, an action's :event, :available or :active vector, or dispatched in a test"}
+ {:finding
+  [:repath-studio
+   :event-never-dispatched
+   :renderer.document.events/print
+   "src/renderer/document/events.cljs"
+   {:unread-handlers
+    [:renderer.a11y.subs/filter-active?
+     :renderer.action.subs/action-group
+     :renderer.app.subs/desktop?
+     :renderer.app.subs/mac?
+     :renderer.app.subs/supported-feature?
+     :renderer.app.subs/web?
+     :renderer.dialog.subs/active
+     :renderer.document.subs/active-saved?
+     :renderer.document.subs/active?
+     :renderer.document.subs/attr
+     :renderer.document.subs/entities
+     :renderer.document.subs/entity
+     :renderer.document.subs/saved?
+     :renderer.element.subs/ancestor-ids
+     :renderer.element.subs/area
+     :renderer.element.subs/bbox
+     :renderer.element.subs/edit-attributes
+     :renderer.element.subs/entities
+     :renderer.element.subs/entity
+     :renderer.element.subs/hovered-svg
+     :renderer.element.subs/hovered?
+     :renderer.element.subs/not-every-top-level?
+     :renderer.element.subs/root
+     :renderer.element.subs/some-selected-tag?
+     :renderer.element.subs/some-selected-unlocked?
+     :renderer.frame.subs/viewbox-bounds
+     :renderer.history.subs/history
+     :renderer.history.subs/redos
+     :renderer.history.subs/redos?
+     :renderer.history.subs/undos
+     :renderer.history.subs/undos?
+     :renderer.i18n.subs/options
+     :renderer.i18n.subs/selected-lang?
+     :renderer.input.subs/drag?
+     :renderer.input.subs/snapped-offset
+     :renderer.input.subs/snapped-position
+     :renderer.ruler.subs/step
+     :renderer.shell.subs/active-language?
+     :renderer.snap.subs/option-enabled?
+     :renderer.theme.subs/selected-mode?
+     :renderer.tool.subs/active?
+     :renderer.tool.subs/help
+     :renderer.window.subs/lg?
+     :renderer.window.subs/md?
+     :renderer.window.subs/sm?
+     :renderer.window.subs/xl?]}],
+  :label :false,
+  :confirmed false,
+  :by "claude, first pass",
+  :why
+  "referenced as data, an action's :event, :available or :active vector, or dispatched in a test"}
+ {:finding
+  [:repath-studio
+   :event-never-dispatched
+   :renderer.document.events/reopen-last-closed
+   "src/renderer/document/events.cljs"
+   {:unread-handlers
+    [:renderer.a11y.subs/filter-active?
+     :renderer.action.subs/action-group
+     :renderer.app.subs/desktop?
+     :renderer.app.subs/mac?
+     :renderer.app.subs/supported-feature?
+     :renderer.app.subs/web?
+     :renderer.dialog.subs/active
+     :renderer.document.subs/active-saved?
+     :renderer.document.subs/active?
+     :renderer.document.subs/attr
+     :renderer.document.subs/entities
+     :renderer.document.subs/entity
+     :renderer.document.subs/saved?
+     :renderer.element.subs/ancestor-ids
+     :renderer.element.subs/area
+     :renderer.element.subs/bbox
+     :renderer.element.subs/edit-attributes
+     :renderer.element.subs/entities
+     :renderer.element.subs/entity
+     :renderer.element.subs/hovered-svg
+     :renderer.element.subs/hovered?
+     :renderer.element.subs/not-every-top-level?
+     :renderer.element.subs/root
+     :renderer.element.subs/some-selected-tag?
+     :renderer.element.subs/some-selected-unlocked?
+     :renderer.frame.subs/viewbox-bounds
+     :renderer.history.subs/history
+     :renderer.history.subs/redos
+     :renderer.history.subs/redos?
+     :renderer.history.subs/undos
+     :renderer.history.subs/undos?
+     :renderer.i18n.subs/options
+     :renderer.i18n.subs/selected-lang?
+     :renderer.input.subs/drag?
+     :renderer.input.subs/snapped-offset
+     :renderer.input.subs/snapped-position
+     :renderer.ruler.subs/step
+     :renderer.shell.subs/active-language?
+     :renderer.snap.subs/option-enabled?
+     :renderer.theme.subs/selected-mode?
+     :renderer.tool.subs/active?
+     :renderer.tool.subs/help
+     :renderer.window.subs/lg?
+     :renderer.window.subs/md?
+     :renderer.window.subs/sm?
+     :renderer.window.subs/xl?]}],
+  :label :false,
+  :confirmed false,
+  :by "claude, first pass",
+  :why
+  "referenced as data, an action's :event, :available or :active vector, or dispatched in a test"}
+ {:finding
+  [:repath-studio
+   :event-never-dispatched
+   :renderer.document.events/save
+   "src/renderer/document/events.cljs"
+   {:unread-handlers
+    [:renderer.a11y.subs/filter-active?
+     :renderer.action.subs/action-group
+     :renderer.app.subs/desktop?
+     :renderer.app.subs/mac?
+     :renderer.app.subs/supported-feature?
+     :renderer.app.subs/web?
+     :renderer.dialog.subs/active
+     :renderer.document.subs/active-saved?
+     :renderer.document.subs/active?
+     :renderer.document.subs/attr
+     :renderer.document.subs/entities
+     :renderer.document.subs/entity
+     :renderer.document.subs/saved?
+     :renderer.element.subs/ancestor-ids
+     :renderer.element.subs/area
+     :renderer.element.subs/bbox
+     :renderer.element.subs/edit-attributes
+     :renderer.element.subs/entities
+     :renderer.element.subs/entity
+     :renderer.element.subs/hovered-svg
+     :renderer.element.subs/hovered?
+     :renderer.element.subs/not-every-top-level?
+     :renderer.element.subs/root
+     :renderer.element.subs/some-selected-tag?
+     :renderer.element.subs/some-selected-unlocked?
+     :renderer.frame.subs/viewbox-bounds
+     :renderer.history.subs/history
+     :renderer.history.subs/redos
+     :renderer.history.subs/redos?
+     :renderer.history.subs/undos
+     :renderer.history.subs/undos?
+     :renderer.i18n.subs/options
+     :renderer.i18n.subs/selected-lang?
+     :renderer.input.subs/drag?
+     :renderer.input.subs/snapped-offset
+     :renderer.input.subs/snapped-position
+     :renderer.ruler.subs/step
+     :renderer.shell.subs/active-language?
+     :renderer.snap.subs/option-enabled?
+     :renderer.theme.subs/selected-mode?
+     :renderer.tool.subs/active?
+     :renderer.tool.subs/help
+     :renderer.window.subs/lg?
+     :renderer.window.subs/md?
+     :renderer.window.subs/sm?
+     :renderer.window.subs/xl?]}],
+  :label :false,
+  :confirmed false,
+  :by "claude, first pass",
+  :why
+  "referenced as data, an action's :event, :available or :active vector, or dispatched in a test"}
+ {:finding
+  [:repath-studio
+   :event-never-dispatched
+   :renderer.document.events/save-as
+   "src/renderer/document/events.cljs"
+   {:unread-handlers
+    [:renderer.a11y.subs/filter-active?
+     :renderer.action.subs/action-group
+     :renderer.app.subs/desktop?
+     :renderer.app.subs/mac?
+     :renderer.app.subs/supported-feature?
+     :renderer.app.subs/web?
+     :renderer.dialog.subs/active
+     :renderer.document.subs/active-saved?
+     :renderer.document.subs/active?
+     :renderer.document.subs/attr
+     :renderer.document.subs/entities
+     :renderer.document.subs/entity
+     :renderer.document.subs/saved?
+     :renderer.element.subs/ancestor-ids
+     :renderer.element.subs/area
+     :renderer.element.subs/bbox
+     :renderer.element.subs/edit-attributes
+     :renderer.element.subs/entities
+     :renderer.element.subs/entity
+     :renderer.element.subs/hovered-svg
+     :renderer.element.subs/hovered?
+     :renderer.element.subs/not-every-top-level?
+     :renderer.element.subs/root
+     :renderer.element.subs/some-selected-tag?
+     :renderer.element.subs/some-selected-unlocked?
+     :renderer.frame.subs/viewbox-bounds
+     :renderer.history.subs/history
+     :renderer.history.subs/redos
+     :renderer.history.subs/redos?
+     :renderer.history.subs/undos
+     :renderer.history.subs/undos?
+     :renderer.i18n.subs/options
+     :renderer.i18n.subs/selected-lang?
+     :renderer.input.subs/drag?
+     :renderer.input.subs/snapped-offset
+     :renderer.input.subs/snapped-position
+     :renderer.ruler.subs/step
+     :renderer.shell.subs/active-language?
+     :renderer.snap.subs/option-enabled?
+     :renderer.theme.subs/selected-mode?
+     :renderer.tool.subs/active?
+     :renderer.tool.subs/help
+     :renderer.window.subs/lg?
+     :renderer.window.subs/md?
+     :renderer.window.subs/sm?
+     :renderer.window.subs/xl?]}],
+  :label :false,
+  :confirmed false,
+  :by "claude, first pass",
+  :why
+  "referenced as data, an action's :event, :available or :active vector, or dispatched in a test"}
+ {:finding
+  [:repath-studio
+   :sub-never-subscribed
+   :renderer.document.subs/saveable?
+   "src/renderer/document/subs.cljs"
+   {}],
+  :label :false,
+  :confirmed false,
+  :by "claude, first pass",
+  :why
+  "referenced as data, an action's :event, :available or :active vector, or dispatched in a test"}
+ {:finding
+  [:repath-studio
+   :sub-never-subscribed
+   :renderer.document.subs/some-recent?
+   "src/renderer/document/subs.cljs"
+   {}],
+  :label :false,
+  :confirmed false,
+  :by "claude, first pass",
+  :why
+  "referenced as data, an action's :event, :available or :active vector, or dispatched in a test"}
+ {:finding
+  [:repath-studio
+   :sub-never-subscribed
+   :renderer.document.subs/some-recently-closed?
+   "src/renderer/document/subs.cljs"
+   {}],
+  :label :false,
+  :confirmed false,
+  :by "claude, first pass",
+  :why
+  "referenced as data, an action's :event, :available or :active vector, or dispatched in a test"}
+ {:finding
+  [:repath-studio
+   :sub-never-subscribed
+   :renderer.document.subs/some-saved?
+   "src/renderer/document/subs.cljs"
+   {}],
+  :label :false,
+  :confirmed false,
+  :by "claude, first pass",
+  :why
+  "referenced as data, an action's :event, :available or :active vector, or dispatched in a test"}
+ {:finding
+  [:repath-studio
+   :sub-never-subscribed
+   :renderer.document.subs/zoom-in-available?
+   "src/renderer/document/subs.cljs"
+   {}],
+  :label :false,
+  :confirmed false,
+  :by "claude, first pass",
+  :why
+  "referenced as data, an action's :event, :available or :active vector, or dispatched in a test"}
+ {:finding
+  [:repath-studio
+   :sub-never-subscribed
+   :renderer.document.subs/zoom-out-available?
+   "src/renderer/document/subs.cljs"
+   {}],
+  :label :false,
+  :confirmed false,
+  :by "claude, first pass",
+  :why
+  "referenced as data, an action's :event, :available or :active vector, or dispatched in a test"}
+ {:finding
+  [:repath-studio
+   :event-never-dispatched
+   :renderer.element.events/add-mpath
+   "src/renderer/element/events.cljs"
+   {:unread-handlers
+    [:renderer.a11y.subs/filter-active?
+     :renderer.action.subs/action-group
+     :renderer.app.subs/desktop?
+     :renderer.app.subs/mac?
+     :renderer.app.subs/supported-feature?
+     :renderer.app.subs/web?
+     :renderer.dialog.subs/active
+     :renderer.document.subs/active-saved?
+     :renderer.document.subs/active?
+     :renderer.document.subs/attr
+     :renderer.document.subs/entities
+     :renderer.document.subs/entity
+     :renderer.document.subs/saved?
+     :renderer.element.subs/ancestor-ids
+     :renderer.element.subs/area
+     :renderer.element.subs/bbox
+     :renderer.element.subs/edit-attributes
+     :renderer.element.subs/entities
+     :renderer.element.subs/entity
+     :renderer.element.subs/hovered-svg
+     :renderer.element.subs/hovered?
+     :renderer.element.subs/not-every-top-level?
+     :renderer.element.subs/root
+     :renderer.element.subs/some-selected-tag?
+     :renderer.element.subs/some-selected-unlocked?
+     :renderer.frame.subs/viewbox-bounds
+     :renderer.history.subs/history
+     :renderer.history.subs/redos
+     :renderer.history.subs/redos?
+     :renderer.history.subs/undos
+     :renderer.history.subs/undos?
+     :renderer.i18n.subs/options
+     :renderer.i18n.subs/selected-lang?
+     :renderer.input.subs/drag?
+     :renderer.input.subs/snapped-offset
+     :renderer.input.subs/snapped-position
+     :renderer.ruler.subs/step
+     :renderer.shell.subs/active-language?
+     :renderer.snap.subs/option-enabled?
+     :renderer.theme.subs/selected-mode?
+     :renderer.tool.subs/active?
+     :renderer.tool.subs/help
+     :renderer.window.subs/lg?
+     :renderer.window.subs/md?
+     :renderer.window.subs/sm?
+     :renderer.window.subs/xl?]}],
+  :label :false,
+  :confirmed false,
+  :by "claude, first pass",
+  :why
+  "referenced as data, an action's :event, :available or :active vector, or dispatched in a test"}
+ {:finding
+  [:repath-studio
+   :event-never-dispatched
+   :renderer.element.events/boolean-operation
+   "src/renderer/element/events.cljs"
+   {:unread-handlers
+    [:renderer.a11y.subs/filter-active?
+     :renderer.action.subs/action-group
+     :renderer.app.subs/desktop?
+     :renderer.app.subs/mac?
+     :renderer.app.subs/supported-feature?
+     :renderer.app.subs/web?
+     :renderer.dialog.subs/active
+     :renderer.document.subs/active-saved?
+     :renderer.document.subs/active?
+     :renderer.document.subs/attr
+     :renderer.document.subs/entities
+     :renderer.document.subs/entity
+     :renderer.document.subs/saved?
+     :renderer.element.subs/ancestor-ids
+     :renderer.element.subs/area
+     :renderer.element.subs/bbox
+     :renderer.element.subs/edit-attributes
+     :renderer.element.subs/entities
+     :renderer.element.subs/entity
+     :renderer.element.subs/hovered-svg
+     :renderer.element.subs/hovered?
+     :renderer.element.subs/not-every-top-level?
+     :renderer.element.subs/root
+     :renderer.element.subs/some-selected-tag?
+     :renderer.element.subs/some-selected-unlocked?
+     :renderer.frame.subs/viewbox-bounds
+     :renderer.history.subs/history
+     :renderer.history.subs/redos
+     :renderer.history.subs/redos?
+     :renderer.history.subs/undos
+     :renderer.history.subs/undos?
+     :renderer.i18n.subs/options
+     :renderer.i18n.subs/selected-lang?
+     :renderer.input.subs/drag?
+     :renderer.input.subs/snapped-offset
+     :renderer.input.subs/snapped-position
+     :renderer.ruler.subs/step
+     :renderer.shell.subs/active-language?
+     :renderer.snap.subs/option-enabled?
+     :renderer.theme.subs/selected-mode?
+     :renderer.tool.subs/active?
+     :renderer.tool.subs/help
+     :renderer.window.subs/lg?
+     :renderer.window.subs/md?
+     :renderer.window.subs/sm?
+     :renderer.window.subs/xl?]}],
+  :label :false,
+  :confirmed false,
+  :by "claude, first pass",
+  :why
+  "referenced as data, an action's :event, :available or :active vector, or dispatched in a test"}
+ {:finding
+  [:repath-studio
+   :event-never-dispatched
+   :renderer.element.events/break-apart
+   "src/renderer/element/events.cljs"
+   {:unread-handlers
+    [:renderer.a11y.subs/filter-active?
+     :renderer.action.subs/action-group
+     :renderer.app.subs/desktop?
+     :renderer.app.subs/mac?
+     :renderer.app.subs/supported-feature?
+     :renderer.app.subs/web?
+     :renderer.dialog.subs/active
+     :renderer.document.subs/active-saved?
+     :renderer.document.subs/active?
+     :renderer.document.subs/attr
+     :renderer.document.subs/entities
+     :renderer.document.subs/entity
+     :renderer.document.subs/saved?
+     :renderer.element.subs/ancestor-ids
+     :renderer.element.subs/area
+     :renderer.element.subs/bbox
+     :renderer.element.subs/edit-attributes
+     :renderer.element.subs/entities
+     :renderer.element.subs/entity
+     :renderer.element.subs/hovered-svg
+     :renderer.element.subs/hovered?
+     :renderer.element.subs/not-every-top-level?
+     :renderer.element.subs/root
+     :renderer.element.subs/some-selected-tag?
+     :renderer.element.subs/some-selected-unlocked?
+     :renderer.frame.subs/viewbox-bounds
+     :renderer.history.subs/history
+     :renderer.history.subs/redos
+     :renderer.history.subs/redos?
+     :renderer.history.subs/undos
+     :renderer.history.subs/undos?
+     :renderer.i18n.subs/options
+     :renderer.i18n.subs/selected-lang?
+     :renderer.input.subs/drag?
+     :renderer.input.subs/snapped-offset
+     :renderer.input.subs/snapped-position
+     :renderer.ruler.subs/step
+     :renderer.shell.subs/active-language?
+     :renderer.snap.subs/option-enabled?
+     :renderer.theme.subs/selected-mode?
+     :renderer.tool.subs/active?
+     :renderer.tool.subs/help
+     :renderer.window.subs/lg?
+     :renderer.window.subs/md?
+     :renderer.window.subs/sm?
+     :renderer.window.subs/xl?]}],
+  :label :false,
+  :confirmed false,
+  :by "claude, first pass",
+  :why
+  "referenced as data, an action's :event, :available or :active vector, or dispatched in a test"}
+ {:finding
+  [:repath-studio
+   :event-never-dispatched
+   :renderer.element.events/combine
+   "src/renderer/element/events.cljs"
+   {:unread-handlers
+    [:renderer.a11y.subs/filter-active?
+     :renderer.action.subs/action-group
+     :renderer.app.subs/desktop?
+     :renderer.app.subs/mac?
+     :renderer.app.subs/supported-feature?
+     :renderer.app.subs/web?
+     :renderer.dialog.subs/active
+     :renderer.document.subs/active-saved?
+     :renderer.document.subs/active?
+     :renderer.document.subs/attr
+     :renderer.document.subs/entities
+     :renderer.document.subs/entity
+     :renderer.document.subs/saved?
+     :renderer.element.subs/ancestor-ids
+     :renderer.element.subs/area
+     :renderer.element.subs/bbox
+     :renderer.element.subs/edit-attributes
+     :renderer.element.subs/entities
+     :renderer.element.subs/entity
+     :renderer.element.subs/hovered-svg
+     :renderer.element.subs/hovered?
+     :renderer.element.subs/not-every-top-level?
+     :renderer.element.subs/root
+     :renderer.element.subs/some-selected-tag?
+     :renderer.element.subs/some-selected-unlocked?
+     :renderer.frame.subs/viewbox-bounds
+     :renderer.history.subs/history
+     :renderer.history.subs/redos
+     :renderer.history.subs/redos?
+     :renderer.history.subs/undos
+     :renderer.history.subs/undos?
+     :renderer.i18n.subs/options
+     :renderer.i18n.subs/selected-lang?
+     :renderer.input.subs/drag?
+     :renderer.input.subs/snapped-offset
+     :renderer.input.subs/snapped-position
+     :renderer.ruler.subs/step
+     :renderer.shell.subs/active-language?
+     :renderer.snap.subs/option-enabled?
+     :renderer.theme.subs/selected-mode?
+     :renderer.tool.subs/active?
+     :renderer.tool.subs/help
+     :renderer.window.subs/lg?
+     :renderer.window.subs/md?
+     :renderer.window.subs/sm?
+     :renderer.window.subs/xl?]}],
+  :label :false,
+  :confirmed false,
+  :by "claude, first pass",
+  :why
+  "referenced as data, an action's :event, :available or :active vector, or dispatched in a test"}
+ {:finding
+  [:repath-studio
+   :event-never-dispatched
+   :renderer.element.events/cut
+   "src/renderer/element/events.cljs"
+   {:unread-handlers
+    [:renderer.a11y.subs/filter-active?
+     :renderer.action.subs/action-group
+     :renderer.app.subs/desktop?
+     :renderer.app.subs/mac?
+     :renderer.app.subs/supported-feature?
+     :renderer.app.subs/web?
+     :renderer.dialog.subs/active
+     :renderer.document.subs/active-saved?
+     :renderer.document.subs/active?
+     :renderer.document.subs/attr
+     :renderer.document.subs/entities
+     :renderer.document.subs/entity
+     :renderer.document.subs/saved?
+     :renderer.element.subs/ancestor-ids
+     :renderer.element.subs/area
+     :renderer.element.subs/bbox
+     :renderer.element.subs/edit-attributes
+     :renderer.element.subs/entities
+     :renderer.element.subs/entity
+     :renderer.element.subs/hovered-svg
+     :renderer.element.subs/hovered?
+     :renderer.element.subs/not-every-top-level?
+     :renderer.element.subs/root
+     :renderer.element.subs/some-selected-tag?
+     :renderer.element.subs/some-selected-unlocked?
+     :renderer.frame.subs/viewbox-bounds
+     :renderer.history.subs/history
+     :renderer.history.subs/redos
+     :renderer.history.subs/redos?
+     :renderer.history.subs/undos
+     :renderer.history.subs/undos?
+     :renderer.i18n.subs/options
+     :renderer.i18n.subs/selected-lang?
+     :renderer.input.subs/drag?
+     :renderer.input.subs/snapped-offset
+     :renderer.input.subs/snapped-position
+     :renderer.ruler.subs/step
+     :renderer.shell.subs/active-language?
+     :renderer.snap.subs/option-enabled?
+     :renderer.theme.subs/selected-mode?
+     :renderer.tool.subs/active?
+     :renderer.tool.subs/help
+     :renderer.window.subs/lg?
+     :renderer.window.subs/md?
+     :renderer.window.subs/sm?
+     :renderer.window.subs/xl?]}],
+  :label :false,
+  :confirmed false,
+  :by "claude, first pass",
+  :why
+  "referenced as data, an action's :event, :available or :active vector, or dispatched in a test"}
+ {:finding
+  [:repath-studio
+   :event-never-dispatched
+   :renderer.element.events/invert-selection
+   "src/renderer/element/events.cljs"
+   {:unread-handlers
+    [:renderer.a11y.subs/filter-active?
+     :renderer.action.subs/action-group
+     :renderer.app.subs/desktop?
+     :renderer.app.subs/mac?
+     :renderer.app.subs/supported-feature?
+     :renderer.app.subs/web?
+     :renderer.dialog.subs/active
+     :renderer.document.subs/active-saved?
+     :renderer.document.subs/active?
+     :renderer.document.subs/attr
+     :renderer.document.subs/entities
+     :renderer.document.subs/entity
+     :renderer.document.subs/saved?
+     :renderer.element.subs/ancestor-ids
+     :renderer.element.subs/area
+     :renderer.element.subs/bbox
+     :renderer.element.subs/edit-attributes
+     :renderer.element.subs/entities
+     :renderer.element.subs/entity
+     :renderer.element.subs/hovered-svg
+     :renderer.element.subs/hovered?
+     :renderer.element.subs/not-every-top-level?
+     :renderer.element.subs/root
+     :renderer.element.subs/some-selected-tag?
+     :renderer.element.subs/some-selected-unlocked?
+     :renderer.frame.subs/viewbox-bounds
+     :renderer.history.subs/history
+     :renderer.history.subs/redos
+     :renderer.history.subs/redos?
+     :renderer.history.subs/undos
+     :renderer.history.subs/undos?
+     :renderer.i18n.subs/options
+     :renderer.i18n.subs/selected-lang?
+     :renderer.input.subs/drag?
+     :renderer.input.subs/snapped-offset
+     :renderer.input.subs/snapped-position
+     :renderer.ruler.subs/step
+     :renderer.shell.subs/active-language?
+     :renderer.snap.subs/option-enabled?
+     :renderer.theme.subs/selected-mode?
+     :renderer.tool.subs/active?
+     :renderer.tool.subs/help
+     :renderer.window.subs/lg?
+     :renderer.window.subs/md?
+     :renderer.window.subs/sm?
+     :renderer.window.subs/xl?]}],
+  :label :false,
+  :confirmed false,
+  :by "claude, first pass",
+  :why
+  "referenced as data, an action's :event, :available or :active vector, or dispatched in a test"}
+ {:finding
+  [:repath-studio
+   :event-never-dispatched
+   :renderer.element.events/lock
+   "src/renderer/element/events.cljs"
+   {:unread-handlers
+    [:renderer.a11y.subs/filter-active?
+     :renderer.action.subs/action-group
+     :renderer.app.subs/desktop?
+     :renderer.app.subs/mac?
+     :renderer.app.subs/supported-feature?
+     :renderer.app.subs/web?
+     :renderer.dialog.subs/active
+     :renderer.document.subs/active-saved?
+     :renderer.document.subs/active?
+     :renderer.document.subs/attr
+     :renderer.document.subs/entities
+     :renderer.document.subs/entity
+     :renderer.document.subs/saved?
+     :renderer.element.subs/ancestor-ids
+     :renderer.element.subs/area
+     :renderer.element.subs/bbox
+     :renderer.element.subs/edit-attributes
+     :renderer.element.subs/entities
+     :renderer.element.subs/entity
+     :renderer.element.subs/hovered-svg
+     :renderer.element.subs/hovered?
+     :renderer.element.subs/not-every-top-level?
+     :renderer.element.subs/root
+     :renderer.element.subs/some-selected-tag?
+     :renderer.element.subs/some-selected-unlocked?
+     :renderer.frame.subs/viewbox-bounds
+     :renderer.history.subs/history
+     :renderer.history.subs/redos
+     :renderer.history.subs/redos?
+     :renderer.history.subs/undos
+     :renderer.history.subs/undos?
+     :renderer.i18n.subs/options
+     :renderer.i18n.subs/selected-lang?
+     :renderer.input.subs/drag?
+     :renderer.input.subs/snapped-offset
+     :renderer.input.subs/snapped-position
+     :renderer.ruler.subs/step
+     :renderer.shell.subs/active-language?
+     :renderer.snap.subs/option-enabled?
+     :renderer.theme.subs/selected-mode?
+     :renderer.tool.subs/active?
+     :renderer.tool.subs/help
+     :renderer.window.subs/lg?
+     :renderer.window.subs/md?
+     :renderer.window.subs/sm?
+     :renderer.window.subs/xl?]}],
+  :label :false,
+  :confirmed false,
+  :by "claude, first pass",
+  :why
+  "referenced as data, an action's :event, :available or :active vector, or dispatched in a test"}
+ {:finding
+  [:repath-studio
+   :event-never-dispatched
+   :renderer.element.events/paste-styles
+   "src/renderer/element/events.cljs"
+   {:unread-handlers
+    [:renderer.a11y.subs/filter-active?
+     :renderer.action.subs/action-group
+     :renderer.app.subs/desktop?
+     :renderer.app.subs/mac?
+     :renderer.app.subs/supported-feature?
+     :renderer.app.subs/web?
+     :renderer.dialog.subs/active
+     :renderer.document.subs/active-saved?
+     :renderer.document.subs/active?
+     :renderer.document.subs/attr
+     :renderer.document.subs/entities
+     :renderer.document.subs/entity
+     :renderer.document.subs/saved?
+     :renderer.element.subs/ancestor-ids
+     :renderer.element.subs/area
+     :renderer.element.subs/bbox
+     :renderer.element.subs/edit-attributes
+     :renderer.element.subs/entities
+     :renderer.element.subs/entity
+     :renderer.element.subs/hovered-svg
+     :renderer.element.subs/hovered?
+     :renderer.element.subs/not-every-top-level?
+     :renderer.element.subs/root
+     :renderer.element.subs/some-selected-tag?
+     :renderer.element.subs/some-selected-unlocked?
+     :renderer.frame.subs/viewbox-bounds
+     :renderer.history.subs/history
+     :renderer.history.subs/redos
+     :renderer.history.subs/redos?
+     :renderer.history.subs/undos
+     :renderer.history.subs/undos?
+     :renderer.i18n.subs/options
+     :renderer.i18n.subs/selected-lang?
+     :renderer.input.subs/drag?
+     :renderer.input.subs/snapped-offset
+     :renderer.input.subs/snapped-position
+     :renderer.ruler.subs/step
+     :renderer.shell.subs/active-language?
+     :renderer.snap.subs/option-enabled?
+     :renderer.theme.subs/selected-mode?
+     :renderer.tool.subs/active?
+     :renderer.tool.subs/help
+     :renderer.window.subs/lg?
+     :renderer.window.subs/md?
+     :renderer.window.subs/sm?
+     :renderer.window.subs/xl?]}],
+  :label :false,
+  :confirmed false,
+  :by "claude, first pass",
+  :why
+  "referenced as data, an action's :event, :available or :active vector, or dispatched in a test"}
+ {:finding
+  [:repath-studio
+   :event-never-dispatched
+   :renderer.element.events/path-flatten
+   "src/renderer/element/events.cljs"
+   {:unread-handlers
+    [:renderer.a11y.subs/filter-active?
+     :renderer.action.subs/action-group
+     :renderer.app.subs/desktop?
+     :renderer.app.subs/mac?
+     :renderer.app.subs/supported-feature?
+     :renderer.app.subs/web?
+     :renderer.dialog.subs/active
+     :renderer.document.subs/active-saved?
+     :renderer.document.subs/active?
+     :renderer.document.subs/attr
+     :renderer.document.subs/entities
+     :renderer.document.subs/entity
+     :renderer.document.subs/saved?
+     :renderer.element.subs/ancestor-ids
+     :renderer.element.subs/area
+     :renderer.element.subs/bbox
+     :renderer.element.subs/edit-attributes
+     :renderer.element.subs/entities
+     :renderer.element.subs/entity
+     :renderer.element.subs/hovered-svg
+     :renderer.element.subs/hovered?
+     :renderer.element.subs/not-every-top-level?
+     :renderer.element.subs/root
+     :renderer.element.subs/some-selected-tag?
+     :renderer.element.subs/some-selected-unlocked?
+     :renderer.frame.subs/viewbox-bounds
+     :renderer.history.subs/history
+     :renderer.history.subs/redos
+     :renderer.history.subs/redos?
+     :renderer.history.subs/undos
+     :renderer.history.subs/undos?
+     :renderer.i18n.subs/options
+     :renderer.i18n.subs/selected-lang?
+     :renderer.input.subs/drag?
+     :renderer.input.subs/snapped-offset
+     :renderer.input.subs/snapped-position
+     :renderer.ruler.subs/step
+     :renderer.shell.subs/active-language?
+     :renderer.snap.subs/option-enabled?
+     :renderer.theme.subs/selected-mode?
+     :renderer.tool.subs/active?
+     :renderer.tool.subs/help
+     :renderer.window.subs/lg?
+     :renderer.window.subs/md?
+     :renderer.window.subs/sm?
+     :renderer.window.subs/xl?]}],
+  :label :false,
+  :confirmed false,
+  :by "claude, first pass",
+  :why
+  "referenced as data, an action's :event, :available or :active vector, or dispatched in a test"}
+ {:finding
+  [:repath-studio
+   :event-never-dispatched
+   :renderer.element.events/path-reverse
+   "src/renderer/element/events.cljs"
+   {:unread-handlers
+    [:renderer.a11y.subs/filter-active?
+     :renderer.action.subs/action-group
+     :renderer.app.subs/desktop?
+     :renderer.app.subs/mac?
+     :renderer.app.subs/supported-feature?
+     :renderer.app.subs/web?
+     :renderer.dialog.subs/active
+     :renderer.document.subs/active-saved?
+     :renderer.document.subs/active?
+     :renderer.document.subs/attr
+     :renderer.document.subs/entities
+     :renderer.document.subs/entity
+     :renderer.document.subs/saved?
+     :renderer.element.subs/ancestor-ids
+     :renderer.element.subs/area
+     :renderer.element.subs/bbox
+     :renderer.element.subs/edit-attributes
+     :renderer.element.subs/entities
+     :renderer.element.subs/entity
+     :renderer.element.subs/hovered-svg
+     :renderer.element.subs/hovered?
+     :renderer.element.subs/not-every-top-level?
+     :renderer.element.subs/root
+     :renderer.element.subs/some-selected-tag?
+     :renderer.element.subs/some-selected-unlocked?
+     :renderer.frame.subs/viewbox-bounds
+     :renderer.history.subs/history
+     :renderer.history.subs/redos
+     :renderer.history.subs/redos?
+     :renderer.history.subs/undos
+     :renderer.history.subs/undos?
+     :renderer.i18n.subs/options
+     :renderer.i18n.subs/selected-lang?
+     :renderer.input.subs/drag?
+     :renderer.input.subs/snapped-offset
+     :renderer.input.subs/snapped-position
+     :renderer.ruler.subs/step
+     :renderer.shell.subs/active-language?
+     :renderer.snap.subs/option-enabled?
+     :renderer.theme.subs/selected-mode?
+     :renderer.tool.subs/active?
+     :renderer.tool.subs/help
+     :renderer.window.subs/lg?
+     :renderer.window.subs/md?
+     :renderer.window.subs/sm?
+     :renderer.window.subs/xl?]}],
+  :label :false,
+  :confirmed false,
+  :by "claude, first pass",
+  :why
+  "referenced as data, an action's :event, :available or :active vector, or dispatched in a test"}
+ {:finding
+  [:repath-studio
+   :event-never-dispatched
+   :renderer.element.events/path-simplify
+   "src/renderer/element/events.cljs"
+   {:unread-handlers
+    [:renderer.a11y.subs/filter-active?
+     :renderer.action.subs/action-group
+     :renderer.app.subs/desktop?
+     :renderer.app.subs/mac?
+     :renderer.app.subs/supported-feature?
+     :renderer.app.subs/web?
+     :renderer.dialog.subs/active
+     :renderer.document.subs/active-saved?
+     :renderer.document.subs/active?
+     :renderer.document.subs/attr
+     :renderer.document.subs/entities
+     :renderer.document.subs/entity
+     :renderer.document.subs/saved?
+     :renderer.element.subs/ancestor-ids
+     :renderer.element.subs/area
+     :renderer.element.subs/bbox
+     :renderer.element.subs/edit-attributes
+     :renderer.element.subs/entities
+     :renderer.element.subs/entity
+     :renderer.element.subs/hovered-svg
+     :renderer.element.subs/hovered?
+     :renderer.element.subs/not-every-top-level?
+     :renderer.element.subs/root
+     :renderer.element.subs/some-selected-tag?
+     :renderer.element.subs/some-selected-unlocked?
+     :renderer.frame.subs/viewbox-bounds
+     :renderer.history.subs/history
+     :renderer.history.subs/redos
+     :renderer.history.subs/redos?
+     :renderer.history.subs/undos
+     :renderer.history.subs/undos?
+     :renderer.i18n.subs/options
+     :renderer.i18n.subs/selected-lang?
+     :renderer.input.subs/drag?
+     :renderer.input.subs/snapped-offset
+     :renderer.input.subs/snapped-position
+     :renderer.ruler.subs/step
+     :renderer.shell.subs/active-language?
+     :renderer.snap.subs/option-enabled?
+     :renderer.theme.subs/selected-mode?
+     :renderer.tool.subs/active?
+     :renderer.tool.subs/help
+     :renderer.window.subs/lg?
+     :renderer.window.subs/md?
+     :renderer.window.subs/sm?
+     :renderer.window.subs/xl?]}],
+  :label :false,
+  :confirmed false,
+  :by "claude, first pass",
+  :why
+  "referenced as data, an action's :event, :available or :active vector, or dispatched in a test"}
+ {:finding
+  [:repath-studio
+   :event-never-dispatched
+   :renderer.element.events/path-smooth
+   "src/renderer/element/events.cljs"
+   {:unread-handlers
+    [:renderer.a11y.subs/filter-active?
+     :renderer.action.subs/action-group
+     :renderer.app.subs/desktop?
+     :renderer.app.subs/mac?
+     :renderer.app.subs/supported-feature?
+     :renderer.app.subs/web?
+     :renderer.dialog.subs/active
+     :renderer.document.subs/active-saved?
+     :renderer.document.subs/active?
+     :renderer.document.subs/attr
+     :renderer.document.subs/entities
+     :renderer.document.subs/entity
+     :renderer.document.subs/saved?
+     :renderer.element.subs/ancestor-ids
+     :renderer.element.subs/area
+     :renderer.element.subs/bbox
+     :renderer.element.subs/edit-attributes
+     :renderer.element.subs/entities
+     :renderer.element.subs/entity
+     :renderer.element.subs/hovered-svg
+     :renderer.element.subs/hovered?
+     :renderer.element.subs/not-every-top-level?
+     :renderer.element.subs/root
+     :renderer.element.subs/some-selected-tag?
+     :renderer.element.subs/some-selected-unlocked?
+     :renderer.frame.subs/viewbox-bounds
+     :renderer.history.subs/history
+     :renderer.history.subs/redos
+     :renderer.history.subs/redos?
+     :renderer.history.subs/undos
+     :renderer.history.subs/undos?
+     :renderer.i18n.subs/options
+     :renderer.i18n.subs/selected-lang?
+     :renderer.input.subs/drag?
+     :renderer.input.subs/snapped-offset
+     :renderer.input.subs/snapped-position
+     :renderer.ruler.subs/step
+     :renderer.shell.subs/active-language?
+     :renderer.snap.subs/option-enabled?
+     :renderer.theme.subs/selected-mode?
+     :renderer.tool.subs/active?
+     :renderer.tool.subs/help
+     :renderer.window.subs/lg?
+     :renderer.window.subs/md?
+     :renderer.window.subs/sm?
+     :renderer.window.subs/xl?]}],
+  :label :false,
+  :confirmed false,
+  :by "claude, first pass",
+  :why
+  "referenced as data, an action's :event, :available or :active vector, or dispatched in a test"}
+ {:finding
+  [:repath-studio
+   :event-never-dispatched
+   :renderer.element.events/rotate-clockwise
+   "src/renderer/element/events.cljs"
+   {:unread-handlers
+    [:renderer.a11y.subs/filter-active?
+     :renderer.action.subs/action-group
+     :renderer.app.subs/desktop?
+     :renderer.app.subs/mac?
+     :renderer.app.subs/supported-feature?
+     :renderer.app.subs/web?
+     :renderer.dialog.subs/active
+     :renderer.document.subs/active-saved?
+     :renderer.document.subs/active?
+     :renderer.document.subs/attr
+     :renderer.document.subs/entities
+     :renderer.document.subs/entity
+     :renderer.document.subs/saved?
+     :renderer.element.subs/ancestor-ids
+     :renderer.element.subs/area
+     :renderer.element.subs/bbox
+     :renderer.element.subs/edit-attributes
+     :renderer.element.subs/entities
+     :renderer.element.subs/entity
+     :renderer.element.subs/hovered-svg
+     :renderer.element.subs/hovered?
+     :renderer.element.subs/not-every-top-level?
+     :renderer.element.subs/root
+     :renderer.element.subs/some-selected-tag?
+     :renderer.element.subs/some-selected-unlocked?
+     :renderer.frame.subs/viewbox-bounds
+     :renderer.history.subs/history
+     :renderer.history.subs/redos
+     :renderer.history.subs/redos?
+     :renderer.history.subs/undos
+     :renderer.history.subs/undos?
+     :renderer.i18n.subs/options
+     :renderer.i18n.subs/selected-lang?
+     :renderer.input.subs/drag?
+     :renderer.input.subs/snapped-offset
+     :renderer.input.subs/snapped-position
+     :renderer.ruler.subs/step
+     :renderer.shell.subs/active-language?
+     :renderer.snap.subs/option-enabled?
+     :renderer.theme.subs/selected-mode?
+     :renderer.tool.subs/active?
+     :renderer.tool.subs/help
+     :renderer.window.subs/lg?
+     :renderer.window.subs/md?
+     :renderer.window.subs/sm?
+     :renderer.window.subs/xl?]}],
+  :label :false,
+  :confirmed false,
+  :by "claude, first pass",
+  :why
+  "referenced as data, an action's :event, :available or :active vector, or dispatched in a test"}
+ {:finding
+  [:repath-studio
+   :event-never-dispatched
+   :renderer.element.events/rotate-counterclockwise
+   "src/renderer/element/events.cljs"
+   {:unread-handlers
+    [:renderer.a11y.subs/filter-active?
+     :renderer.action.subs/action-group
+     :renderer.app.subs/desktop?
+     :renderer.app.subs/mac?
+     :renderer.app.subs/supported-feature?
+     :renderer.app.subs/web?
+     :renderer.dialog.subs/active
+     :renderer.document.subs/active-saved?
+     :renderer.document.subs/active?
+     :renderer.document.subs/attr
+     :renderer.document.subs/entities
+     :renderer.document.subs/entity
+     :renderer.document.subs/saved?
+     :renderer.element.subs/ancestor-ids
+     :renderer.element.subs/area
+     :renderer.element.subs/bbox
+     :renderer.element.subs/edit-attributes
+     :renderer.element.subs/entities
+     :renderer.element.subs/entity
+     :renderer.element.subs/hovered-svg
+     :renderer.element.subs/hovered?
+     :renderer.element.subs/not-every-top-level?
+     :renderer.element.subs/root
+     :renderer.element.subs/some-selected-tag?
+     :renderer.element.subs/some-selected-unlocked?
+     :renderer.frame.subs/viewbox-bounds
+     :renderer.history.subs/history
+     :renderer.history.subs/redos
+     :renderer.history.subs/redos?
+     :renderer.history.subs/undos
+     :renderer.history.subs/undos?
+     :renderer.i18n.subs/options
+     :renderer.i18n.subs/selected-lang?
+     :renderer.input.subs/drag?
+     :renderer.input.subs/snapped-offset
+     :renderer.input.subs/snapped-position
+     :renderer.ruler.subs/step
+     :renderer.shell.subs/active-language?
+     :renderer.snap.subs/option-enabled?
+     :renderer.theme.subs/selected-mode?
+     :renderer.tool.subs/active?
+     :renderer.tool.subs/help
+     :renderer.window.subs/lg?
+     :renderer.window.subs/md?
+     :renderer.window.subs/sm?
+     :renderer.window.subs/xl?]}],
+  :label :false,
+  :confirmed false,
+  :by "claude, first pass",
+  :why
+  "referenced as data, an action's :event, :available or :active vector, or dispatched in a test"}
+ {:finding
+  [:repath-studio
+   :event-never-dispatched
+   :renderer.element.events/select-same-tags
+   "src/renderer/element/events.cljs"
+   {:unread-handlers
+    [:renderer.a11y.subs/filter-active?
+     :renderer.action.subs/action-group
+     :renderer.app.subs/desktop?
+     :renderer.app.subs/mac?
+     :renderer.app.subs/supported-feature?
+     :renderer.app.subs/web?
+     :renderer.dialog.subs/active
+     :renderer.document.subs/active-saved?
+     :renderer.document.subs/active?
+     :renderer.document.subs/attr
+     :renderer.document.subs/entities
+     :renderer.document.subs/entity
+     :renderer.document.subs/saved?
+     :renderer.element.subs/ancestor-ids
+     :renderer.element.subs/area
+     :renderer.element.subs/bbox
+     :renderer.element.subs/edit-attributes
+     :renderer.element.subs/entities
+     :renderer.element.subs/entity
+     :renderer.element.subs/hovered-svg
+     :renderer.element.subs/hovered?
+     :renderer.element.subs/not-every-top-level?
+     :renderer.element.subs/root
+     :renderer.element.subs/some-selected-tag?
+     :renderer.element.subs/some-selected-unlocked?
+     :renderer.frame.subs/viewbox-bounds
+     :renderer.history.subs/history
+     :renderer.history.subs/redos
+     :renderer.history.subs/redos?
+     :renderer.history.subs/undos
+     :renderer.history.subs/undos?
+     :renderer.i18n.subs/options
+     :renderer.i18n.subs/selected-lang?
+     :renderer.input.subs/drag?
+     :renderer.input.subs/snapped-offset
+     :renderer.input.subs/snapped-position
+     :renderer.ruler.subs/step
+     :renderer.shell.subs/active-language?
+     :renderer.snap.subs/option-enabled?
+     :renderer.theme.subs/selected-mode?
+     :renderer.tool.subs/active?
+     :renderer.tool.subs/help
+     :renderer.window.subs/lg?
+     :renderer.window.subs/md?
+     :renderer.window.subs/sm?
+     :renderer.window.subs/xl?]}],
+  :label :false,
+  :confirmed false,
+  :by "claude, first pass",
+  :why
+  "referenced as data, an action's :event, :available or :active vector, or dispatched in a test"}
+ {:finding
+  [:repath-studio
+   :event-never-dispatched
+   :renderer.element.events/trace
+   "src/renderer/element/events.cljs"
+   {:unread-handlers
+    [:renderer.a11y.subs/filter-active?
+     :renderer.action.subs/action-group
+     :renderer.app.subs/desktop?
+     :renderer.app.subs/mac?
+     :renderer.app.subs/supported-feature?
+     :renderer.app.subs/web?
+     :renderer.dialog.subs/active
+     :renderer.document.subs/active-saved?
+     :renderer.document.subs/active?
+     :renderer.document.subs/attr
+     :renderer.document.subs/entities
+     :renderer.document.subs/entity
+     :renderer.document.subs/saved?
+     :renderer.element.subs/ancestor-ids
+     :renderer.element.subs/area
+     :renderer.element.subs/bbox
+     :renderer.element.subs/edit-attributes
+     :renderer.element.subs/entities
+     :renderer.element.subs/entity
+     :renderer.element.subs/hovered-svg
+     :renderer.element.subs/hovered?
+     :renderer.element.subs/not-every-top-level?
+     :renderer.element.subs/root
+     :renderer.element.subs/some-selected-tag?
+     :renderer.element.subs/some-selected-unlocked?
+     :renderer.frame.subs/viewbox-bounds
+     :renderer.history.subs/history
+     :renderer.history.subs/redos
+     :renderer.history.subs/redos?
+     :renderer.history.subs/undos
+     :renderer.history.subs/undos?
+     :renderer.i18n.subs/options
+     :renderer.i18n.subs/selected-lang?
+     :renderer.input.subs/drag?
+     :renderer.input.subs/snapped-offset
+     :renderer.input.subs/snapped-position
+     :renderer.ruler.subs/step
+     :renderer.shell.subs/active-language?
+     :renderer.snap.subs/option-enabled?
+     :renderer.theme.subs/selected-mode?
+     :renderer.tool.subs/active?
+     :renderer.tool.subs/help
+     :renderer.window.subs/lg?
+     :renderer.window.subs/md?
+     :renderer.window.subs/sm?
+     :renderer.window.subs/xl?]}],
+  :label :false,
+  :confirmed false,
+  :by "claude, first pass",
+  :why
+  "referenced as data, an action's :event, :available or :active vector, or dispatched in a test"}
+ {:finding
+  [:repath-studio
+   :event-never-dispatched
+   :renderer.element.events/unlock
+   "src/renderer/element/events.cljs"
+   {:unread-handlers
+    [:renderer.a11y.subs/filter-active?
+     :renderer.action.subs/action-group
+     :renderer.app.subs/desktop?
+     :renderer.app.subs/mac?
+     :renderer.app.subs/supported-feature?
+     :renderer.app.subs/web?
+     :renderer.dialog.subs/active
+     :renderer.document.subs/active-saved?
+     :renderer.document.subs/active?
+     :renderer.document.subs/attr
+     :renderer.document.subs/entities
+     :renderer.document.subs/entity
+     :renderer.document.subs/saved?
+     :renderer.element.subs/ancestor-ids
+     :renderer.element.subs/area
+     :renderer.element.subs/bbox
+     :renderer.element.subs/edit-attributes
+     :renderer.element.subs/entities
+     :renderer.element.subs/entity
+     :renderer.element.subs/hovered-svg
+     :renderer.element.subs/hovered?
+     :renderer.element.subs/not-every-top-level?
+     :renderer.element.subs/root
+     :renderer.element.subs/some-selected-tag?
+     :renderer.element.subs/some-selected-unlocked?
+     :renderer.frame.subs/viewbox-bounds
+     :renderer.history.subs/history
+     :renderer.history.subs/redos
+     :renderer.history.subs/redos?
+     :renderer.history.subs/undos
+     :renderer.history.subs/undos?
+     :renderer.i18n.subs/options
+     :renderer.i18n.subs/selected-lang?
+     :renderer.input.subs/drag?
+     :renderer.input.subs/snapped-offset
+     :renderer.input.subs/snapped-position
+     :renderer.ruler.subs/step
+     :renderer.shell.subs/active-language?
+     :renderer.snap.subs/option-enabled?
+     :renderer.theme.subs/selected-mode?
+     :renderer.tool.subs/active?
+     :renderer.tool.subs/help
+     :renderer.window.subs/lg?
+     :renderer.window.subs/md?
+     :renderer.window.subs/sm?
+     :renderer.window.subs/xl?]}],
+  :label :false,
+  :confirmed false,
+  :by "claude, first pass",
+  :why
+  "referenced as data, an action's :event, :available or :active vector, or dispatched in a test"}
+ {:finding
+  [:repath-studio
+   :sub-never-subscribed
+   :renderer.element.subs/multiple-selected?
+   "src/renderer/element/subs.cljs"
+   {}],
+  :label :false,
+  :confirmed false,
+  :by "claude, first pass",
+  :why
+  "referenced as data, an action's :event, :available or :active vector, or dispatched in a test"}
+ {:finding
+  [:repath-studio
+   :sub-never-subscribed
+   :renderer.element.subs/not-every-top-level?
+   "src/renderer/element/subs.cljs"
+   {}],
+  :label :false,
+  :confirmed false,
+  :by "claude, first pass",
+  :why
+  "referenced as data, an action's :event, :available or :active vector, or dispatched in a test"}
+ {:finding
+  [:repath-studio
+   :sub-never-subscribed
+   :renderer.element.subs/some-allow-content?
+   "src/renderer/element/subs.cljs"
+   {}],
+  :label :false,
+  :confirmed false,
+  :by "claude, first pass",
+  :why
+  "referenced as data, an action's :event, :available or :active vector, or dispatched in a test"}
+ {:finding
+  [:repath-studio
+   :sub-never-subscribed
+   :renderer.element.subs/some-non-root-selected?
+   "src/renderer/element/subs.cljs"
+   {}],
+  :label :false,
+  :confirmed false,
+  :by "claude, first pass",
+  :why
+  "referenced as data, an action's :event, :available or :active vector, or dispatched in a test"}
+ {:finding
+  [:repath-studio
+   :sub-never-subscribed
+   :renderer.element.subs/some-selected-locked?
+   "src/renderer/element/subs.cljs"
+   {}],
+  :label :false,
+  :confirmed false,
+  :by "claude, first pass",
+  :why
+  "referenced as data, an action's :event, :available or :active vector, or dispatched in a test"}
+ {:finding
+  [:repath-studio
+   :sub-never-subscribed
+   :renderer.element.subs/some-selected-tag?
+   "src/renderer/element/subs.cljs"
+   {}],
+  :label :false,
+  :confirmed false,
+  :by "claude, first pass",
+  :why
+  "referenced as data, an action's :event, :available or :active vector, or dispatched in a test"}
+ {:finding
+  [:repath-studio
+   :sub-never-subscribed
+   :renderer.element.subs/some-selected-unlocked?
+   "src/renderer/element/subs.cljs"
+   {}],
+  :label :false,
+  :confirmed false,
+  :by "claude, first pass",
+  :why
+  "referenced as data, an action's :event, :available or :active vector, or dispatched in a test"}
+ {:finding
+  [:repath-studio
+   :sub-never-subscribed
+   :renderer.element.subs/some-selected?
+   "src/renderer/element/subs.cljs"
+   {}],
+  :label :false,
+  :confirmed false,
+  :by "claude, first pass",
+  :why
+  "referenced as data, an action's :event, :available or :active vector, or dispatched in a test"}
+ {:finding
+  [:repath-studio
+   :event-never-dispatched
+   :renderer.error.events/set-reporting
+   "src/renderer/error/events.cljs"
+   {:unread-handlers
+    [:renderer.a11y.subs/filter-active?
+     :renderer.action.subs/action-group
+     :renderer.app.subs/desktop?
+     :renderer.app.subs/mac?
+     :renderer.app.subs/supported-feature?
+     :renderer.app.subs/web?
+     :renderer.dialog.subs/active
+     :renderer.document.subs/active-saved?
+     :renderer.document.subs/active?
+     :renderer.document.subs/attr
+     :renderer.document.subs/entities
+     :renderer.document.subs/entity
+     :renderer.document.subs/saved?
+     :renderer.element.subs/ancestor-ids
+     :renderer.element.subs/area
+     :renderer.element.subs/bbox
+     :renderer.element.subs/edit-attributes
+     :renderer.element.subs/entities
+     :renderer.element.subs/entity
+     :renderer.element.subs/hovered-svg
+     :renderer.element.subs/hovered?
+     :renderer.element.subs/not-every-top-level?
+     :renderer.element.subs/root
+     :renderer.element.subs/some-selected-tag?
+     :renderer.element.subs/some-selected-unlocked?
+     :renderer.frame.subs/viewbox-bounds
+     :renderer.history.subs/history
+     :renderer.history.subs/redos
+     :renderer.history.subs/redos?
+     :renderer.history.subs/undos
+     :renderer.history.subs/undos?
+     :renderer.i18n.subs/options
+     :renderer.i18n.subs/selected-lang?
+     :renderer.input.subs/drag?
+     :renderer.input.subs/snapped-offset
+     :renderer.input.subs/snapped-position
+     :renderer.ruler.subs/step
+     :renderer.shell.subs/active-language?
+     :renderer.snap.subs/option-enabled?
+     :renderer.theme.subs/selected-mode?
+     :renderer.tool.subs/active?
+     :renderer.tool.subs/help
+     :renderer.window.subs/lg?
+     :renderer.window.subs/md?
+     :renderer.window.subs/sm?
+     :renderer.window.subs/xl?]}],
+  :label :false,
+  :confirmed false,
+  :by "claude, first pass",
+  :why
+  "referenced as data, an action's :event, :available or :active vector, or dispatched in a test"}
+ {:finding
+  [:repath-studio
+   :event-never-dispatched
+   :renderer.error.events/toggle-reporting
+   "src/renderer/error/events.cljs"
+   {:unread-handlers
+    [:renderer.a11y.subs/filter-active?
+     :renderer.action.subs/action-group
+     :renderer.app.subs/desktop?
+     :renderer.app.subs/mac?
+     :renderer.app.subs/supported-feature?
+     :renderer.app.subs/web?
+     :renderer.dialog.subs/active
+     :renderer.document.subs/active-saved?
+     :renderer.document.subs/active?
+     :renderer.document.subs/attr
+     :renderer.document.subs/entities
+     :renderer.document.subs/entity
+     :renderer.document.subs/saved?
+     :renderer.element.subs/ancestor-ids
+     :renderer.element.subs/area
+     :renderer.element.subs/bbox
+     :renderer.element.subs/edit-attributes
+     :renderer.element.subs/entities
+     :renderer.element.subs/entity
+     :renderer.element.subs/hovered-svg
+     :renderer.element.subs/hovered?
+     :renderer.element.subs/not-every-top-level?
+     :renderer.element.subs/root
+     :renderer.element.subs/some-selected-tag?
+     :renderer.element.subs/some-selected-unlocked?
+     :renderer.frame.subs/viewbox-bounds
+     :renderer.history.subs/history
+     :renderer.history.subs/redos
+     :renderer.history.subs/redos?
+     :renderer.history.subs/undos
+     :renderer.history.subs/undos?
+     :renderer.i18n.subs/options
+     :renderer.i18n.subs/selected-lang?
+     :renderer.input.subs/drag?
+     :renderer.input.subs/snapped-offset
+     :renderer.input.subs/snapped-position
+     :renderer.ruler.subs/step
+     :renderer.shell.subs/active-language?
+     :renderer.snap.subs/option-enabled?
+     :renderer.theme.subs/selected-mode?
+     :renderer.tool.subs/active?
+     :renderer.tool.subs/help
+     :renderer.window.subs/lg?
+     :renderer.window.subs/md?
+     :renderer.window.subs/sm?
+     :renderer.window.subs/xl?]}],
+  :label :false,
+  :confirmed false,
+  :by "claude, first pass",
+  :why
+  "referenced as data, an action's :event, :available or :active vector, or dispatched in a test"}
+ {:finding
+  [:repath-studio
+   :sub-never-subscribed
+   :renderer.error.subs/reporting?
+   "src/renderer/error/subs.cljs"
+   {}],
+  :label :false,
+  :confirmed false,
+  :by "claude, first pass",
+  :why
+  "referenced as data, an action's :event, :available or :active vector, or dispatched in a test"}
+ {:finding
+  [:repath-studio
+   :event-never-dispatched
+   :renderer.frame.events/focus-selection
+   "src/renderer/frame/events.cljs"
+   {:unread-handlers
+    [:renderer.a11y.subs/filter-active?
+     :renderer.action.subs/action-group
+     :renderer.app.subs/desktop?
+     :renderer.app.subs/mac?
+     :renderer.app.subs/supported-feature?
+     :renderer.app.subs/web?
+     :renderer.dialog.subs/active
+     :renderer.document.subs/active-saved?
+     :renderer.document.subs/active?
+     :renderer.document.subs/attr
+     :renderer.document.subs/entities
+     :renderer.document.subs/entity
+     :renderer.document.subs/saved?
+     :renderer.element.subs/ancestor-ids
+     :renderer.element.subs/area
+     :renderer.element.subs/bbox
+     :renderer.element.subs/edit-attributes
+     :renderer.element.subs/entities
+     :renderer.element.subs/entity
+     :renderer.element.subs/hovered-svg
+     :renderer.element.subs/hovered?
+     :renderer.element.subs/not-every-top-level?
+     :renderer.element.subs/root
+     :renderer.element.subs/some-selected-tag?
+     :renderer.element.subs/some-selected-unlocked?
+     :renderer.frame.subs/viewbox-bounds
+     :renderer.history.subs/history
+     :renderer.history.subs/redos
+     :renderer.history.subs/redos?
+     :renderer.history.subs/undos
+     :renderer.history.subs/undos?
+     :renderer.i18n.subs/options
+     :renderer.i18n.subs/selected-lang?
+     :renderer.input.subs/drag?
+     :renderer.input.subs/snapped-offset
+     :renderer.input.subs/snapped-position
+     :renderer.ruler.subs/step
+     :renderer.shell.subs/active-language?
+     :renderer.snap.subs/option-enabled?
+     :renderer.theme.subs/selected-mode?
+     :renderer.tool.subs/active?
+     :renderer.tool.subs/help
+     :renderer.window.subs/lg?
+     :renderer.window.subs/md?
+     :renderer.window.subs/sm?
+     :renderer.window.subs/xl?]}],
+  :label :false,
+  :confirmed false,
+  :by "claude, first pass",
+  :why
+  "referenced as data, an action's :event, :available or :active vector, or dispatched in a test"}
+ {:finding
+  [:repath-studio
+   :event-never-dispatched
+   :renderer.history.events/clear
+   "src/renderer/history/events.cljs"
+   {:unread-handlers
+    [:renderer.a11y.subs/filter-active?
+     :renderer.action.subs/action-group
+     :renderer.app.subs/desktop?
+     :renderer.app.subs/mac?
+     :renderer.app.subs/supported-feature?
+     :renderer.app.subs/web?
+     :renderer.dialog.subs/active
+     :renderer.document.subs/active-saved?
+     :renderer.document.subs/active?
+     :renderer.document.subs/attr
+     :renderer.document.subs/entities
+     :renderer.document.subs/entity
+     :renderer.document.subs/saved?
+     :renderer.element.subs/ancestor-ids
+     :renderer.element.subs/area
+     :renderer.element.subs/bbox
+     :renderer.element.subs/edit-attributes
+     :renderer.element.subs/entities
+     :renderer.element.subs/entity
+     :renderer.element.subs/hovered-svg
+     :renderer.element.subs/hovered?
+     :renderer.element.subs/not-every-top-level?
+     :renderer.element.subs/root
+     :renderer.element.subs/some-selected-tag?
+     :renderer.element.subs/some-selected-unlocked?
+     :renderer.frame.subs/viewbox-bounds
+     :renderer.history.subs/history
+     :renderer.history.subs/redos
+     :renderer.history.subs/redos?
+     :renderer.history.subs/undos
+     :renderer.history.subs/undos?
+     :renderer.i18n.subs/options
+     :renderer.i18n.subs/selected-lang?
+     :renderer.input.subs/drag?
+     :renderer.input.subs/snapped-offset
+     :renderer.input.subs/snapped-position
+     :renderer.ruler.subs/step
+     :renderer.shell.subs/active-language?
+     :renderer.snap.subs/option-enabled?
+     :renderer.theme.subs/selected-mode?
+     :renderer.tool.subs/active?
+     :renderer.tool.subs/help
+     :renderer.window.subs/lg?
+     :renderer.window.subs/md?
+     :renderer.window.subs/sm?
+     :renderer.window.subs/xl?]}],
+  :label :false,
+  :confirmed false,
+  :by "claude, first pass",
+  :why
+  "referenced as data, an action's :event, :available or :active vector, or dispatched in a test"}
+ {:finding
+  [:repath-studio
+   :event-never-dispatched
+   :renderer.history.events/toggle-labels
+   "src/renderer/history/events.cljs"
+   {:unread-handlers
+    [:renderer.a11y.subs/filter-active?
+     :renderer.action.subs/action-group
+     :renderer.app.subs/desktop?
+     :renderer.app.subs/mac?
+     :renderer.app.subs/supported-feature?
+     :renderer.app.subs/web?
+     :renderer.dialog.subs/active
+     :renderer.document.subs/active-saved?
+     :renderer.document.subs/active?
+     :renderer.document.subs/attr
+     :renderer.document.subs/entities
+     :renderer.document.subs/entity
+     :renderer.document.subs/saved?
+     :renderer.element.subs/ancestor-ids
+     :renderer.element.subs/area
+     :renderer.element.subs/bbox
+     :renderer.element.subs/edit-attributes
+     :renderer.element.subs/entities
+     :renderer.element.subs/entity
+     :renderer.element.subs/hovered-svg
+     :renderer.element.subs/hovered?
+     :renderer.element.subs/not-every-top-level?
+     :renderer.element.subs/root
+     :renderer.element.subs/some-selected-tag?
+     :renderer.element.subs/some-selected-unlocked?
+     :renderer.frame.subs/viewbox-bounds
+     :renderer.history.subs/history
+     :renderer.history.subs/redos
+     :renderer.history.subs/redos?
+     :renderer.history.subs/undos
+     :renderer.history.subs/undos?
+     :renderer.i18n.subs/options
+     :renderer.i18n.subs/selected-lang?
+     :renderer.input.subs/drag?
+     :renderer.input.subs/snapped-offset
+     :renderer.input.subs/snapped-position
+     :renderer.ruler.subs/step
+     :renderer.shell.subs/active-language?
+     :renderer.snap.subs/option-enabled?
+     :renderer.theme.subs/selected-mode?
+     :renderer.tool.subs/active?
+     :renderer.tool.subs/help
+     :renderer.window.subs/lg?
+     :renderer.window.subs/md?
+     :renderer.window.subs/sm?
+     :renderer.window.subs/xl?]}],
+  :label :false,
+  :confirmed false,
+  :by "claude, first pass",
+  :why
+  "referenced as data, an action's :event, :available or :active vector, or dispatched in a test"}
+ {:finding
+  [:repath-studio
+   :sub-never-subscribed
+   :renderer.history.subs/multiple-states?
+   "src/renderer/history/subs.cljs"
+   {}],
+  :label :false,
+  :confirmed false,
+  :by "claude, first pass",
+  :why
+  "referenced as data, an action's :event, :available or :active vector, or dispatched in a test"}
+ {:finding
+  [:repath-studio
+   :sub-never-subscribed
+   :renderer.history.subs/redos?
+   "src/renderer/history/subs.cljs"
+   {}],
+  :label :false,
+  :confirmed false,
+  :by "claude, first pass",
+  :why
+  "referenced as data, an action's :event, :available or :active vector, or dispatched in a test"}
+ {:finding
+  [:repath-studio
+   :sub-never-subscribed
+   :renderer.history.subs/undos?
+   "src/renderer/history/subs.cljs"
+   {}],
+  :label :false,
+  :confirmed false,
+  :by "claude, first pass",
+  :why
+  "referenced as data, an action's :event, :available or :active vector, or dispatched in a test"}
+ {:finding
+  [:repath-studio
+   :event-never-dispatched
+   :renderer.i18n.events/set-user-lang
+   "src/renderer/i18n/events.cljs"
+   {:unread-handlers
+    [:renderer.a11y.subs/filter-active?
+     :renderer.action.subs/action-group
+     :renderer.app.subs/desktop?
+     :renderer.app.subs/mac?
+     :renderer.app.subs/supported-feature?
+     :renderer.app.subs/web?
+     :renderer.dialog.subs/active
+     :renderer.document.subs/active-saved?
+     :renderer.document.subs/active?
+     :renderer.document.subs/attr
+     :renderer.document.subs/entities
+     :renderer.document.subs/entity
+     :renderer.document.subs/saved?
+     :renderer.element.subs/ancestor-ids
+     :renderer.element.subs/area
+     :renderer.element.subs/bbox
+     :renderer.element.subs/edit-attributes
+     :renderer.element.subs/entities
+     :renderer.element.subs/entity
+     :renderer.element.subs/hovered-svg
+     :renderer.element.subs/hovered?
+     :renderer.element.subs/not-every-top-level?
+     :renderer.element.subs/root
+     :renderer.element.subs/some-selected-tag?
+     :renderer.element.subs/some-selected-unlocked?
+     :renderer.frame.subs/viewbox-bounds
+     :renderer.history.subs/history
+     :renderer.history.subs/redos
+     :renderer.history.subs/redos?
+     :renderer.history.subs/undos
+     :renderer.history.subs/undos?
+     :renderer.i18n.subs/options
+     :renderer.i18n.subs/selected-lang?
+     :renderer.input.subs/drag?
+     :renderer.input.subs/snapped-offset
+     :renderer.input.subs/snapped-position
+     :renderer.ruler.subs/step
+     :renderer.shell.subs/active-language?
+     :renderer.snap.subs/option-enabled?
+     :renderer.theme.subs/selected-mode?
+     :renderer.tool.subs/active?
+     :renderer.tool.subs/help
+     :renderer.window.subs/lg?
+     :renderer.window.subs/md?
+     :renderer.window.subs/sm?
+     :renderer.window.subs/xl?]}],
+  :label :false,
+  :confirmed false,
+  :by "claude, first pass",
+  :why
+  "referenced as data, an action's :event, :available or :active vector, or dispatched in a test"}
+ {:finding
+  [:repath-studio
+   :sub-never-subscribed
+   :renderer.i18n.subs/selected-lang?
+   "src/renderer/i18n/subs.cljs"
+   {}],
+  :label :false,
+  :confirmed false,
+  :by "claude, first pass",
+  :why
+  "referenced as data, an action's :event, :available or :active vector, or dispatched in a test"}
+ {:finding
+  [:repath-studio
+   :event-never-dispatched
+   :renderer.shell.events/activate-language
+   "src/renderer/shell/events.cljs"
+   {:unread-handlers
+    [:renderer.a11y.subs/filter-active?
+     :renderer.action.subs/action-group
+     :renderer.app.subs/desktop?
+     :renderer.app.subs/mac?
+     :renderer.app.subs/supported-feature?
+     :renderer.app.subs/web?
+     :renderer.dialog.subs/active
+     :renderer.document.subs/active-saved?
+     :renderer.document.subs/active?
+     :renderer.document.subs/attr
+     :renderer.document.subs/entities
+     :renderer.document.subs/entity
+     :renderer.document.subs/saved?
+     :renderer.element.subs/ancestor-ids
+     :renderer.element.subs/area
+     :renderer.element.subs/bbox
+     :renderer.element.subs/edit-attributes
+     :renderer.element.subs/entities
+     :renderer.element.subs/entity
+     :renderer.element.subs/hovered-svg
+     :renderer.element.subs/hovered?
+     :renderer.element.subs/not-every-top-level?
+     :renderer.element.subs/root
+     :renderer.element.subs/some-selected-tag?
+     :renderer.element.subs/some-selected-unlocked?
+     :renderer.frame.subs/viewbox-bounds
+     :renderer.history.subs/history
+     :renderer.history.subs/redos
+     :renderer.history.subs/redos?
+     :renderer.history.subs/undos
+     :renderer.history.subs/undos?
+     :renderer.i18n.subs/options
+     :renderer.i18n.subs/selected-lang?
+     :renderer.input.subs/drag?
+     :renderer.input.subs/snapped-offset
+     :renderer.input.subs/snapped-position
+     :renderer.ruler.subs/step
+     :renderer.shell.subs/active-language?
+     :renderer.snap.subs/option-enabled?
+     :renderer.theme.subs/selected-mode?
+     :renderer.tool.subs/active?
+     :renderer.tool.subs/help
+     :renderer.window.subs/lg?
+     :renderer.window.subs/md?
+     :renderer.window.subs/sm?
+     :renderer.window.subs/xl?]}],
+  :label :false,
+  :confirmed false,
+  :by "claude, first pass",
+  :why
+  "referenced as data, an action's :event, :available or :active vector, or dispatched in a test"}
+ {:finding
+  [:repath-studio
+   :event-never-dispatched
+   :renderer.shell.events/add-item
+   "src/renderer/shell/events.cljs"
+   {:unread-handlers
+    [:renderer.a11y.subs/filter-active?
+     :renderer.action.subs/action-group
+     :renderer.app.subs/desktop?
+     :renderer.app.subs/mac?
+     :renderer.app.subs/supported-feature?
+     :renderer.app.subs/web?
+     :renderer.dialog.subs/active
+     :renderer.document.subs/active-saved?
+     :renderer.document.subs/active?
+     :renderer.document.subs/attr
+     :renderer.document.subs/entities
+     :renderer.document.subs/entity
+     :renderer.document.subs/saved?
+     :renderer.element.subs/ancestor-ids
+     :renderer.element.subs/area
+     :renderer.element.subs/bbox
+     :renderer.element.subs/edit-attributes
+     :renderer.element.subs/entities
+     :renderer.element.subs/entity
+     :renderer.element.subs/hovered-svg
+     :renderer.element.subs/hovered?
+     :renderer.element.subs/not-every-top-level?
+     :renderer.element.subs/root
+     :renderer.element.subs/some-selected-tag?
+     :renderer.element.subs/some-selected-unlocked?
+     :renderer.frame.subs/viewbox-bounds
+     :renderer.history.subs/history
+     :renderer.history.subs/redos
+     :renderer.history.subs/redos?
+     :renderer.history.subs/undos
+     :renderer.history.subs/undos?
+     :renderer.i18n.subs/options
+     :renderer.i18n.subs/selected-lang?
+     :renderer.input.subs/drag?
+     :renderer.input.subs/snapped-offset
+     :renderer.input.subs/snapped-position
+     :renderer.ruler.subs/step
+     :renderer.shell.subs/active-language?
+     :renderer.snap.subs/option-enabled?
+     :renderer.theme.subs/selected-mode?
+     :renderer.tool.subs/active?
+     :renderer.tool.subs/help
+     :renderer.window.subs/lg?
+     :renderer.window.subs/md?
+     :renderer.window.subs/sm?
+     :renderer.window.subs/xl?]}],
+  :label :false,
+  :confirmed false,
+  :by "claude, first pass",
+  :why
+  "referenced as data, an action's :event, :available or :active vector, or dispatched in a test"}
+ {:finding
+  [:repath-studio
+   :event-never-dispatched
+   :renderer.shell.events/allow-paste
+   "src/renderer/shell/events.cljs"
+   {:unread-handlers
+    [:renderer.a11y.subs/filter-active?
+     :renderer.action.subs/action-group
+     :renderer.app.subs/desktop?
+     :renderer.app.subs/mac?
+     :renderer.app.subs/supported-feature?
+     :renderer.app.subs/web?
+     :renderer.dialog.subs/active
+     :renderer.document.subs/active-saved?
+     :renderer.document.subs/active?
+     :renderer.document.subs/attr
+     :renderer.document.subs/entities
+     :renderer.document.subs/entity
+     :renderer.document.subs/saved?
+     :renderer.element.subs/ancestor-ids
+     :renderer.element.subs/area
+     :renderer.element.subs/bbox
+     :renderer.element.subs/edit-attributes
+     :renderer.element.subs/entities
+     :renderer.element.subs/entity
+     :renderer.element.subs/hovered-svg
+     :renderer.element.subs/hovered?
+     :renderer.element.subs/not-every-top-level?
+     :renderer.element.subs/root
+     :renderer.element.subs/some-selected-tag?
+     :renderer.element.subs/some-selected-unlocked?
+     :renderer.frame.subs/viewbox-bounds
+     :renderer.history.subs/history
+     :renderer.history.subs/redos
+     :renderer.history.subs/redos?
+     :renderer.history.subs/undos
+     :renderer.history.subs/undos?
+     :renderer.i18n.subs/options
+     :renderer.i18n.subs/selected-lang?
+     :renderer.input.subs/drag?
+     :renderer.input.subs/snapped-offset
+     :renderer.input.subs/snapped-position
+     :renderer.ruler.subs/step
+     :renderer.shell.subs/active-language?
+     :renderer.snap.subs/option-enabled?
+     :renderer.theme.subs/selected-mode?
+     :renderer.tool.subs/active?
+     :renderer.tool.subs/help
+     :renderer.window.subs/lg?
+     :renderer.window.subs/md?
+     :renderer.window.subs/sm?
+     :renderer.window.subs/xl?]}],
+  :label :false,
+  :confirmed false,
+  :by "claude, first pass",
+  :why
+  "referenced as data, an action's :event, :available or :active vector, or dispatched in a test"}
+ {:finding
+  [:repath-studio
+   :event-never-dispatched
+   :renderer.shell.events/focus
+   "src/renderer/shell/events.cljs"
+   {:unread-handlers
+    [:renderer.a11y.subs/filter-active?
+     :renderer.action.subs/action-group
+     :renderer.app.subs/desktop?
+     :renderer.app.subs/mac?
+     :renderer.app.subs/supported-feature?
+     :renderer.app.subs/web?
+     :renderer.dialog.subs/active
+     :renderer.document.subs/active-saved?
+     :renderer.document.subs/active?
+     :renderer.document.subs/attr
+     :renderer.document.subs/entities
+     :renderer.document.subs/entity
+     :renderer.document.subs/saved?
+     :renderer.element.subs/ancestor-ids
+     :renderer.element.subs/area
+     :renderer.element.subs/bbox
+     :renderer.element.subs/edit-attributes
+     :renderer.element.subs/entities
+     :renderer.element.subs/entity
+     :renderer.element.subs/hovered-svg
+     :renderer.element.subs/hovered?
+     :renderer.element.subs/not-every-top-level?
+     :renderer.element.subs/root
+     :renderer.element.subs/some-selected-tag?
+     :renderer.element.subs/some-selected-unlocked?
+     :renderer.frame.subs/viewbox-bounds
+     :renderer.history.subs/history
+     :renderer.history.subs/redos
+     :renderer.history.subs/redos?
+     :renderer.history.subs/undos
+     :renderer.history.subs/undos?
+     :renderer.i18n.subs/options
+     :renderer.i18n.subs/selected-lang?
+     :renderer.input.subs/drag?
+     :renderer.input.subs/snapped-offset
+     :renderer.input.subs/snapped-position
+     :renderer.ruler.subs/step
+     :renderer.shell.subs/active-language?
+     :renderer.snap.subs/option-enabled?
+     :renderer.theme.subs/selected-mode?
+     :renderer.tool.subs/active?
+     :renderer.tool.subs/help
+     :renderer.window.subs/lg?
+     :renderer.window.subs/md?
+     :renderer.window.subs/sm?
+     :renderer.window.subs/xl?]}],
+  :label :false,
+  :confirmed false,
+  :by "claude, first pass",
+  :why
+  "referenced as data, an action's :event, :available or :active vector, or dispatched in a test"}
+ {:finding
+  [:repath-studio
+   :event-never-dispatched
+   :renderer.shell.events/toggle-verbose
+   "src/renderer/shell/events.cljs"
+   {:unread-handlers
+    [:renderer.a11y.subs/filter-active?
+     :renderer.action.subs/action-group
+     :renderer.app.subs/desktop?
+     :renderer.app.subs/mac?
+     :renderer.app.subs/supported-feature?
+     :renderer.app.subs/web?
+     :renderer.dialog.subs/active
+     :renderer.document.subs/active-saved?
+     :renderer.document.subs/active?
+     :renderer.document.subs/attr
+     :renderer.document.subs/entities
+     :renderer.document.subs/entity
+     :renderer.document.subs/saved?
+     :renderer.element.subs/ancestor-ids
+     :renderer.element.subs/area
+     :renderer.element.subs/bbox
+     :renderer.element.subs/edit-attributes
+     :renderer.element.subs/entities
+     :renderer.element.subs/entity
+     :renderer.element.subs/hovered-svg
+     :renderer.element.subs/hovered?
+     :renderer.element.subs/not-every-top-level?
+     :renderer.element.subs/root
+     :renderer.element.subs/some-selected-tag?
+     :renderer.element.subs/some-selected-unlocked?
+     :renderer.frame.subs/viewbox-bounds
+     :renderer.history.subs/history
+     :renderer.history.subs/redos
+     :renderer.history.subs/redos?
+     :renderer.history.subs/undos
+     :renderer.history.subs/undos?
+     :renderer.i18n.subs/options
+     :renderer.i18n.subs/selected-lang?
+     :renderer.input.subs/drag?
+     :renderer.input.subs/snapped-offset
+     :renderer.input.subs/snapped-position
+     :renderer.ruler.subs/step
+     :renderer.shell.subs/active-language?
+     :renderer.snap.subs/option-enabled?
+     :renderer.theme.subs/selected-mode?
+     :renderer.tool.subs/active?
+     :renderer.tool.subs/help
+     :renderer.window.subs/lg?
+     :renderer.window.subs/md?
+     :renderer.window.subs/sm?
+     :renderer.window.subs/xl?]}],
+  :label :false,
+  :confirmed false,
+  :by "claude, first pass",
+  :why
+  "referenced as data, an action's :event, :available or :active vector, or dispatched in a test"}
+ {:finding
+  [:repath-studio
+   :sub-never-subscribed
+   :renderer.shell.subs/active-language?
+   "src/renderer/shell/subs.cljs"
+   {}],
+  :label :false,
+  :confirmed false,
+  :by "claude, first pass",
+  :why
+  "referenced as data, an action's :event, :available or :active vector, or dispatched in a test"}
+ {:finding
+  [:repath-studio
+   :sub-never-subscribed
+   :renderer.shell.subs/some-items?
+   "src/renderer/shell/subs.cljs"
+   {}],
+  :label :false,
+  :confirmed false,
+  :by "claude, first pass",
+  :why
+  "referenced as data, an action's :event, :available or :active vector, or dispatched in a test"}
+ {:finding
+  [:repath-studio
+   :sub-never-subscribed
+   :renderer.shell.subs/verbose?
+   "src/renderer/shell/subs.cljs"
+   {}],
+  :label :false,
+  :confirmed false,
+  :by "claude, first pass",
+  :why
+  "referenced as data, an action's :event, :available or :active vector, or dispatched in a test"}
+ {:finding
+  [:repath-studio
+   :event-never-dispatched
+   :renderer.snap.events/toggle
+   "src/renderer/snap/events.cljs"
+   {:unread-handlers
+    [:renderer.a11y.subs/filter-active?
+     :renderer.action.subs/action-group
+     :renderer.app.subs/desktop?
+     :renderer.app.subs/mac?
+     :renderer.app.subs/supported-feature?
+     :renderer.app.subs/web?
+     :renderer.dialog.subs/active
+     :renderer.document.subs/active-saved?
+     :renderer.document.subs/active?
+     :renderer.document.subs/attr
+     :renderer.document.subs/entities
+     :renderer.document.subs/entity
+     :renderer.document.subs/saved?
+     :renderer.element.subs/ancestor-ids
+     :renderer.element.subs/area
+     :renderer.element.subs/bbox
+     :renderer.element.subs/edit-attributes
+     :renderer.element.subs/entities
+     :renderer.element.subs/entity
+     :renderer.element.subs/hovered-svg
+     :renderer.element.subs/hovered?
+     :renderer.element.subs/not-every-top-level?
+     :renderer.element.subs/root
+     :renderer.element.subs/some-selected-tag?
+     :renderer.element.subs/some-selected-unlocked?
+     :renderer.frame.subs/viewbox-bounds
+     :renderer.history.subs/history
+     :renderer.history.subs/redos
+     :renderer.history.subs/redos?
+     :renderer.history.subs/undos
+     :renderer.history.subs/undos?
+     :renderer.i18n.subs/options
+     :renderer.i18n.subs/selected-lang?
+     :renderer.input.subs/drag?
+     :renderer.input.subs/snapped-offset
+     :renderer.input.subs/snapped-position
+     :renderer.ruler.subs/step
+     :renderer.shell.subs/active-language?
+     :renderer.snap.subs/option-enabled?
+     :renderer.theme.subs/selected-mode?
+     :renderer.tool.subs/active?
+     :renderer.tool.subs/help
+     :renderer.window.subs/lg?
+     :renderer.window.subs/md?
+     :renderer.window.subs/sm?
+     :renderer.window.subs/xl?]}],
+  :label :false,
+  :confirmed false,
+  :by "claude, first pass",
+  :why
+  "referenced as data, an action's :event, :available or :active vector, or dispatched in a test"}
+ {:finding
+  [:repath-studio
+   :event-never-dispatched
+   :renderer.snap.events/toggle-option
+   "src/renderer/snap/events.cljs"
+   {:unread-handlers
+    [:renderer.a11y.subs/filter-active?
+     :renderer.action.subs/action-group
+     :renderer.app.subs/desktop?
+     :renderer.app.subs/mac?
+     :renderer.app.subs/supported-feature?
+     :renderer.app.subs/web?
+     :renderer.dialog.subs/active
+     :renderer.document.subs/active-saved?
+     :renderer.document.subs/active?
+     :renderer.document.subs/attr
+     :renderer.document.subs/entities
+     :renderer.document.subs/entity
+     :renderer.document.subs/saved?
+     :renderer.element.subs/ancestor-ids
+     :renderer.element.subs/area
+     :renderer.element.subs/bbox
+     :renderer.element.subs/edit-attributes
+     :renderer.element.subs/entities
+     :renderer.element.subs/entity
+     :renderer.element.subs/hovered-svg
+     :renderer.element.subs/hovered?
+     :renderer.element.subs/not-every-top-level?
+     :renderer.element.subs/root
+     :renderer.element.subs/some-selected-tag?
+     :renderer.element.subs/some-selected-unlocked?
+     :renderer.frame.subs/viewbox-bounds
+     :renderer.history.subs/history
+     :renderer.history.subs/redos
+     :renderer.history.subs/redos?
+     :renderer.history.subs/undos
+     :renderer.history.subs/undos?
+     :renderer.i18n.subs/options
+     :renderer.i18n.subs/selected-lang?
+     :renderer.input.subs/drag?
+     :renderer.input.subs/snapped-offset
+     :renderer.input.subs/snapped-position
+     :renderer.ruler.subs/step
+     :renderer.shell.subs/active-language?
+     :renderer.snap.subs/option-enabled?
+     :renderer.theme.subs/selected-mode?
+     :renderer.tool.subs/active?
+     :renderer.tool.subs/help
+     :renderer.window.subs/lg?
+     :renderer.window.subs/md?
+     :renderer.window.subs/sm?
+     :renderer.window.subs/xl?]}],
+  :label :false,
+  :confirmed false,
+  :by "claude, first pass",
+  :why
+  "referenced as data, an action's :event, :available or :active vector, or dispatched in a test"}
+ {:finding
+  [:repath-studio
+   :sub-never-subscribed
+   :renderer.snap.subs/option-enabled?
+   "src/renderer/snap/subs.cljs"
+   {}],
+  :label :false,
+  :confirmed false,
+  :by "claude, first pass",
+  :why
+  "referenced as data, an action's :event, :available or :active vector, or dispatched in a test"}
+ {:finding
+  [:repath-studio
+   :event-never-dispatched
+   :renderer.theme.events/set-mode
+   "src/renderer/theme/events.cljs"
+   {:unread-handlers
+    [:renderer.a11y.subs/filter-active?
+     :renderer.action.subs/action-group
+     :renderer.app.subs/desktop?
+     :renderer.app.subs/mac?
+     :renderer.app.subs/supported-feature?
+     :renderer.app.subs/web?
+     :renderer.dialog.subs/active
+     :renderer.document.subs/active-saved?
+     :renderer.document.subs/active?
+     :renderer.document.subs/attr
+     :renderer.document.subs/entities
+     :renderer.document.subs/entity
+     :renderer.document.subs/saved?
+     :renderer.element.subs/ancestor-ids
+     :renderer.element.subs/area
+     :renderer.element.subs/bbox
+     :renderer.element.subs/edit-attributes
+     :renderer.element.subs/entities
+     :renderer.element.subs/entity
+     :renderer.element.subs/hovered-svg
+     :renderer.element.subs/hovered?
+     :renderer.element.subs/not-every-top-level?
+     :renderer.element.subs/root
+     :renderer.element.subs/some-selected-tag?
+     :renderer.element.subs/some-selected-unlocked?
+     :renderer.frame.subs/viewbox-bounds
+     :renderer.history.subs/history
+     :renderer.history.subs/redos
+     :renderer.history.subs/redos?
+     :renderer.history.subs/undos
+     :renderer.history.subs/undos?
+     :renderer.i18n.subs/options
+     :renderer.i18n.subs/selected-lang?
+     :renderer.input.subs/drag?
+     :renderer.input.subs/snapped-offset
+     :renderer.input.subs/snapped-position
+     :renderer.ruler.subs/step
+     :renderer.shell.subs/active-language?
+     :renderer.snap.subs/option-enabled?
+     :renderer.theme.subs/selected-mode?
+     :renderer.tool.subs/active?
+     :renderer.tool.subs/help
+     :renderer.window.subs/lg?
+     :renderer.window.subs/md?
+     :renderer.window.subs/sm?
+     :renderer.window.subs/xl?]}],
+  :label :false,
+  :confirmed false,
+  :by "claude, first pass",
+  :why
+  "referenced as data, an action's :event, :available or :active vector, or dispatched in a test"}
+ {:finding
+  [:repath-studio
+   :sub-never-subscribed
+   :renderer.theme.subs/selected-mode?
+   "src/renderer/theme/subs.cljs"
+   {}],
+  :label :false,
+  :confirmed false,
+  :by "claude, first pass",
+  :why
+  "referenced as data, an action's :event, :available or :active vector, or dispatched in a test"}
+ {:finding
+  [:repath-studio
+   :event-never-dispatched
+   :renderer.timeline.events/toggle-fit-duration
+   "src/renderer/timeline/events.cljs"
+   {:unread-handlers
+    [:renderer.a11y.subs/filter-active?
+     :renderer.action.subs/action-group
+     :renderer.app.subs/desktop?
+     :renderer.app.subs/mac?
+     :renderer.app.subs/supported-feature?
+     :renderer.app.subs/web?
+     :renderer.dialog.subs/active
+     :renderer.document.subs/active-saved?
+     :renderer.document.subs/active?
+     :renderer.document.subs/attr
+     :renderer.document.subs/entities
+     :renderer.document.subs/entity
+     :renderer.document.subs/saved?
+     :renderer.element.subs/ancestor-ids
+     :renderer.element.subs/area
+     :renderer.element.subs/bbox
+     :renderer.element.subs/edit-attributes
+     :renderer.element.subs/entities
+     :renderer.element.subs/entity
+     :renderer.element.subs/hovered-svg
+     :renderer.element.subs/hovered?
+     :renderer.element.subs/not-every-top-level?
+     :renderer.element.subs/root
+     :renderer.element.subs/some-selected-tag?
+     :renderer.element.subs/some-selected-unlocked?
+     :renderer.frame.subs/viewbox-bounds
+     :renderer.history.subs/history
+     :renderer.history.subs/redos
+     :renderer.history.subs/redos?
+     :renderer.history.subs/undos
+     :renderer.history.subs/undos?
+     :renderer.i18n.subs/options
+     :renderer.i18n.subs/selected-lang?
+     :renderer.input.subs/drag?
+     :renderer.input.subs/snapped-offset
+     :renderer.input.subs/snapped-position
+     :renderer.ruler.subs/step
+     :renderer.shell.subs/active-language?
+     :renderer.snap.subs/option-enabled?
+     :renderer.theme.subs/selected-mode?
+     :renderer.tool.subs/active?
+     :renderer.tool.subs/help
+     :renderer.window.subs/lg?
+     :renderer.window.subs/md?
+     :renderer.window.subs/sm?
+     :renderer.window.subs/xl?]}],
+  :label :false,
+  :confirmed false,
+  :by "claude, first pass",
+  :why
+  "referenced as data, an action's :event, :available or :active vector, or dispatched in a test"}
+ {:finding
+  [:repath-studio
+   :event-never-dispatched
+   :renderer.timeline.events/toggle-grid-snap
+   "src/renderer/timeline/events.cljs"
+   {:unread-handlers
+    [:renderer.a11y.subs/filter-active?
+     :renderer.action.subs/action-group
+     :renderer.app.subs/desktop?
+     :renderer.app.subs/mac?
+     :renderer.app.subs/supported-feature?
+     :renderer.app.subs/web?
+     :renderer.dialog.subs/active
+     :renderer.document.subs/active-saved?
+     :renderer.document.subs/active?
+     :renderer.document.subs/attr
+     :renderer.document.subs/entities
+     :renderer.document.subs/entity
+     :renderer.document.subs/saved?
+     :renderer.element.subs/ancestor-ids
+     :renderer.element.subs/area
+     :renderer.element.subs/bbox
+     :renderer.element.subs/edit-attributes
+     :renderer.element.subs/entities
+     :renderer.element.subs/entity
+     :renderer.element.subs/hovered-svg
+     :renderer.element.subs/hovered?
+     :renderer.element.subs/not-every-top-level?
+     :renderer.element.subs/root
+     :renderer.element.subs/some-selected-tag?
+     :renderer.element.subs/some-selected-unlocked?
+     :renderer.frame.subs/viewbox-bounds
+     :renderer.history.subs/history
+     :renderer.history.subs/redos
+     :renderer.history.subs/redos?
+     :renderer.history.subs/undos
+     :renderer.history.subs/undos?
+     :renderer.i18n.subs/options
+     :renderer.i18n.subs/selected-lang?
+     :renderer.input.subs/drag?
+     :renderer.input.subs/snapped-offset
+     :renderer.input.subs/snapped-position
+     :renderer.ruler.subs/step
+     :renderer.shell.subs/active-language?
+     :renderer.snap.subs/option-enabled?
+     :renderer.theme.subs/selected-mode?
+     :renderer.tool.subs/active?
+     :renderer.tool.subs/help
+     :renderer.window.subs/lg?
+     :renderer.window.subs/md?
+     :renderer.window.subs/sm?
+     :renderer.window.subs/xl?]}],
+  :label :false,
+  :confirmed false,
+  :by "claude, first pass",
+  :why
+  "referenced as data, an action's :event, :available or :active vector, or dispatched in a test"}
+ {:finding
+  [:repath-studio
+   :event-never-dispatched
+   :renderer.timeline.events/toggle-guide-snap
+   "src/renderer/timeline/events.cljs"
+   {:unread-handlers
+    [:renderer.a11y.subs/filter-active?
+     :renderer.action.subs/action-group
+     :renderer.app.subs/desktop?
+     :renderer.app.subs/mac?
+     :renderer.app.subs/supported-feature?
+     :renderer.app.subs/web?
+     :renderer.dialog.subs/active
+     :renderer.document.subs/active-saved?
+     :renderer.document.subs/active?
+     :renderer.document.subs/attr
+     :renderer.document.subs/entities
+     :renderer.document.subs/entity
+     :renderer.document.subs/saved?
+     :renderer.element.subs/ancestor-ids
+     :renderer.element.subs/area
+     :renderer.element.subs/bbox
+     :renderer.element.subs/edit-attributes
+     :renderer.element.subs/entities
+     :renderer.element.subs/entity
+     :renderer.element.subs/hovered-svg
+     :renderer.element.subs/hovered?
+     :renderer.element.subs/not-every-top-level?
+     :renderer.element.subs/root
+     :renderer.element.subs/some-selected-tag?
+     :renderer.element.subs/some-selected-unlocked?
+     :renderer.frame.subs/viewbox-bounds
+     :renderer.history.subs/history
+     :renderer.history.subs/redos
+     :renderer.history.subs/redos?
+     :renderer.history.subs/undos
+     :renderer.history.subs/undos?
+     :renderer.i18n.subs/options
+     :renderer.i18n.subs/selected-lang?
+     :renderer.input.subs/drag?
+     :renderer.input.subs/snapped-offset
+     :renderer.input.subs/snapped-position
+     :renderer.ruler.subs/step
+     :renderer.shell.subs/active-language?
+     :renderer.snap.subs/option-enabled?
+     :renderer.theme.subs/selected-mode?
+     :renderer.tool.subs/active?
+     :renderer.tool.subs/help
+     :renderer.window.subs/lg?
+     :renderer.window.subs/md?
+     :renderer.window.subs/sm?
+     :renderer.window.subs/xl?]}],
+  :label :false,
+  :confirmed false,
+  :by "claude, first pass",
+  :why
+  "referenced as data, an action's :event, :available or :active vector, or dispatched in a test"}
+ {:finding
+  [:repath-studio
+   :event-never-dispatched
+   :renderer.timeline.events/toggle-replay
+   "src/renderer/timeline/events.cljs"
+   {:unread-handlers
+    [:renderer.a11y.subs/filter-active?
+     :renderer.action.subs/action-group
+     :renderer.app.subs/desktop?
+     :renderer.app.subs/mac?
+     :renderer.app.subs/supported-feature?
+     :renderer.app.subs/web?
+     :renderer.dialog.subs/active
+     :renderer.document.subs/active-saved?
+     :renderer.document.subs/active?
+     :renderer.document.subs/attr
+     :renderer.document.subs/entities
+     :renderer.document.subs/entity
+     :renderer.document.subs/saved?
+     :renderer.element.subs/ancestor-ids
+     :renderer.element.subs/area
+     :renderer.element.subs/bbox
+     :renderer.element.subs/edit-attributes
+     :renderer.element.subs/entities
+     :renderer.element.subs/entity
+     :renderer.element.subs/hovered-svg
+     :renderer.element.subs/hovered?
+     :renderer.element.subs/not-every-top-level?
+     :renderer.element.subs/root
+     :renderer.element.subs/some-selected-tag?
+     :renderer.element.subs/some-selected-unlocked?
+     :renderer.frame.subs/viewbox-bounds
+     :renderer.history.subs/history
+     :renderer.history.subs/redos
+     :renderer.history.subs/redos?
+     :renderer.history.subs/undos
+     :renderer.history.subs/undos?
+     :renderer.i18n.subs/options
+     :renderer.i18n.subs/selected-lang?
+     :renderer.input.subs/drag?
+     :renderer.input.subs/snapped-offset
+     :renderer.input.subs/snapped-position
+     :renderer.ruler.subs/step
+     :renderer.shell.subs/active-language?
+     :renderer.snap.subs/option-enabled?
+     :renderer.theme.subs/selected-mode?
+     :renderer.tool.subs/active?
+     :renderer.tool.subs/help
+     :renderer.window.subs/lg?
+     :renderer.window.subs/md?
+     :renderer.window.subs/sm?
+     :renderer.window.subs/xl?]}],
+  :label :false,
+  :confirmed false,
+  :by "claude, first pass",
+  :why
+  "referenced as data, an action's :event, :available or :active vector, or dispatched in a test"}
+ {:finding
+  [:repath-studio
+   :sub-never-subscribed
+   :renderer.timeline.subs/fit-duration?
+   "src/renderer/timeline/subs.cljs"
+   {}],
+  :label :false,
+  :confirmed false,
+  :by "claude, first pass",
+  :why
+  "referenced as data, an action's :event, :available or :active vector, or dispatched in a test"}
+ {:finding
+  [:repath-studio
+   :event-never-dispatched
+   :renderer.tool.events/cancel
+   "src/renderer/tool/events.cljs"
+   {:unread-handlers
+    [:renderer.a11y.subs/filter-active?
+     :renderer.action.subs/action-group
+     :renderer.app.subs/desktop?
+     :renderer.app.subs/mac?
+     :renderer.app.subs/supported-feature?
+     :renderer.app.subs/web?
+     :renderer.dialog.subs/active
+     :renderer.document.subs/active-saved?
+     :renderer.document.subs/active?
+     :renderer.document.subs/attr
+     :renderer.document.subs/entities
+     :renderer.document.subs/entity
+     :renderer.document.subs/saved?
+     :renderer.element.subs/ancestor-ids
+     :renderer.element.subs/area
+     :renderer.element.subs/bbox
+     :renderer.element.subs/edit-attributes
+     :renderer.element.subs/entities
+     :renderer.element.subs/entity
+     :renderer.element.subs/hovered-svg
+     :renderer.element.subs/hovered?
+     :renderer.element.subs/not-every-top-level?
+     :renderer.element.subs/root
+     :renderer.element.subs/some-selected-tag?
+     :renderer.element.subs/some-selected-unlocked?
+     :renderer.frame.subs/viewbox-bounds
+     :renderer.history.subs/history
+     :renderer.history.subs/redos
+     :renderer.history.subs/redos?
+     :renderer.history.subs/undos
+     :renderer.history.subs/undos?
+     :renderer.i18n.subs/options
+     :renderer.i18n.subs/selected-lang?
+     :renderer.input.subs/drag?
+     :renderer.input.subs/snapped-offset
+     :renderer.input.subs/snapped-position
+     :renderer.ruler.subs/step
+     :renderer.shell.subs/active-language?
+     :renderer.snap.subs/option-enabled?
+     :renderer.theme.subs/selected-mode?
+     :renderer.tool.subs/active?
+     :renderer.tool.subs/help
+     :renderer.window.subs/lg?
+     :renderer.window.subs/md?
+     :renderer.window.subs/sm?
+     :renderer.window.subs/xl?]}],
+  :label :false,
+  :confirmed false,
+  :by "claude, first pass",
+  :why
+  "referenced as data, an action's :event, :available or :active vector, or dispatched in a test"}
+ {:finding
+  [:repath-studio
+   :event-never-dispatched
+   :renderer.tool.impl.element.image/success
+   "src/renderer/tool/impl/element/image.cljs"
+   {:unread-handlers
+    [:renderer.a11y.subs/filter-active?
+     :renderer.action.subs/action-group
+     :renderer.app.subs/desktop?
+     :renderer.app.subs/mac?
+     :renderer.app.subs/supported-feature?
+     :renderer.app.subs/web?
+     :renderer.dialog.subs/active
+     :renderer.document.subs/active-saved?
+     :renderer.document.subs/active?
+     :renderer.document.subs/attr
+     :renderer.document.subs/entities
+     :renderer.document.subs/entity
+     :renderer.document.subs/saved?
+     :renderer.element.subs/ancestor-ids
+     :renderer.element.subs/area
+     :renderer.element.subs/bbox
+     :renderer.element.subs/edit-attributes
+     :renderer.element.subs/entities
+     :renderer.element.subs/entity
+     :renderer.element.subs/hovered-svg
+     :renderer.element.subs/hovered?
+     :renderer.element.subs/not-every-top-level?
+     :renderer.element.subs/root
+     :renderer.element.subs/some-selected-tag?
+     :renderer.element.subs/some-selected-unlocked?
+     :renderer.frame.subs/viewbox-bounds
+     :renderer.history.subs/history
+     :renderer.history.subs/redos
+     :renderer.history.subs/redos?
+     :renderer.history.subs/undos
+     :renderer.history.subs/undos?
+     :renderer.i18n.subs/options
+     :renderer.i18n.subs/selected-lang?
+     :renderer.input.subs/drag?
+     :renderer.input.subs/snapped-offset
+     :renderer.input.subs/snapped-position
+     :renderer.ruler.subs/step
+     :renderer.shell.subs/active-language?
+     :renderer.snap.subs/option-enabled?
+     :renderer.theme.subs/selected-mode?
+     :renderer.tool.subs/active?
+     :renderer.tool.subs/help
+     :renderer.window.subs/lg?
+     :renderer.window.subs/md?
+     :renderer.window.subs/sm?
+     :renderer.window.subs/xl?]}],
+  :label :false,
+  :confirmed false,
+  :by "claude, first pass",
+  :why
+  "referenced as data, an action's :event, :available or :active vector, or dispatched in a test"}
+ {:finding
+  [:repath-studio
+   :event-never-dispatched
+   :renderer.tool.impl.misc.dropper/error
+   "src/renderer/tool/impl/misc/dropper.cljs"
+   {:unread-handlers
+    [:renderer.a11y.subs/filter-active?
+     :renderer.action.subs/action-group
+     :renderer.app.subs/desktop?
+     :renderer.app.subs/mac?
+     :renderer.app.subs/supported-feature?
+     :renderer.app.subs/web?
+     :renderer.dialog.subs/active
+     :renderer.document.subs/active-saved?
+     :renderer.document.subs/active?
+     :renderer.document.subs/attr
+     :renderer.document.subs/entities
+     :renderer.document.subs/entity
+     :renderer.document.subs/saved?
+     :renderer.element.subs/ancestor-ids
+     :renderer.element.subs/area
+     :renderer.element.subs/bbox
+     :renderer.element.subs/edit-attributes
+     :renderer.element.subs/entities
+     :renderer.element.subs/entity
+     :renderer.element.subs/hovered-svg
+     :renderer.element.subs/hovered?
+     :renderer.element.subs/not-every-top-level?
+     :renderer.element.subs/root
+     :renderer.element.subs/some-selected-tag?
+     :renderer.element.subs/some-selected-unlocked?
+     :renderer.frame.subs/viewbox-bounds
+     :renderer.history.subs/history
+     :renderer.history.subs/redos
+     :renderer.history.subs/redos?
+     :renderer.history.subs/undos
+     :renderer.history.subs/undos?
+     :renderer.i18n.subs/options
+     :renderer.i18n.subs/selected-lang?
+     :renderer.input.subs/drag?
+     :renderer.input.subs/snapped-offset
+     :renderer.input.subs/snapped-position
+     :renderer.ruler.subs/step
+     :renderer.shell.subs/active-language?
+     :renderer.snap.subs/option-enabled?
+     :renderer.theme.subs/selected-mode?
+     :renderer.tool.subs/active?
+     :renderer.tool.subs/help
+     :renderer.window.subs/lg?
+     :renderer.window.subs/md?
+     :renderer.window.subs/sm?
+     :renderer.window.subs/xl?]}],
+  :label :false,
+  :confirmed false,
+  :by "claude, first pass",
+  :why
+  "referenced as data, an action's :event, :available or :active vector, or dispatched in a test"}
+ {:finding
+  [:repath-studio
+   :event-never-dispatched
+   :renderer.tool.impl.misc.dropper/success
+   "src/renderer/tool/impl/misc/dropper.cljs"
+   {:unread-handlers
+    [:renderer.a11y.subs/filter-active?
+     :renderer.action.subs/action-group
+     :renderer.app.subs/desktop?
+     :renderer.app.subs/mac?
+     :renderer.app.subs/supported-feature?
+     :renderer.app.subs/web?
+     :renderer.dialog.subs/active
+     :renderer.document.subs/active-saved?
+     :renderer.document.subs/active?
+     :renderer.document.subs/attr
+     :renderer.document.subs/entities
+     :renderer.document.subs/entity
+     :renderer.document.subs/saved?
+     :renderer.element.subs/ancestor-ids
+     :renderer.element.subs/area
+     :renderer.element.subs/bbox
+     :renderer.element.subs/edit-attributes
+     :renderer.element.subs/entities
+     :renderer.element.subs/entity
+     :renderer.element.subs/hovered-svg
+     :renderer.element.subs/hovered?
+     :renderer.element.subs/not-every-top-level?
+     :renderer.element.subs/root
+     :renderer.element.subs/some-selected-tag?
+     :renderer.element.subs/some-selected-unlocked?
+     :renderer.frame.subs/viewbox-bounds
+     :renderer.history.subs/history
+     :renderer.history.subs/redos
+     :renderer.history.subs/redos?
+     :renderer.history.subs/undos
+     :renderer.history.subs/undos?
+     :renderer.i18n.subs/options
+     :renderer.i18n.subs/selected-lang?
+     :renderer.input.subs/drag?
+     :renderer.input.subs/snapped-offset
+     :renderer.input.subs/snapped-position
+     :renderer.ruler.subs/step
+     :renderer.shell.subs/active-language?
+     :renderer.snap.subs/option-enabled?
+     :renderer.theme.subs/selected-mode?
+     :renderer.tool.subs/active?
+     :renderer.tool.subs/help
+     :renderer.window.subs/lg?
+     :renderer.window.subs/md?
+     :renderer.window.subs/sm?
+     :renderer.window.subs/xl?]}],
+  :label :false,
+  :confirmed false,
+  :by "claude, first pass",
+  :why
+  "referenced as data, an action's :event, :available or :active vector, or dispatched in a test"}
+ {:finding
+  [:repath-studio
+   :event-never-dispatched
+   :renderer.window.events/minimize
+   "src/renderer/window/events.cljs"
+   {:unread-handlers
+    [:renderer.a11y.subs/filter-active?
+     :renderer.action.subs/action-group
+     :renderer.app.subs/desktop?
+     :renderer.app.subs/mac?
+     :renderer.app.subs/supported-feature?
+     :renderer.app.subs/web?
+     :renderer.dialog.subs/active
+     :renderer.document.subs/active-saved?
+     :renderer.document.subs/active?
+     :renderer.document.subs/attr
+     :renderer.document.subs/entities
+     :renderer.document.subs/entity
+     :renderer.document.subs/saved?
+     :renderer.element.subs/ancestor-ids
+     :renderer.element.subs/area
+     :renderer.element.subs/bbox
+     :renderer.element.subs/edit-attributes
+     :renderer.element.subs/entities
+     :renderer.element.subs/entity
+     :renderer.element.subs/hovered-svg
+     :renderer.element.subs/hovered?
+     :renderer.element.subs/not-every-top-level?
+     :renderer.element.subs/root
+     :renderer.element.subs/some-selected-tag?
+     :renderer.element.subs/some-selected-unlocked?
+     :renderer.frame.subs/viewbox-bounds
+     :renderer.history.subs/history
+     :renderer.history.subs/redos
+     :renderer.history.subs/redos?
+     :renderer.history.subs/undos
+     :renderer.history.subs/undos?
+     :renderer.i18n.subs/options
+     :renderer.i18n.subs/selected-lang?
+     :renderer.input.subs/drag?
+     :renderer.input.subs/snapped-offset
+     :renderer.input.subs/snapped-position
+     :renderer.ruler.subs/step
+     :renderer.shell.subs/active-language?
+     :renderer.snap.subs/option-enabled?
+     :renderer.theme.subs/selected-mode?
+     :renderer.tool.subs/active?
+     :renderer.tool.subs/help
+     :renderer.window.subs/lg?
+     :renderer.window.subs/md?
+     :renderer.window.subs/sm?
+     :renderer.window.subs/xl?]}],
+  :label :false,
+  :confirmed false,
+  :by "claude, first pass",
+  :why
+  "referenced as data, an action's :event, :available or :active vector, or dispatched in a test"}
+ {:finding
+  [:repath-studio
+   :event-never-dispatched
+   :renderer.window.events/set-fullscreen
+   "src/renderer/window/events.cljs"
+   {:unread-handlers
+    [:renderer.a11y.subs/filter-active?
+     :renderer.action.subs/action-group
+     :renderer.app.subs/desktop?
+     :renderer.app.subs/mac?
+     :renderer.app.subs/supported-feature?
+     :renderer.app.subs/web?
+     :renderer.dialog.subs/active
+     :renderer.document.subs/active-saved?
+     :renderer.document.subs/active?
+     :renderer.document.subs/attr
+     :renderer.document.subs/entities
+     :renderer.document.subs/entity
+     :renderer.document.subs/saved?
+     :renderer.element.subs/ancestor-ids
+     :renderer.element.subs/area
+     :renderer.element.subs/bbox
+     :renderer.element.subs/edit-attributes
+     :renderer.element.subs/entities
+     :renderer.element.subs/entity
+     :renderer.element.subs/hovered-svg
+     :renderer.element.subs/hovered?
+     :renderer.element.subs/not-every-top-level?
+     :renderer.element.subs/root
+     :renderer.element.subs/some-selected-tag?
+     :renderer.element.subs/some-selected-unlocked?
+     :renderer.frame.subs/viewbox-bounds
+     :renderer.history.subs/history
+     :renderer.history.subs/redos
+     :renderer.history.subs/redos?
+     :renderer.history.subs/undos
+     :renderer.history.subs/undos?
+     :renderer.i18n.subs/options
+     :renderer.i18n.subs/selected-lang?
+     :renderer.input.subs/drag?
+     :renderer.input.subs/snapped-offset
+     :renderer.input.subs/snapped-position
+     :renderer.ruler.subs/step
+     :renderer.shell.subs/active-language?
+     :renderer.snap.subs/option-enabled?
+     :renderer.theme.subs/selected-mode?
+     :renderer.tool.subs/active?
+     :renderer.tool.subs/help
+     :renderer.window.subs/lg?
+     :renderer.window.subs/md?
+     :renderer.window.subs/sm?
+     :renderer.window.subs/xl?]}],
+  :label :false,
+  :confirmed false,
+  :by "claude, first pass",
+  :why
+  "referenced as data, an action's :event, :available or :active vector, or dispatched in a test"}
+ {:finding
+  [:repath-studio
+   :event-never-dispatched
+   :renderer.window.events/set-maximized
+   "src/renderer/window/events.cljs"
+   {:unread-handlers
+    [:renderer.a11y.subs/filter-active?
+     :renderer.action.subs/action-group
+     :renderer.app.subs/desktop?
+     :renderer.app.subs/mac?
+     :renderer.app.subs/supported-feature?
+     :renderer.app.subs/web?
+     :renderer.dialog.subs/active
+     :renderer.document.subs/active-saved?
+     :renderer.document.subs/active?
+     :renderer.document.subs/attr
+     :renderer.document.subs/entities
+     :renderer.document.subs/entity
+     :renderer.document.subs/saved?
+     :renderer.element.subs/ancestor-ids
+     :renderer.element.subs/area
+     :renderer.element.subs/bbox
+     :renderer.element.subs/edit-attributes
+     :renderer.element.subs/entities
+     :renderer.element.subs/entity
+     :renderer.element.subs/hovered-svg
+     :renderer.element.subs/hovered?
+     :renderer.element.subs/not-every-top-level?
+     :renderer.element.subs/root
+     :renderer.element.subs/some-selected-tag?
+     :renderer.element.subs/some-selected-unlocked?
+     :renderer.frame.subs/viewbox-bounds
+     :renderer.history.subs/history
+     :renderer.history.subs/redos
+     :renderer.history.subs/redos?
+     :renderer.history.subs/undos
+     :renderer.history.subs/undos?
+     :renderer.i18n.subs/options
+     :renderer.i18n.subs/selected-lang?
+     :renderer.input.subs/drag?
+     :renderer.input.subs/snapped-offset
+     :renderer.input.subs/snapped-position
+     :renderer.ruler.subs/step
+     :renderer.shell.subs/active-language?
+     :renderer.snap.subs/option-enabled?
+     :renderer.theme.subs/selected-mode?
+     :renderer.tool.subs/active?
+     :renderer.tool.subs/help
+     :renderer.window.subs/lg?
+     :renderer.window.subs/md?
+     :renderer.window.subs/sm?
+     :renderer.window.subs/xl?]}],
+  :label :false,
+  :confirmed false,
+  :by "claude, first pass",
+  :why
+  "referenced as data, an action's :event, :available or :active vector, or dispatched in a test"}
+ {:finding
+  [:repath-studio
+   :event-never-dispatched
+   :renderer.window.events/set-minimized
+   "src/renderer/window/events.cljs"
+   {:unread-handlers
+    [:renderer.a11y.subs/filter-active?
+     :renderer.action.subs/action-group
+     :renderer.app.subs/desktop?
+     :renderer.app.subs/mac?
+     :renderer.app.subs/supported-feature?
+     :renderer.app.subs/web?
+     :renderer.dialog.subs/active
+     :renderer.document.subs/active-saved?
+     :renderer.document.subs/active?
+     :renderer.document.subs/attr
+     :renderer.document.subs/entities
+     :renderer.document.subs/entity
+     :renderer.document.subs/saved?
+     :renderer.element.subs/ancestor-ids
+     :renderer.element.subs/area
+     :renderer.element.subs/bbox
+     :renderer.element.subs/edit-attributes
+     :renderer.element.subs/entities
+     :renderer.element.subs/entity
+     :renderer.element.subs/hovered-svg
+     :renderer.element.subs/hovered?
+     :renderer.element.subs/not-every-top-level?
+     :renderer.element.subs/root
+     :renderer.element.subs/some-selected-tag?
+     :renderer.element.subs/some-selected-unlocked?
+     :renderer.frame.subs/viewbox-bounds
+     :renderer.history.subs/history
+     :renderer.history.subs/redos
+     :renderer.history.subs/redos?
+     :renderer.history.subs/undos
+     :renderer.history.subs/undos?
+     :renderer.i18n.subs/options
+     :renderer.i18n.subs/selected-lang?
+     :renderer.input.subs/drag?
+     :renderer.input.subs/snapped-offset
+     :renderer.input.subs/snapped-position
+     :renderer.ruler.subs/step
+     :renderer.shell.subs/active-language?
+     :renderer.snap.subs/option-enabled?
+     :renderer.theme.subs/selected-mode?
+     :renderer.tool.subs/active?
+     :renderer.tool.subs/help
+     :renderer.window.subs/lg?
+     :renderer.window.subs/md?
+     :renderer.window.subs/sm?
+     :renderer.window.subs/xl?]}],
+  :label :false,
+  :confirmed false,
+  :by "claude, first pass",
+  :why
+  "referenced as data, an action's :event, :available or :active vector, or dispatched in a test"}
+ {:finding
+  [:repath-studio
+   :event-never-dispatched
+   :renderer.window.events/toggle-devtools
+   "src/renderer/window/events.cljs"
+   {:unread-handlers
+    [:renderer.a11y.subs/filter-active?
+     :renderer.action.subs/action-group
+     :renderer.app.subs/desktop?
+     :renderer.app.subs/mac?
+     :renderer.app.subs/supported-feature?
+     :renderer.app.subs/web?
+     :renderer.dialog.subs/active
+     :renderer.document.subs/active-saved?
+     :renderer.document.subs/active?
+     :renderer.document.subs/attr
+     :renderer.document.subs/entities
+     :renderer.document.subs/entity
+     :renderer.document.subs/saved?
+     :renderer.element.subs/ancestor-ids
+     :renderer.element.subs/area
+     :renderer.element.subs/bbox
+     :renderer.element.subs/edit-attributes
+     :renderer.element.subs/entities
+     :renderer.element.subs/entity
+     :renderer.element.subs/hovered-svg
+     :renderer.element.subs/hovered?
+     :renderer.element.subs/not-every-top-level?
+     :renderer.element.subs/root
+     :renderer.element.subs/some-selected-tag?
+     :renderer.element.subs/some-selected-unlocked?
+     :renderer.frame.subs/viewbox-bounds
+     :renderer.history.subs/history
+     :renderer.history.subs/redos
+     :renderer.history.subs/redos?
+     :renderer.history.subs/undos
+     :renderer.history.subs/undos?
+     :renderer.i18n.subs/options
+     :renderer.i18n.subs/selected-lang?
+     :renderer.input.subs/drag?
+     :renderer.input.subs/snapped-offset
+     :renderer.input.subs/snapped-position
+     :renderer.ruler.subs/step
+     :renderer.shell.subs/active-language?
+     :renderer.snap.subs/option-enabled?
+     :renderer.theme.subs/selected-mode?
+     :renderer.tool.subs/active?
+     :renderer.tool.subs/help
+     :renderer.window.subs/lg?
+     :renderer.window.subs/md?
+     :renderer.window.subs/sm?
+     :renderer.window.subs/xl?]}],
+  :label :false,
+  :confirmed false,
+  :by "claude, first pass",
+  :why
+  "referenced as data, an action's :event, :available or :active vector, or dispatched in a test"}
+ {:finding
+  [:repath-studio
+   :event-never-dispatched
+   :renderer.window.events/toggle-fullscreen
+   "src/renderer/window/events.cljs"
+   {:unread-handlers
+    [:renderer.a11y.subs/filter-active?
+     :renderer.action.subs/action-group
+     :renderer.app.subs/desktop?
+     :renderer.app.subs/mac?
+     :renderer.app.subs/supported-feature?
+     :renderer.app.subs/web?
+     :renderer.dialog.subs/active
+     :renderer.document.subs/active-saved?
+     :renderer.document.subs/active?
+     :renderer.document.subs/attr
+     :renderer.document.subs/entities
+     :renderer.document.subs/entity
+     :renderer.document.subs/saved?
+     :renderer.element.subs/ancestor-ids
+     :renderer.element.subs/area
+     :renderer.element.subs/bbox
+     :renderer.element.subs/edit-attributes
+     :renderer.element.subs/entities
+     :renderer.element.subs/entity
+     :renderer.element.subs/hovered-svg
+     :renderer.element.subs/hovered?
+     :renderer.element.subs/not-every-top-level?
+     :renderer.element.subs/root
+     :renderer.element.subs/some-selected-tag?
+     :renderer.element.subs/some-selected-unlocked?
+     :renderer.frame.subs/viewbox-bounds
+     :renderer.history.subs/history
+     :renderer.history.subs/redos
+     :renderer.history.subs/redos?
+     :renderer.history.subs/undos
+     :renderer.history.subs/undos?
+     :renderer.i18n.subs/options
+     :renderer.i18n.subs/selected-lang?
+     :renderer.input.subs/drag?
+     :renderer.input.subs/snapped-offset
+     :renderer.input.subs/snapped-position
+     :renderer.ruler.subs/step
+     :renderer.shell.subs/active-language?
+     :renderer.snap.subs/option-enabled?
+     :renderer.theme.subs/selected-mode?
+     :renderer.tool.subs/active?
+     :renderer.tool.subs/help
+     :renderer.window.subs/lg?
+     :renderer.window.subs/md?
+     :renderer.window.subs/sm?
+     :renderer.window.subs/xl?]}],
+  :label :false,
+  :confirmed false,
+  :by "claude, first pass",
+  :why
+  "referenced as data, an action's :event, :available or :active vector, or dispatched in a test"}
+ {:finding
+  [:repath-studio
+   :event-never-dispatched
+   :renderer.window.events/toggle-maximized
+   "src/renderer/window/events.cljs"
+   {:unread-handlers
+    [:renderer.a11y.subs/filter-active?
+     :renderer.action.subs/action-group
+     :renderer.app.subs/desktop?
+     :renderer.app.subs/mac?
+     :renderer.app.subs/supported-feature?
+     :renderer.app.subs/web?
+     :renderer.dialog.subs/active
+     :renderer.document.subs/active-saved?
+     :renderer.document.subs/active?
+     :renderer.document.subs/attr
+     :renderer.document.subs/entities
+     :renderer.document.subs/entity
+     :renderer.document.subs/saved?
+     :renderer.element.subs/ancestor-ids
+     :renderer.element.subs/area
+     :renderer.element.subs/bbox
+     :renderer.element.subs/edit-attributes
+     :renderer.element.subs/entities
+     :renderer.element.subs/entity
+     :renderer.element.subs/hovered-svg
+     :renderer.element.subs/hovered?
+     :renderer.element.subs/not-every-top-level?
+     :renderer.element.subs/root
+     :renderer.element.subs/some-selected-tag?
+     :renderer.element.subs/some-selected-unlocked?
+     :renderer.frame.subs/viewbox-bounds
+     :renderer.history.subs/history
+     :renderer.history.subs/redos
+     :renderer.history.subs/redos?
+     :renderer.history.subs/undos
+     :renderer.history.subs/undos?
+     :renderer.i18n.subs/options
+     :renderer.i18n.subs/selected-lang?
+     :renderer.input.subs/drag?
+     :renderer.input.subs/snapped-offset
+     :renderer.input.subs/snapped-position
+     :renderer.ruler.subs/step
+     :renderer.shell.subs/active-language?
+     :renderer.snap.subs/option-enabled?
+     :renderer.theme.subs/selected-mode?
+     :renderer.tool.subs/active?
+     :renderer.tool.subs/help
+     :renderer.window.subs/lg?
+     :renderer.window.subs/md?
+     :renderer.window.subs/sm?
+     :renderer.window.subs/xl?]}],
+  :label :false,
+  :confirmed false,
+  :by "claude, first pass",
+  :why
+  "referenced as data, an action's :event, :available or :active vector, or dispatched in a test"}
+ {:finding
+  [:repath-studio
+   :event-never-dispatched
+   :renderer.window.events/update-fullscreen
+   "src/renderer/window/events.cljs"
+   {:unread-handlers
+    [:renderer.a11y.subs/filter-active?
+     :renderer.action.subs/action-group
+     :renderer.app.subs/desktop?
+     :renderer.app.subs/mac?
+     :renderer.app.subs/supported-feature?
+     :renderer.app.subs/web?
+     :renderer.dialog.subs/active
+     :renderer.document.subs/active-saved?
+     :renderer.document.subs/active?
+     :renderer.document.subs/attr
+     :renderer.document.subs/entities
+     :renderer.document.subs/entity
+     :renderer.document.subs/saved?
+     :renderer.element.subs/ancestor-ids
+     :renderer.element.subs/area
+     :renderer.element.subs/bbox
+     :renderer.element.subs/edit-attributes
+     :renderer.element.subs/entities
+     :renderer.element.subs/entity
+     :renderer.element.subs/hovered-svg
+     :renderer.element.subs/hovered?
+     :renderer.element.subs/not-every-top-level?
+     :renderer.element.subs/root
+     :renderer.element.subs/some-selected-tag?
+     :renderer.element.subs/some-selected-unlocked?
+     :renderer.frame.subs/viewbox-bounds
+     :renderer.history.subs/history
+     :renderer.history.subs/redos
+     :renderer.history.subs/redos?
+     :renderer.history.subs/undos
+     :renderer.history.subs/undos?
+     :renderer.i18n.subs/options
+     :renderer.i18n.subs/selected-lang?
+     :renderer.input.subs/drag?
+     :renderer.input.subs/snapped-offset
+     :renderer.input.subs/snapped-position
+     :renderer.ruler.subs/step
+     :renderer.shell.subs/active-language?
+     :renderer.snap.subs/option-enabled?
+     :renderer.theme.subs/selected-mode?
+     :renderer.tool.subs/active?
+     :renderer.tool.subs/help
+     :renderer.window.subs/lg?
+     :renderer.window.subs/md?
+     :renderer.window.subs/sm?
+     :renderer.window.subs/xl?]}],
+  :label :false,
+  :confirmed false,
+  :by "claude, first pass",
+  :why
+  "referenced as data, an action's :event, :available or :active vector, or dispatched in a test"}
+ {:finding
+  [:duck-repled
+   :unqualified-schema-keys
+   :repl/error
+   "src/duck_repled/schemas.cljc"
+   {:keys [:error]}],
+  :label :useless,
+  :confirmed false,
+  :by "claude, first pass",
+  :why
+  "true, but unqualified keys in a malli map are the project's choice"}
+ {:finding
+  [:duck-repled
+   :unqualified-schema-keys
+   :repl/evaluators
+   "src/duck_repled/schemas.cljc"
+   {:keys [:clj :cljs]}],
+  :label :useless,
+  :confirmed false,
+  :by "claude, first pass",
+  :why
+  "true, but unqualified keys in a malli map are the project's choice"}
+ {:finding
+  [:duck-repled
+   :unqualified-schema-keys
+   :repl/result
+   "src/duck_repled/schemas.cljc"
+   {:keys [:result]}],
+  :label :useless,
+  :confirmed false,
+  :by "claude, first pass",
+  :why
+  "true, but unqualified keys in a malli map are the project's choice"}
+ {:finding
+  [:duck-repled
+   :input-without-producer
+   :duck-repled.definition-resolvers/clojure-filename
+   "src/duck_repled/definition_resolvers.cljc"
+   {:keys [:repl/clj],
+    :unread-outputs [:duck-repled.editor-resolvers/seed-data]}],
+  :label :false,
+  :confirmed false,
+  :by "claude, first pass",
+  :why
+  "produced by seed-data, whose ::pco/output is computed (the finding names it as unread)"}
+ {:finding
+  [:duck-repled
+   :input-without-producer
+   :duck-repled.definition-resolvers/join-paths-resolver
+   "src/duck_repled/definition_resolvers.cljc"
+   {:keys [:file/path],
+    :unread-outputs [:duck-repled.editor-resolvers/seed-data]}],
+  :label :false,
+  :confirmed false,
+  :by "claude, first pass",
+  :why
+  "produced by seed-data, whose ::pco/output is computed (the finding names it as unread)"}
+ {:finding
+  [:duck-repled
+   :input-without-producer
+   :duck-repled.definition-resolvers/resolver-for-stacktrace
+   "src/duck_repled/definition_resolvers.cljc"
+   {:keys [:ex/filename :ex/function-name :ex/row],
+    :unread-outputs [:duck-repled.editor-resolvers/seed-data]}],
+  :label :false,
+  :confirmed false,
+  :by "claude, first pass",
+  :why
+  "produced by seed-data, whose ::pco/output is computed (the finding names it as unread)"}
+ {:finding
+  [:duck-repled
+   :input-without-producer
+   :duck-repled.editor-resolvers/resolve-repl-kind
+   "src/duck_repled/editor_resolvers.cljc"
+   {:keys [:config/eval-as :config/repl-kind],
+    :unread-outputs [:duck-repled.editor-resolvers/seed-data]}],
+  :label :false,
+  :confirmed false,
+  :by "claude, first pass",
+  :why
+  "produced by seed-data, whose ::pco/output is computed (the finding names it as unread)"}
+ {:finding
+  [:duck-repled
+   :input-without-producer
+   :duck-repled.editor-resolvers/separate-data
+   "src/duck_repled/editor_resolvers.cljc"
+   {:keys [:editor/data],
+    :unread-outputs [:duck-repled.editor-resolvers/seed-data]}],
+  :label :false,
+  :confirmed false,
+  :by "claude, first pass",
+  :why
+  "produced by seed-data, whose ::pco/output is computed (the finding names it as unread)"}
+ {:finding
+  [:duck-repled
+   :input-without-producer
+   :duck-repled.repl-resolvers/get-right-repl
+   "src/duck_repled/repl_resolvers.cljc"
+   {:keys [:repl/evaluators],
+    :unread-outputs [:duck-repled.editor-resolvers/seed-data]}],
+  :label :false,
+  :confirmed false,
+  :by "claude, first pass",
+  :why
+  "produced by seed-data, whose ::pco/output is computed (the finding names it as unread)"}
+ {:finding
+  [:duck-repled
+   :input-without-producer
+   :duck-repled.repl-resolvers/meta-for-clj-var
+   "src/duck_repled/repl_resolvers.cljc"
+   {:keys [:repl/clj],
+    :unread-outputs [:duck-repled.editor-resolvers/seed-data]}],
+  :label :false,
+  :confirmed false,
+  :by "claude, first pass",
+  :why
+  "produced by seed-data, whose ::pco/output is computed (the finding names it as unread)"}
+ {:finding
+  [:duck-repled
+   :input-without-producer
+   :duck-repled.repl-resolvers/meta-for-var
+   "src/duck_repled/repl_resolvers.cljc"
+   {:keys [:config/repl-kind],
+    :unread-outputs [:duck-repled.editor-resolvers/seed-data]}],
+  :label :false,
+  :confirmed false,
+  :by "claude, first pass",
+  :why
+  "produced by seed-data, whose ::pco/output is computed (the finding names it as unread)"}
+ {:finding
+  [:athens
+   :event-not-registered
+   :dispatch
+   "src/cljs/athens/events.cljs"
+   {}],
+  :label :real,
+  :confirmed false,
+  :by "claude, first pass",
+  :why
+  "[:dispatch [...]] conj'ed into :dispatch-n's events: re-frame dispatches an event named :dispatch, which no handler registers"}
+ {:finding
+  [:athens
+   :event-not-registered
+   :fail-resolve-forward-transact
+   "src/cljs/athens/events.cljs"
+   {}],
+  :label :real,
+  :confirmed false,
+  :by "claude, first pass",
+  :why
+  "dispatched in two places, registered nowhere in the repository"}
+ {:finding
+  [:athens
+   :event-not-registered
+   :alert/unset
+   "src/cljs/athens/views.cljs"
+   {}],
+  :label :real,
+  :confirmed false,
+  :by "claude, first pass",
+  :why
+  "dispatched in views.cljs, registered nowhere in the repository"}
+ {:finding
+  [:athens
+   :sub-never-subscribed
+   :app-db
+   "src/cljs/athens/subs.cljs"
+   {}],
+  :label :real,
+  :confirmed false,
+  :by "claude, first pass",
+  :why
+  "no dispatch or subscription anywhere in the repository (exact grep): dead"}
+ {:finding
+  [:athens
+   :event-never-dispatched
+   :bind-win-listeners
+   "src/cljs/athens/electron/window.cljs"
+   {:unread-handlers
+    [:backspace
+     :electron-sync
+     :enter
+     :resolve-transact-forward
+     :posthog/set-super-properties]}],
+  :label :false,
+  :confirmed false,
+  :by "claude, first pass",
+  :why
+  "dispatched from an fx map, :dispatch [:bind-win-listeners] in boot.cljs"}
+ {:finding
+  [:athens
+   :event-never-dispatched
+   :enter
+   "src/cljs/athens/events.cljs"
+   {:unread-handlers
+    [:backspace
+     :electron-sync
+     :enter
+     :resolve-transact-forward
+     :posthog/set-super-properties]}],
+  :label :false,
+  :confirmed false,
+  :by "claude, first pass",
+  :why "dispatched through throttled-dispatch-sync, a wrapper"}
+ {:finding
+  [:athens
+   :event-never-dispatched
+   :exit-fullscreen-win
+   "src/cljs/athens/electron/window.cljs"
+   {:unread-handlers
+    [:backspace
+     :electron-sync
+     :enter
+     :resolve-transact-forward
+     :posthog/set-super-properties]}],
+  :label :real,
+  :confirmed false,
+  :by "claude, first pass",
+  :why
+  "no dispatch; the same string names an IPC channel, a different thing"}
+ {:finding
+  [:athens
+   :event-never-dispatched
+   :fail-resolve-transact-forward
+   "src/cljs/athens/events.cljs"
+   {:unread-handlers
+    [:backspace
+     :electron-sync
+     :enter
+     :resolve-transact-forward
+     :posthog/set-super-properties]}],
+  :label :real,
+  :confirmed false,
+  :by "claude, first pass",
+  :why
+  "no dispatch or subscription anywhere in the repository (exact grep): dead"}
+ {:finding
+  [:athens
+   :event-never-dispatched
+   :init-rfdb
+   "src/cljs/athens/events.cljs"
+   {:unread-handlers
+    [:backspace
+     :electron-sync
+     :enter
+     :resolve-transact-forward
+     :posthog/set-super-properties]}],
+  :label :real,
+  :confirmed false,
+  :by "claude, first pass",
+  :why
+  "no dispatch or subscription anywhere in the repository (exact grep): dead"}
+ {:finding
+  [:athens
+   :sub-never-subscribed
+   :merge-prompt
+   "src/cljs/athens/subs.cljs"
+   {}],
+  :label :real,
+  :confirmed false,
+  :by "claude, first pass",
+  :why
+  "no dispatch or subscription anywhere in the repository (exact grep): dead"}
+ {:finding
+  [:athens
+   :event-never-dispatched
+   :no-op
+   "src/cljs/athens/events.cljs"
+   {:unread-handlers
+    [:backspace
+     :electron-sync
+     :enter
+     :resolve-transact-forward
+     :posthog/set-super-properties]}],
+  :label :real,
+  :confirmed false,
+  :by "claude, first pass",
+  :why "only named in its own log message: dead"}
+ {:finding
+  [:athens
+   :event-never-dispatched
+   :restore-navigation
+   "src/cljs/athens/router.cljs"
+   {:unread-handlers
+    [:backspace
+     :electron-sync
+     :enter
+     :resolve-transact-forward
+     :posthog/set-super-properties]}],
+  :label :real,
+  :confirmed false,
+  :by "claude, first pass",
+  :why "its only dispatch is commented out"}
+ {:finding
+  [:athens
+   :event-never-dispatched
+   :block/link
+   "src/cljs/athens/events.cljs"
+   {:unread-handlers
+    [:backspace
+     :electron-sync
+     :enter
+     :resolve-transact-forward
+     :posthog/set-super-properties]}],
+  :label :unsure,
+  :confirmed false,
+  :by "claude, first pass",
+  :why
+  ":block/link is also an op type; no dispatch of the event found"}
+ {:finding
+  [:athens
+   :event-never-dispatched
+   :daily-note/prev
+   "src/cljs/athens/events.cljs"
+   {:unread-handlers
+    [:backspace
+     :electron-sync
+     :enter
+     :resolve-transact-forward
+     :posthog/set-super-properties]}],
+  :label :real,
+  :confirmed false,
+  :by "claude, first pass",
+  :why "its only dispatch is #_ commented out"}
+ {:finding
+  [:athens
+   :event-never-dispatched
+   :daily-note/scroll
+   "src/cljs/athens/events.cljs"
+   {:unread-handlers
+    [:backspace
+     :electron-sync
+     :enter
+     :resolve-transact-forward
+     :posthog/set-super-properties]}],
+  :label :real,
+  :confirmed false,
+  :by "claude, first pass",
+  :why
+  "no dispatch or subscription anywhere in the repository (exact grep): dead"}
+ {:finding
+  [:athens
+   :event-never-dispatched
+   :db-picker/remove-selection
+   "src/cljs/athens/electron/db_picker.cljs"
+   {:unread-handlers
+    [:backspace
+     :electron-sync
+     :enter
+     :resolve-transact-forward
+     :posthog/set-super-properties]}],
+  :label :real,
+  :confirmed false,
+  :by "claude, first pass",
+  :why
+  "no dispatch or subscription anywhere in the repository (exact grep): dead"}
+ {:finding
+  [:athens
+   :event-never-dispatched
+   :drop-multi/child
+   "src/cljs/athens/events.cljs"
+   {:unread-handlers
+    [:backspace
+     :electron-sync
+     :enter
+     :resolve-transact-forward
+     :posthog/set-super-properties]}],
+  :label :false,
+  :confirmed false,
+  :by "claude, first pass",
+  :why "dispatched as a local binding: (rf/dispatch event)"}
+ {:finding
+  [:athens
+   :sub-never-subscribed
+   :graph/ref
+   "src/cljs/athens/views/pages/graph.cljs"
+   {}],
+  :label :real,
+  :confirmed false,
+  :by "claude, first pass",
+  :why
+  "no dispatch or subscription anywhere in the repository (exact grep): dead"}
+ {:finding
+  [:athens
+   :event-never-dispatched
+   :graph/set-graph-ref
+   "src/cljs/athens/views/pages/graph.cljs"
+   {:unread-handlers
+    [:backspace
+     :electron-sync
+     :enter
+     :resolve-transact-forward
+     :posthog/set-super-properties]}],
+  :label :real,
+  :confirmed false,
+  :by "claude, first pass",
+  :why
+  "no dispatch or subscription anywhere in the repository (exact grep): dead"}
+ {:finding
+  [:athens
+   :event-never-dispatched
+   :http-success/get-db
+   "src/cljs/athens/events.cljs"
+   {:unread-handlers
+    [:backspace
+     :electron-sync
+     :enter
+     :resolve-transact-forward
+     :posthog/set-super-properties]}],
+  :label :real,
+  :confirmed false,
+  :by "claude, first pass",
+  :why
+  "no dispatch or subscription anywhere in the repository (exact grep): dead"}
+ {:finding
+  [:athens
+   :event-never-dispatched
+   :notification/toggle-popover
+   "src/cljs/athens/views/notifications/popover.cljs"
+   {:unread-handlers
+    [:backspace
+     :electron-sync
+     :enter
+     :resolve-transact-forward
+     :posthog/set-super-properties]}],
+  :label :real,
+  :confirmed false,
+  :by "claude, first pass",
+  :why
+  "no dispatch or subscription anywhere in the repository (exact grep): dead"}
+ {:finding
+  [:athens
+   :event-never-dispatched
+   :reporting/block.link
+   "src/cljs/athens/electron/monitoring/core.cljs"
+   {:unread-handlers
+    [:backspace
+     :electron-sync
+     :enter
+     :resolve-transact-forward
+     :posthog/set-super-properties]}],
+  :label :false,
+  :confirmed false,
+  :by "claude, first pass",
+  :why "built in monitoring/core.cljs and dispatched with :dispatch-n"}
+ {:finding
+  [:athens
+   :event-never-dispatched
+   :reporting/page.link
+   "src/cljs/athens/electron/monitoring/core.cljs"
+   {:unread-handlers
+    [:backspace
+     :electron-sync
+     :enter
+     :resolve-transact-forward
+     :posthog/set-super-properties]}],
+  :label :false,
+  :confirmed false,
+  :by "claude, first pass",
+  :why "built in monitoring/core.cljs and dispatched with :dispatch-n"}
+ {:finding
+  [:athens
+   :sub-never-subscribed
+   :right-sidebar/items
+   "src/cljs/athens/views/right_sidebar/subs.cljs"
+   {}],
+  :label :real,
+  :confirmed false,
+  :by "claude, first pass",
+  :why
+  "no dispatch or subscription anywhere in the repository (exact grep): dead"}
+ {:finding
+  [:athens
+   :event-never-dispatched
+   :tooltip/uid
+   "src/cljs/athens/events.cljs"
+   {:unread-handlers
+    [:backspace
+     :electron-sync
+     :enter
+     :resolve-transact-forward
+     :posthog/set-super-properties]}],
+  :label :real,
+  :confirmed false,
+  :by "claude, first pass",
+  :why
+  "no dispatch or subscription anywhere in the repository (exact grep): dead"}
+ {:finding
+  [:athens
+   :event-never-dispatched
+   :zoom/set
+   "src/cljs/athens/electron/window.cljs"
+   {:unread-handlers
+    [:backspace
+     :electron-sync
+     :enter
+     :resolve-transact-forward
+     :posthog/set-super-properties]}],
+  :label :real,
+  :confirmed false,
+  :by "claude, first pass",
+  :why
+  "no dispatch or subscription anywhere in the repository (exact grep): dead"}
+ {:finding
+  [:hermes
+   :input-without-producer
+   :com.eldrix.hermes.graph/component-by-id
+   "src/com/eldrix/hermes/graph.clj"
+   {:keys [:info.snomed/id]}],
+  :label :useless,
+  :confirmed false,
+  :by "claude, first pass",
+  :why ":info.snomed/id is the graph's entry point: callers give it"}
+ {:finding
+  [:realworld-fulcro
+   :ref-to-undefined
+   :conduit.handler.walkable/resolver
+   "resources/conduit/config.edn"
+   {:keys [:duct/logger :duct.database/sql]}],
+  :label :false,
+  :confirmed false,
+  :by "claude, first pass",
+  :why
+  ":duct/logger and :duct.database/sql come from :duct.module/logging and :duct.module/sql, which the pack doesn't expand"}
+ {:finding
+  [:realworld-fulcro
+   :input-without-producer
+   :conduit.handler.walkable/index-explorer
+   "src/conduit/handler/walkable.clj"
+   {:keys [:com.wsscode.pathom.viz.index-explorer/id]}],
+  :label :useless,
+  :confirmed false,
+  :by "claude, first pass",
+  :why "pathom-viz's index explorer id, given by the tool's query"}]

@@ -1,0 +1,89 @@
+;; The pinned corpus: real apps at fixed commits, each with the config
+;; meta-source reads it with. `bb corpus fetch` clones them under
+;; .corpus/apps/<repo>; `bb corpus run` checks each one. See corpus/README.md.
+;;
+;;   :id      the app's name in findings and labels
+;;   :git     where it comes from, :sha the commit (never a branch)
+;;   :path    instead of :git, a directory in this repository
+;;   :root    the directory inside the checkout meta-source reads from
+;;   :config  what meta-source.edn would say: :src, :registry, :packs
+;;            (without it, the app's own meta-source.edn)
+;;   :plants-only  only a place to plant defects: `run` skips it
+
+{:apps
+ [;; ---- schemas: clojure.spec and malli
+  {:id :antq :git "https://github.com/clj-commons/antq" :sha "40de7dad0935c1198faa5b9a54a8c4a885080cbd"
+   :config {:src ["src"] :packs {:malli {}}}}
+  {:id :clojure-dap :git "https://github.com/Olical/clojure-dap" :sha "cb7de50c384b5c033be99edf517aeef43bb3d074"
+   :config {:src ["src"] :packs {:malli {}}}}
+
+  ;; ---- Pathom
+  {:id :hermes :git "https://github.com/wardle/hermes" :sha "4cad6cdd624a252b31eec0b8aa233dc788b1cfe0"
+   :config {:src ["src"] :packs {:spec {} :pathom {}}}}
+  {:id :duck-repled :git "https://github.com/mauricioszabo/duck-repled" :sha "1bc24511ba5abf42e4303f647eb91c8873449bd3"
+   :config {:src ["src"] :packs {:pathom {:resolver-macros [duck-repled.connect/defresolver]}
+                                 :malli {:registries [duck-repled.schemas/registry]}}}}
+
+  ;; ---- integrant and duct
+  {:id :datahost-graphql :git "https://github.com/Swirrl/datahost-prototypes" :sha "41688872bc4987d856b0cc55542a8b23aacd8e76"
+   :root "datahost-graphql"
+   :config {:src ["src"] :packs {:integrant {:configs ["resources"]}}}}
+  {:id :datahost-ld-openapi :git "https://github.com/Swirrl/datahost-prototypes" :sha "41688872bc4987d856b0cc55542a8b23aacd8e76"
+   :root "datahost-ld-openapi"
+   :config {:src ["src"] :packs {:integrant {:configs ["resources" "env/auth/resources"]}}}}
+  {:id :realworld-fulcro :git "https://github.com/walkable-server/realworld-fulcro" :sha "311427b442ace8ce950747482919aaf311bb7fd7"
+   :config {:src ["src"] :packs {:integrant {:configs ["resources"]} :pathom {}}}}
+
+  ;; ---- re-frame
+  {:id :athens :git "https://github.com/athensresearch/athens" :sha "b463a97a0d28cbc0a29bec55feebcbe54c20de54"
+   :config {:src ["src"] :packs {:re-frame {:provided [:async-flow]} :datascript {}}}}
+  {:id :conduit :git "https://github.com/jacekschae/conduit" :sha "ae3c15df1b76d3e0157e32ae24bae52bdb7ea365"
+   :config {:src ["src"] :packs {:re-frame {:provided [:http-xhrio]}}}}
+  {:id :repath-studio :git "https://github.com/repath-studio/repath-studio" :sha "1de8cfbe158d1bd1a76ff2fa5e3120f09899ca5c"
+   :config {:src ["src"] :packs {:re-frame {} :malli {}}}}
+  {:id :re-frame-examples :git "https://github.com/day8/re-frame" :sha "1a1bf1df6570b17a148ebce70d500ec2da393cdc"
+   :config {:src ["examples"] :packs {:re-frame {}}}}
+
+  ;; ---- reitit
+  {:id :lipas :git "https://github.com/lipas-liikuntapaikat/lipas" :sha "11665fa3f7b170111cb4f69f7ada78455525fddd"
+   :root "webapp"
+   :config {:src ["src"] :packs {:reitit {}}}}
+  {:id :sepal :git "https://github.com/sepal-app/sepal" :sha "9d1030a8442ae47d418277f9ffb243ff913e2ac9"
+   :config {:src ["bases" "components"] :packs {:reitit {}}}}
+  {:id :blaze :git "https://github.com/samply/blaze" :sha "10e1541ad371dd3efddb0ef69701bd352dfa4d65"
+   ;; each module's src, not its tests: test fixtures define routes their own way
+   :config {:src ["modules/admin-api/src" "modules/anomaly/src" "modules/async/src" "modules/byte-buffer/src"
+                  "modules/byte-string/src" "modules/cache-collector/src" "modules/cassandra/src" "modules/coll/src"
+                  "modules/cql/src" "modules/db-protocols/src" "modules/db-resource-store-cassandra/src" "modules/db-resource-store/src"
+                  "modules/db/src" "modules/db-stub/src" "modules/db-tx-log-kafka/src" "modules/db-tx-log/src"
+                  "modules/executor/src" "modules/extern-terminology-service/src" "modules/extern-validator/src" "modules/fhir-client/src"
+                  "modules/fhir-path/src" "modules/fhir-structure/src" "modules/fhir-test-util/src" "modules/frontend-e2e/src"
+                  "modules/frontend/src" "modules/http-client/src" "modules/interaction/src" "modules/jepsen/src"
+                  "modules/job-async-interaction/src" "modules/job-compact/src" "modules/job-disk-perf/src" "modules/job-re-index/src"
+                  "modules/job-scheduler/src" "modules/job-test-util/src" "modules/job-util/src" "modules/jvm-metrics-logger/src"
+                  "modules/kv/src" "modules/luid/src" "modules/metrics/src" "modules/module-base/src"
+                  "modules/module-test-util/src" "modules/monitoring/src" "modules/openid-auth/src" "modules/openid-client/src"
+                  "modules/operation-code-system-lookup/src" "modules/operation-code-system-validate-code/src" "modules/operation-compact/src" "modules/operation-cql/src"
+                  "modules/operation-disk-perf/src" "modules/operation-graphql/src" "modules/operation-graph/src" "modules/operation-measure-evaluate-measure/src"
+                  "modules/operation-patient-everything/src" "modules/operation-patient-purge/src" "modules/operation-totals/src" "modules/operation-value-set-expand/src"
+                  "modules/operation-value-set-validate-code/src" "modules/operation-versions/src" "modules/page-id-cipher/src" "modules/page-store-cassandra/src"
+                  "modules/page-store/src" "modules/rest-api/src" "modules/rest-util/src" "modules/rocksdb/src"
+                  "modules/scheduler/src" "modules/scheduler-test-util/src" "modules/server/src" "modules/spec/src"
+                  "modules/terminology-service-local/src" "modules/terminology-service/src" "modules/test-util/src" "modules/thread-pool-executor-collector/src"
+                  "modules/util/src" "modules/validator/src"] :packs {:reitit {}}}}
+  {:id :tubo :git "https://github.com/migalmoreno/tubo" :sha "421ced4ffff1443d38093598919ae14e329f1746"
+   :config {:src ["src"] :packs {:reitit {}}}}
+
+  ;; ---- Datascript
+  {:id :zetawar :git "https://github.com/Zetawar/zetawar" :sha "dc1ee8d27afcac1cd98904859289012c2806e58c"
+   :config {:src ["src"] :packs {:datascript {}}}}
+  {:id :datascript-chat :git "https://github.com/tonsky/datascript-chat" :sha "3d4b0c456483f2feb0b9af9ab42e94928ecd2743"
+   :config {:src ["src"] :packs {:datascript {}}}}
+
+  ;; ---- this repository's fixture: where defects are planted to measure recall
+  ;; its findings are the fixture's own planted problems: never in precision
+  {:id :shop-fixture :path "test/fixtures/shop" :plants-only true}]
+
+ ;; problems that say what wasn't read, not that something is wrong: counted,
+ ;; never in precision
+ :not-judged #{:pack-form-not-read}}
