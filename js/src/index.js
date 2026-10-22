@@ -77,9 +77,27 @@ function config(root, overrides = {}) {
   };
 }
 
+/**
+ * A pack named by a path (./tools/pack.js) is the project's; one named by a
+ * module is looked up from the project's root, then from where meta-source
+ * itself is installed, so a pack installed beside it is found:
+ *   npx -p github:semantic-namespace/meta-source -p <the pack's package> meta-source-js check
+ */
+function resolvePack(root, spec) {
+  if (spec.startsWith('.') || spec.startsWith('/')) return path.resolve(root, spec);
+  try {
+    return require.resolve(spec, { paths: [root] });
+  } catch (_) {
+    try {
+      return require.resolve(spec);
+    } catch (e) {
+      throw new Error(`${spec} is not installed in the project, nor beside meta-source`);
+    }
+  }
+}
+
 function loadPack(root, spec) {
-  const from = spec.startsWith('.') || spec.startsWith('/') ? path.resolve(root, spec) : require.resolve(spec, { paths: [root] });
-  const p = require(from);
+  const p = require(resolvePack(root, spec));
   const pack = p && (p.pack || p.default || p);
   if (!pack || !pack.id || !(pack.check || pack.entities || pack.describe))
     throw new Error(`${spec}: a pack is an object with an id and check, entities or describe`);
@@ -196,6 +214,8 @@ function normaliseProblem(p, pack) {
 function context(idx, opts) {
   return {
     idx, opts, root: idx.root, kw, edn,
+    // the parser meta-source read the code with: its ASTs are the ones sourceFile gives
+    ts: require('typescript'),
     relative: (f) => path.relative(idx.root, f),
     sourceFile: (f) => idx.analysis.get(f) && idx.analysis.get(f).sf,
     files: () => [...idx.analysis.keys()],
@@ -357,6 +377,6 @@ function summary(idx) {
 }
 
 module.exports = {
-  config, build, where, uses, dependencies, dataKey, check, summary, contractKeys, implOf, refsTo, varLoc,
+  context, config, build, where, uses, dependencies, dataKey, check, summary, contractKeys, implOf, refsTo, varLoc,
   compareKeywords, sortKeywords, DEFAULT_ID_KEY,
 };

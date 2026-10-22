@@ -26,7 +26,7 @@ function sourceLine(s) {
 function describeWithPacks(idx, id, entry) {
   for (const { pack, opts } of idx.packs)
     if (pack.describe) {
-      const d = pack.describe({ idx, opts }, id, entry);
+      const d = pack.describe(index.context(idx, opts), id, entry);
       if (d) return d;
     }
   return null;
