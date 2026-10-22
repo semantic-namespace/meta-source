@@ -4877,11 +4877,10 @@
      :enter
      :resolve-transact-forward
      :posthog/set-super-properties]}],
-  :label :false,
-  :confirmed false,
-  :by "claude, first pass",
-  :why
-  "dispatched from an fx map, :dispatch [:bind-win-listeners] in boot.cljs"}
+  :label :real
+  :confirmed false
+  :by "claude, first pass"
+  :why "its only dispatch, :dispatch [:bind-win-listeners] in boot.cljs, is #_ commented out (first labeled :false by mistake)"}
  {:finding
   [:athens
    :event-never-dispatched

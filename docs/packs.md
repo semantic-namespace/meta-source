@@ -503,11 +503,11 @@ a `defn` with a dispatch key in it, in a file that uses re-frame.
   handler returns, or a coeffect it injects, that nothing read registers and
   `:provided` doesn't list;
 - `:event-never-dispatched`, `:sub-never-subscribed` (info), only with
-  `:report-unused true`: registered, and referred to nowhere read. They're
-  off by default. Apps reach events and subscriptions in ways no reading
-  sees: an fx map's `:dispatch`, a wrapper fn, a vector held as data. On the
-  [precision corpus](../corpus/README.md), most of these findings were false.
-  Events are not reported while some handler couldn't be read.
+  `:report-unused true`: registered, referred to nowhere read, and at the
+  head of no literal vector. An fx map's `:dispatch [::x]`, an action's
+  `:event [::x]`, or a vector a wrapper fn or a local dispatches all count as
+  uses. A vector built in code doesn't. `:unread-handlers` lists the handlers
+  whose effects couldn't be read.
 
 The events re-pressed registers and day8.re-frame/http-fx's `:http-xhrio`
 need no `:provided`.

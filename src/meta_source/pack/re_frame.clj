@@ -90,7 +90,26 @@
            :when (and (rf-files (:filename u)) ('#{clojure.core cljs.core} (:to u)) ('#{defn defn-} (:name u)))
            :let [ks (inside u)]
            :when (some (fn [[k]] (#{:dispatch :dispatch-n :first-dispatch} k)) ks)]
-       (assoc (select-keys u [:filename :row :name-row :name-col]) :helper true :kws ks)))))
+       (assoc (select-keys u [:filename :row :name-row :name-col]) :helper true :kws ks))
+     ;; a registered id held as data, at the head of a literal vector: an fx
+     ;; map's :dispatch [::x], an action's :event [::x], a vector a wrapper
+     ;; fn or a local dispatches. Only ids some call registers, so hiccup's
+     ;; [:div ...] is never one.
+     (let [registered (set (for [u (:var-usages analysis)
+                                 :when (and (rf? u) (registers (:name u)))
+                                 :let [k (first (sort-by (juxt :row :col)
+                                                         (for [k (get kws (:filename u))
+                                                               :when (and (:row k) (or (> (:row k) (:name-row u))
+                                                                                       (and (= (:row k) (:name-row u)) (> (:col k) (:name-col u)))))]
+                                                           k)))]
+                                 :when k]
+                             (kw-of k)))
+           lines (memoize (fn [file] (try (str/split-lines (slurp file)) (catch Exception _ []))))]
+       (for [file rf-files
+             k (get kws file)
+             :let [id (kw-of k) line (nth (lines file) (dec (:row k 0)) nil)]
+             :when (and (registered id) line (:col k) (>= (:col k) 2) (= \[ (nth line (- (:col k) 2) nil)))]
+         {:filename file :row (:row k) :name-row (:row k) :name-col (:col k) :held id})))))
 
 ;; =============================================================================
 ;; Reading a handler
@@ -237,7 +256,7 @@
       delegates? (assoc :re-frame/not-read [:effects]))))
 
 (defn- read-forms [sites {:keys [form-at]} _opts]
-  (vec (for [{:keys [row name-row name-col registers refers kws helper]} sites
+  (vec (for [{:keys [row name-row name-col registers refers kws helper held]} sites
              :let [form (form-at name-row name-col)
                    [_ x] (when (seq? form) form)
                    ids (cond (= :injected refers) [x]
@@ -247,6 +266,7 @@
                    ;; where a keyword is written in the form, from clj-kondo
                    row-of (fn [k] (or (some (fn [[kw r]] (when (and (= k kw) (> r row)) r)) kws) row))]
              r (cond
+                 held [{:row row :kind kind :dev-id held :refers true :entry {:re-frame/held true}}]
                  (= form :unreadable) [{:row row :kind kind :skipped "not readable as data"}]
                  helper (for [e (first (dispatches-and-effects (drop 2 form)))]
                           {:row (row-of e) :kind kind :refers true :dev-id e :entry {:re-frame/dispatched true}})
@@ -283,11 +303,11 @@
      handler returns, or a coeffect it injects, that nothing read registers
      and :provided doesn't list (a library registers :http-xhrio);
    - :event-never-dispatched, :sub-never-subscribed (info), only with
-     :report-unused true: registered and referred to nowhere read. Off by
-     default: apps reach events and subs in ways no reading sees (an fx
-     map's :dispatch, a wrapper fn, a vector held as data), and on the
-     precision corpus most of these findings were false. Events are not
-     reported while some handler couldn't be read."
+     :report-unused true: registered, referred to nowhere read, and held
+     at the head of no literal vector ([::x ...] in an fx map, an action's
+     data, a wrapper fn's call): what is dispatched by a vector built in
+     code is not seen. :unread-handlers lists the handlers whose effects
+     couldn't be read. Off by default."
   [{:keys [of-kinds loc opts]}]
   (let [entities (sort-by key (of-kinds #{kind}))
         provided (set (get-in opts [:re-frame :provided]))
@@ -305,11 +325,11 @@
                       (not (provided id)))]
        {:severity severity :problem problem :dev-id id :definition (loc d)})
      (for [[id e] entities
-           :let [{:re-frame/keys [registered dispatched subscribed]} (:entry e)]
+           :let [{:re-frame/keys [registered dispatched subscribed held]} (:entry e)]
            [as used? problem] [[:event dispatched :event-never-dispatched] [:sub subscribed :sub-never-subscribed]]
-           :when (and report-unused? (contains? registered as) (not used?)
-                      (not (and (= :event as) (seq unread))))]
-       {:severity :info :problem problem :dev-id id :definition (loc (registration e))}))))
+           :when (and report-unused? (contains? registered as) (not used?) (not held))]
+       (cond-> {:severity :info :problem problem :dev-id id :definition (loc (registration e))}
+         (and (= :event as) (seq unread)) (assoc :unread-handlers unread))))))
 
 (defn- describe [entry]
   (when (some #(= "re-frame" (namespace %)) (keys entry))

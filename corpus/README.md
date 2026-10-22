@@ -106,25 +106,27 @@ These changes follow from the first results:
   in an `:expand` fn) counts as defined, even when the pack can't read the
   tree around it.
 - **`input-without-producer`:** not reported while some output couldn't be read.
-- **The never-used checks:** opt-in (`:report-unused`), and events aren't
-  reported while some handler couldn't be read. The corpus turns them on:
-  it measures every check, not only the default ones.
+- **The never-used checks:** opt-in (`:report-unused`). An id at the head of
+  a literal vector (`:dispatch [::x]`, `:event [::x]`, a vector a wrapper
+  dispatches) counts as used. The corpus turns them on: it measures every
+  check, not only the default ones.
 - **Library ids:** re-pressed's events, `:http-xhrio` and the keys duct's
   logging and sql modules add need no `:provided`.
 
 | check | first run | second run |
 |---|---|---|
 | `event-not-registered` | 8/9 | 8/8 |
-| `event-never-dispatched` | 13/88 | no findings: athens and repath-studio both have handlers the pack can't read |
+| `event-never-dispatched` | 13/88 | 14/14, one unsure (athens); repath-studio's 70 false are gone |
 | `route-not-defined` | 0/26 | no findings: tubo's names are read from its `:expand` fn |
 | `input-without-producer` | 0/8 | 3 findings, 2 useless, 1 unjudged |
 | `ref-to-undefined` | 0/1 | no findings |
-| `sub-never-subscribed` (opt-in) | 4/33 | 4/33: subscriptions held as data still aren't seen |
+| `sub-never-subscribed` (opt-in) | 4/33 | 4/4 |
 
-What it cost: the 13 real never-dispatched events found in the first run
-are no longer reported. athens and repath-studio both have handlers the pack
-can't read. Planted defects: 8 of 8 found. The route typo planted in tubo is
-reported as info, since part of tubo's tree is still built in code.
+Nothing real from the first run is lost, and all 8 planted defects are
+found. The route typo planted in tubo is reported as info, since part of
+tubo's tree is still built in code. One first-pass label was wrong:
+`:bind-win-listeners` is dispatched only inside a `#_` form, so it is real.
+That's one reason labels need a second person.
 
 That is the trade made: the checks are right when they speak, and say less.
 
