@@ -619,6 +619,8 @@ info for the payments, when both are model elements.
 Not read: models written in code, `:spec` selections (they are kept, not
 resolved), and Overarch's templates and plugins.
 
+![An Overarch model whose ids are atlas ids: a relation the registry doesn't declare, then declared, in Emacs](images/meta-source-overarch.gif)
+
 ## One id, two packs
 
 Data keys are global: a spec and a malli schema shaping `:user/email` are one
