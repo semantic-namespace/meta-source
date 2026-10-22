@@ -128,6 +128,12 @@ What it cost:
 
 That is the trade made: the checks are right when they speak, and say less.
 
+A way to win the route typo back: the names an app gives its routes are
+usually literal (`:name :about-page`), even when the tree around them is
+built by a fn. A pack that collected `:name` values from the forms it
+couldn't read, and from fns passed as `:expand`, could count them as
+defined, and still report a link to any other name.
+
 125 labels judge findings this run no longer produces. They are kept: they
 are the record of what the first run reported, and they apply again if a
 check comes back.
