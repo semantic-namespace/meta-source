@@ -133,3 +133,49 @@ That is the trade made: the checks are right when they speak, and say less.
 125 labels judge findings this run no longer produces. They are kept: they
 are the record of what the first run reported, and they apply again if a
 check comes back.
+
+## Third run: apps where the warnings fire (2026-10-22)
+
+The first two runs judged the warnings on 2 apps. This run adds five apps
+where they fire: clojure-saas-boilerplate, mercurius, vetd-app,
+status-mobile and logseq. The warnings were labeled by finding the
+registration with grep: the id in a call of the right kind, `reg-event-*`
+for an event and a `*sub*` call for a sub. Each finding no rule covered was
+read by hand.
+
+| check | before | with the five apps |
+|---|---|---|
+| `event-not-registered` | 8/8 | 23/278 (8%) |
+| `sub-not-registered` | not measured | 4/262 (2%) |
+| `conflicting-values` (error) | not measured | 0/6 |
+
+Nearly every false warning has one cause: **the app registers through its
+own wrapper.**
+- status-mobile uses its `rf/defn` macro (`{:events [...]}`, 182), and
+  `rf/reg-event-fx` and `rf/reg-root-key-sub` from `utils.re-frame` (270).
+- vetd-app uses `util/reg-sub-special` (51).
+- mercurius defines its own `reg-event-db` (10).
+
+The pack only knows re-frame's own fns, so everything such an app registers
+looks unregistered.
+
+logseq's 6 errors have another cause: two routers, desktop and mobile, each
+name their routes `:home`, `:page` and `:import`, and route names are read
+as global.
+
+The 15 new real findings are again genuine bugs. In clojure-saas-boilerplate,
+the templates and the UI dispatch and subscribe to ids that don't match what
+is registered (`::show-mobile-sidebar` against `::toggle-mobile-sidebar`,
+`::subs/show-mobile-sidebar?` against `:app/show-mobile-sidebar?`). In
+status-mobile, legacy screens and an integration test dispatch events that
+no longer exist.
+
+**What it means.** The warnings are reliable on apps that call re-frame
+directly. On apps with registration wrappers, which are common in big apps,
+they are mostly noise. The fix is for the pack to recognise wrappers: a
+`def` or `defn` whose body passes its argument to `re-frame.core/reg-*`
+would count as registering it. Until then, the second-run numbers only hold
+for apps like the first 17.
+
+The never-used findings in the new apps (136 events, 297 subs) are not
+judged yet; the same wrappers likely affect them.
