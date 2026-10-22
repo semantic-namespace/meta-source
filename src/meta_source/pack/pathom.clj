@@ -296,8 +296,9 @@
    - :input-without-producer: a resolver needs a key that nothing produces,
      no resolver and no other entity's contract. The query can still give it
      as input (that is how a graph's entry points look); when nothing does,
-     the resolver is unreachable. When some operation's output is written as
-     code, :unread-outputs names them: any of them may produce the key;
+     the resolver is unreachable. Not reported while some operation's
+     output is written as code: any of them may produce the key, and
+     :operation-option-not-read says which;
    - :operation-option-not-read: an input, params or output written as code
      ((->> registry keys vec)), so its keys are unknown."
   [{:keys [entities loc flow]}]
@@ -306,9 +307,8 @@
     (concat
      (for [[id e] (sort-by key entities)
            :let [missing (vec (sort (remove produced (get-in e [:entry :pathom/input]))))]
-           :when (seq missing)]
-       (cond-> {:severity :info :problem :input-without-producer :dev-id id :keys missing :definition (loc e)}
-         (seq unread) (assoc :unread-outputs unread)))
+           :when (and (empty? unread) (seq missing))]
+       {:severity :info :problem :input-without-producer :dev-id id :keys missing :definition (loc e)})
      (for [[id e] (sort-by key entities)
            :let [options (get-in e [:entry :pathom/not-read])]
            :when (seq options)]

@@ -147,8 +147,8 @@
     (check "an option written as code is not guessed, and check says so"
            (and (= #:pathom{:op :resolver :not-read #{:output}} (pathom-part (:entry (index/where idx :shop.resolvers/seed))))
                 (= [[:shop.resolvers/seed [:output]]] (map (juxt :dev-id :options) (problems idx :operation-option-not-read)))))
-    (check "an unproduced input names the outputs that couldn't be read, which may produce it"
-           (every? #(= [:shop.resolvers/seed] (:unread-outputs %)) (problems idx :input-without-producer)))
+    (check "while an output is written as code (seed's), no input is reported as unproduced: seed may produce it"
+           (empty? (problems idx :input-without-producer)))
     (check "declared input and output"
            (= #:pathom{:op :resolver :input [:user/email] :output [:user/id :user/name]}
               (:entry (index/where idx :shop.resolvers/user-by-email))))
@@ -169,12 +169,11 @@
     (check "resolver outputs count as producers, next to function contracts"
            (= [:fn/place-order :shop.resolvers/order-total :shop.resolvers/user-orders]
               (map :dev-id (:producers (index/data-key idx :order/total)))))
-    (check "a resolver input nothing produces"
+    (check "a resolver input nothing produces, once every output is known (seed's from the Pathom snapshot)"
            (= [[:shop.resolvers/order-total [:order/lines]]
-               [:shop.resolvers/user-discount [:user/loyalty-tier]]
                [:shop.resolvers2/product-name [:product/id]]
                [:shop.wrapped/product-price [:product/id]]]
-              (map (juxt :dev-id :keys) (problems idx :input-without-producer))))
+              (map (juxt :dev-id :keys) (problems (index/build with-runtime) :input-without-producer))))
     (check "hover: a resolver's inputs and outputs"
            (str/includes? (:eldoc (hover/lookup idx :shop.resolvers/order-total))
                           "resolver  [:order/lines] → [:order/total]  (inferred: input, output)"))
@@ -264,11 +263,16 @@
              (= [[:sub-not-registered :shop.ui/line-cuont 31] [:event-not-registered :shop.ui/pay 14]]
                 (for [p (index/check rf) :when (#{:sub-not-registered :event-not-registered} (:problem p))]
                   [(:problem p) (:dev-id p) (:line (:definition p))])))
-      (check "registered and referred to nowhere; :provided effects are not reported"
-             (and (= #{:shop.ui/log-out} (found :event-never-dispatched))
-                  (= #{:shop.ui/line-count} (found :sub-never-subscribed))
-                  (empty? (found :effect-not-registered))
-                  (= #{:http-xhrio} (set (map :dev-id (problems (index/build (assoc-in cfg [:packs :re-frame] {})) :effect-not-registered))))))
+      (check "registered and referred to nowhere: reported only with :report-unused; :provided and library effects never"
+             (let [unused (index/build (assoc-in cfg [:packs :re-frame] {:report-unused true}))
+                   found-unused #(set (map :dev-id (problems unused %)))]
+               (and (empty? (found :event-never-dispatched))
+                    (empty? (found :sub-never-subscribed))
+                    (= #{:shop.ui/log-out} (found-unused :event-never-dispatched))
+                    (= #{:shop.ui/line-count} (found-unused :sub-never-subscribed))
+                    (empty? (found :effect-not-registered))
+                    ;; day8.re-frame/http-fx's :http-xhrio needs no :provided
+                    (empty? (problems (index/build (assoc-in cfg [:packs :re-frame] {})) :effect-not-registered)))))
       (check "one key across four registries: a spec shapes it, EDN calls it PII, a resolver and a subscription read it"
              (let [email (index/data-key rf :user/email)]
                (and (= [:fn/register-user :shop.resolvers/user-by-email :shop.ui/email] (map :dev-id (:consumers email)))
@@ -289,8 +293,10 @@
       (check "diagnostics: an absolute path, as editors send"
              (= (diags "src/shop/handlers.clj")
                 (diags (.getCanonicalPath (java.io.File. (str root "/src/shop/handlers.clj"))))))
-      (check "diagnostics: a key only destructured, at its name, within its own form"
-             (contains? (diags "src/shop/resolvers.clj") [13 45 50 "note" "input-without-producer"]))
+      (check "diagnostics: a key only destructured, at its name, within its own form (seed's output from the Pathom snapshot)"
+             (contains? (set (map (juxt :line :col :end-col :severity :problem)
+                                  (hover/diagnostics (index/build with-runtime) "src/shop/resolvers.clj")))
+                        [13 45 50 "note" "input-without-producer"]))
       (check "diagnostics: a dev-id written as the defining form's symbol"
              (contains? (diags "src/shop/resolvers.clj") [48 18 22 "warning" "id-in-several-packs"]))
       (check "diagnostics: severities follow check's"
@@ -423,9 +429,23 @@
              (= {:public true} (:reitit/data (entry :shop.routes/route.post.api.login))))
       (check "each route is at the line its path is written on, an inlined def's at the def"
              (= [16 9 21] (map line [:shop.routes/user :shop.routes/users :shop.routes/route.post.api.login])))
-      (check "a link to a route name nothing defines; a handler its namespace doesn't define"
-             (and (= [[:shop.routes/userz 41]] (map (juxt :dev-id (comp :line :definition)) (problems ri :route-not-defined)))
+      (check "a link to a route name is not reported while a child route is written as code; a handler its namespace doesn't define is"
+             (and (empty? (problems ri :route-not-defined))
                   (= [[:shop.routes/route.post.api.login 'shop.api/login]] (map (juxt :dev-id :calls) (problems ri :handler-not-found)))))
+      (let [dir (str (fs/create-temp-dir))]
+        (fs/create-dirs (str dir "/src/app"))
+        (spit (str dir "/src/app/routes.clj")
+              (str "(ns app.routes (:require [reitit.ring :as ring]))\n"
+                   "(def router (ring/router [[\"/users\" {:name ::users :get {:handler identity}}]]))\n"))
+        (spit (str dir "/src/app/ui.cljs")
+              (str "(ns app.ui (:require [reitit.frontend.easy :as rfe]))\n"
+                   "(defn nav [] [:a {:href (rfe/href :app.routes/users)} \"users\"]\n"
+                   "  [:a {:href (rfe/href :app.routes/userz)} \"typo\"])\n"))
+        (check "with every route tree read, a link to a route name nothing defines is a warning, where it is written"
+               (= [[:app.routes/userz 3 :warning]]
+                  (map (juxt :dev-id (comp :line :definition) :severity)
+                       (problems (index/build {:root dir :src ["src"] :registry [] :packs {:reitit {}}}) :route-not-defined))))
+        (fs/delete-tree dir))
       (check "a route consumes its parameter keys, next to resolvers and functions"
              (some #{:shop.routes/user} (map :dev-id (:consumers (index/data-key ri :user/id))))))
 
@@ -707,8 +727,8 @@
           (.setLastModified (fs/file conf) (+ 2000 (System/currentTimeMillis)))
           (let [after (ask 2 "src/shop/resolvers.clj")]
             (check "serve reads meta-source.edn again when it changes: a pack enabled while it runs takes effect"
-                   (and (not (contains? before "input-without-producer"))
-                        (contains? after "input-without-producer")))))
+                   (and (not (contains? before "id-in-several-packs"))
+                        (contains? after "id-in-several-packs")))))
         (finally (.close in) (p/destroy proc) (fs/delete-tree dir))))
 
     (if (zero? @failures)

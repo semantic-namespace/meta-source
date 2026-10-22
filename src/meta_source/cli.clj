@@ -121,6 +121,15 @@
          (binding [*out* *err*] (println (str "meta-source: " (ex-message ex))))
          (System/exit 1))))
 
+(defn read-line-summary
+  "One line saying what check read: its entities, and per pack what was read
+   and what wasn't."
+  [{:keys [entities source-files packs]}]
+  (str "meta-source: read " entities " entities from " source-files " source files"
+       (when (seq packs)
+         (str "; " (str/join ", " (for [[kind {:keys [read not-read]}] packs]
+                                     (str (name kind) " " read (when (pos? not-read) (str " (" not-read " not read)")))))))))
+
 (def ^:private severity-rank {:info 0 :warning 1 :error 2})
 
 (defn failing
@@ -150,6 +159,9 @@
       (:json opts) (println (json/generate-string out {:pretty true}))
       (and (:brief opts) (= cmd "check")) (run! println out)
       :else (pp/pprint out))
+    (when (and (= cmd "check") (not (:json opts)))
+      ;; what was read, on stderr: a project that reads nothing has no problems either
+      (binding [*out* *err*] (println (read-line-summary (index/summary @idx)))))
     (when (and fail-on (= cmd "check"))
       (let [n (count (failing (index/check @idx) fail-on))]
         (when (pos? n)

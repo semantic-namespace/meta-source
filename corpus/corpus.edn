@@ -6,7 +6,9 @@
 ;;   :git     where it comes from, :sha the commit (never a branch)
 ;;   :path    instead of :git, a directory in this repository
 ;;   :root    the directory inside the checkout meta-source reads from
-;;   :config  what meta-source.edn would say: :src, :registry, :packs
+;;   :config  what meta-source.edn would say: :src, :registry, :packs.
+;;            Opt-in checks are on (:report-unused): the corpus measures
+;;            every check, not only the default ones
 ;;            (without it, the app's own meta-source.edn)
 ;;   :plants-only  only a place to plant defects: `run` skips it
 
@@ -36,13 +38,13 @@
 
   ;; ---- re-frame
   {:id :athens :git "https://github.com/athensresearch/athens" :sha "b463a97a0d28cbc0a29bec55feebcbe54c20de54"
-   :config {:src ["src"] :packs {:re-frame {:provided [:async-flow]} :datascript {}}}}
+   :config {:src ["src"] :packs {:re-frame {:provided [:async-flow] :report-unused true} :datascript {}}}}
   {:id :conduit :git "https://github.com/jacekschae/conduit" :sha "ae3c15df1b76d3e0157e32ae24bae52bdb7ea365"
-   :config {:src ["src"] :packs {:re-frame {:provided [:http-xhrio]}}}}
+   :config {:src ["src"] :packs {:re-frame {:report-unused true}}}}
   {:id :repath-studio :git "https://github.com/repath-studio/repath-studio" :sha "1de8cfbe158d1bd1a76ff2fa5e3120f09899ca5c"
-   :config {:src ["src"] :packs {:re-frame {} :malli {}}}}
+   :config {:src ["src"] :packs {:re-frame {:report-unused true} :malli {}}}}
   {:id :re-frame-examples :git "https://github.com/day8/re-frame" :sha "1a1bf1df6570b17a148ebce70d500ec2da393cdc"
-   :config {:src ["examples"] :packs {:re-frame {}}}}
+   :config {:src ["examples"] :packs {:re-frame {:report-unused true}}}}
 
   ;; ---- reitit
   {:id :lipas :git "https://github.com/lipas-liikuntapaikat/lipas" :sha "11665fa3f7b170111cb4f69f7ada78455525fddd"
