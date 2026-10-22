@@ -8,6 +8,12 @@
 
      :re-frame {:provided [:http-xhrio]}   ; ids a library registers: effects,
                                            ; coeffects, events, subscriptions
+               :wrappers {app.rf/reg-event-fx reg-event-fx   ; the project's own fns,
+                          app.rf/dispatch dispatch           ; each standing for a re-frame one
+                          app.rf/defn {:registers :event :ids-in :events}}}  ; a macro: ids in its attr-map
+
+   A def or defn that passes its argument to a re-frame fn, and that the
+   project calls, is reported (:pack-form-not-read) with the line to add.
 
    clj-kondo finds the re-frame.core calls; the pack reads each form. An id
    is one entity, however many places register it or refer to it. A
@@ -67,23 +73,63 @@
 (defn- kw-of [{:keys [ns name]}]
   (if ns (keyword (str ns) (str name)) (keyword (str name))))
 
+(def ^:private rf-nses '#{re-frame.core re-frame.alpha})
+
+(defn- wrappers
+  "The project's own registration and reference fns, from :wrappers under
+   :re-frame: each var to the re-frame.core fn it stands for (a symbol), or
+   to {:registers kind :ids-in key} for a macro that registers the ids an
+   attr-map lists under key."
+  [opts]
+  (into {} (for [[sym v] (get-in opts [:re-frame :wrappers])]
+             [(symbol sym) (if (map? v) v (symbol (name v)))])))
+
+(defn- candidates
+  "Defs and defns that call a re-frame.core fn which registers or refers to
+   an id, and that the project calls: wrappers it may want to declare. Each
+   is checked when read (its body passes its argument on)."
+  [analysis declared]
+  (let [usages (group-by :filename (:var-usages analysis))
+        called (set (for [u (:var-usages analysis)] [(:to u) (:name u)]))]
+    (for [d (:var-definitions analysis)
+          :let [sym (symbol (str (:ns d)) (str (:name d)))]
+          :when (and ('#{clojure.core/def clojure.core/defn cljs.core/def cljs.core/defn} (:defined-by d))
+                     (:end-row d) (not (rf-nses (:ns d))) (not (contains? declared sym))
+                     (called [(:ns d) (:name d)]))
+          :let [like (first (for [u (get usages (:filename d))
+                                  :when (and (rf-nses (:to u)) (:row u) (<= (:row d) (:row u) (:end-row d))
+                                             (or (registers (:name u)) (refers (:name u))))]
+                              (:name u)))]
+          :when like]
+      {:filename (:filename d) :row (:row d) :name-row (:row d) :name-col (inc (:col d))
+       :candidate sym :like like :defined-by (:defined-by d)})))
+
 (defn- find-forms
-  "Each re-frame.core (or re-frame.alpha) call that registers or refers to an id. A
-   registration carries the keywords written inside it, with their rows,
-   so what its effects dispatch is reported where it is written."
-  [analysis _opts]
+  "Each re-frame.core (or re-frame.alpha) call that registers or refers to
+   an id, and each call to a wrapper :wrappers declares. A registration
+   carries the keywords written inside it, with their rows, so what its
+   effects dispatch is reported where it is written."
+  [analysis opts]
   (let [kws (group-by :filename (:keywords analysis))
         inside (fn [u] (vec (for [k (get kws (:filename u))
                                   :when (and (:row k) (<= (:row u) (:row k) (or (:end-row u) (:row u))))]
                               [(kw-of k) (:row k)])))
-        rf? #(#{'re-frame.core 're-frame.alpha} (:to %))
+        declared (wrappers opts)
+        ;; the re-frame fn a call stands for: its own name, or what :wrappers says
+        role (fn [u] (if (rf-nses (:to u))
+                       (:name u)
+                       (get declared (symbol (str (:to u)) (str (:name u))))))
+        rf? #(some? (role %))
         rf-files (set (map :filename (filter rf? (:var-usages analysis))))]
     (concat
      (for [u (:var-usages analysis)
-           :when (and (rf? u) (or (registers (:name u)) (refers (:name u))))]
+           :let [r (role u)]
+           :when (or (map? r) (registers r) (refers r))]
        (cond-> (select-keys u [:filename :row :name-row :name-col])
-         (registers (:name u)) (assoc :registers (registers (:name u)) :kws (inside u))
-         (refers (:name u)) (assoc :refers (refers (:name u)))))
+         (map? r) (assoc :registers (:registers r) :ids-in (:ids-in r) :kws (inside u))
+         (registers r) (assoc :registers (registers r) :kws (inside u))
+         (refers r) (assoc :refers (refers r))))
+     (candidates analysis (set (keys declared)))
      ;; a fn a handler delegates to, which builds the effects: a defn in a
      ;; file using re-frame, with a dispatch key written in it
      (for [u (:var-usages analysis)
@@ -96,7 +142,8 @@
      ;; fn or a local dispatches. Only ids some call registers, so hiccup's
      ;; [:div ...] is never one.
      (let [registered (set (for [u (:var-usages analysis)
-                                 :when (and (rf? u) (registers (:name u)))
+                                 :let [r (role u)]
+                                 :when (or (map? r) (registers r))
                                  :let [k (first (sort-by (juxt :row :col)
                                                          (for [k (get kws (:filename u))
                                                                :when (and (:row k) (or (> (:row k) (:name-row u))
@@ -196,7 +243,8 @@
                    (branches? x) (mapcat many (returned x)))))
         maps (filter map? nodes)
         effect-maps (distinct (concat (filter map? (returned (last body))) (filter #(contains? % :fx) maps)))
-        fx (for [m maps e (:fx m) r (returned e) :when (and (vector? r) (keyword? (first r)))] r)
+        ;; :fx a local names (:fx requests) is a value built elsewhere: not read here
+        fx (for [m maps :let [v (:fx m)] :when (coll? v) e v r (returned e) :when (and (vector? r) (keyword? (first r)))] r)
         evs (concat (for [m maps [k v] m
                           :when (and (keyword? k) (or (#{:dispatch :first-dispatch} k) (str/starts-with? (name k) "on-")))
                           e (one v)]
@@ -255,8 +303,43 @@
       (and (#{:event :sub} as) (not body) (symbol? handler)) (assoc :re-frame/not-read [:handler])
       delegates? (assoc :re-frame/not-read [:effects]))))
 
+(defn- arities
+  "[params body] for each arity of a defn form."
+  [form]
+  (let [more (drop-while #(not (or (vector? %) (and (seq? %) (vector? (first %))))) (drop 2 form))]
+    (if (vector? (first more))
+      [[(first more) (rest more)]]
+      (for [a more :when (and (seq? a) (vector? (first a)))] [(first a) (rest a)]))))
+
+(defn- wrapper?
+  "True when `form`, a def or defn, passes its first argument on as the id
+   of a re-frame fn named `like`, the argument meta-source reads at each
+   call: (def reg-sub rf/reg-sub), (def sub (comp deref rf/subscribe)),
+   (defn reg-root-sub [id k] (rf/reg-sub id ...)). A fn taking a map of
+   options, which dispatches one of them, isn't one."
+  [form like defined-by]
+  (when (seq? form)
+    (let [named? #(and (symbol? %) (= (name like) (name %)))
+          passes? (fn [[params body]]
+                    (let [p (first params)]
+                      (and (symbol? p)
+                           (some #(and (seq? %) (named? (first %)) (= p (second %)))
+                                 (tree-seq coll? seq body)))))]
+      (if (= "def" (name defined-by))
+        (let [v (last form)]
+          ;; the fn itself, a call given it ((comp deref rf/subscribe),
+          ;; (throttle rf/dispatch-sync 10)), or a fn passing its argument on
+          ;; ((throttle #(rf/dispatch-sync %) 50))
+          (or (named? v)
+              (and (seq? v) (some named? (rest v)))
+              (some #(when (#{'fn 'fn*} (head %))
+                       (let [more (if (symbol? (second %)) (drop 2 %) (rest %))]
+                         (when (vector? (first more)) (passes? [(first more) (rest more)]))))
+                    (tree-seq coll? seq v))))
+        (some passes? (arities form))))))
+
 (defn- read-forms [sites {:keys [form-at]} _opts]
-  (vec (for [{:keys [row name-row name-col registers refers kws helper held]} sites
+  (vec (for [{:keys [row name-row name-col registers refers kws helper held candidate like defined-by ids-in]} sites
              :let [form (form-at name-row name-col)
                    [_ x] (when (seq? form) form)
                    ids (cond (= :injected refers) [x]
@@ -267,6 +350,24 @@
                    row-of (fn [k] (or (some (fn [[kw r]] (when (and (= k kw) (> r row)) r)) kws) row))]
              r (cond
                  held [{:row row :kind kind :dev-id held :refers true :entry {:re-frame/held true}}]
+                 candidate (when (wrapper? form like defined-by)
+                             [{:row row :kind kind
+                               :skipped (str candidate " passes its argument to re-frame's " like
+                                             ": its calls are read once meta-source.edn says "
+                                             "{:packs {:re-frame {:wrappers {" candidate " " like "}}}}")}])
+                 ids-in (let [ids (get (first (filter map? form)) ids-in)
+                              body (rest (drop-while (complement vector?) form))]
+                          (cond
+                            ;; a call without them registers nothing
+                            (nil? ids) nil
+                            (and (sequential? ids) (every? keyword? ids))
+                            (for [id ids
+                                  r (cons {:row row :kind kind :dev-id id :entry {:re-frame/registered #{registers}}}
+                                          (when (= :event registers)
+                                            (for [e (first (dispatches-and-effects body))]
+                                              {:row (row-of e) :kind kind :refers true :dev-id e :entry {:re-frame/dispatched true}})))]
+                              r)
+                            :else [{:row row :kind kind :skipped (str (some-> form first name) ": the ids under " ids-in " are written as code")}]))
                  (= form :unreadable) [{:row row :kind kind :skipped "not readable as data"}]
                  helper (for [e (first (dispatches-and-effects (drop 2 form)))]
                           {:row (row-of e) :kind kind :refers true :dev-id e :entry {:re-frame/dispatched true}})
@@ -353,7 +454,8 @@
    :pack/kinds #{kind}
    :pack/vocabulary #{"re-frame"}
    :pack/data-keys? false
-   :pack/merge {:re-frame/registered :union}
+   ;; one id can be an event and an effect, each read from its own registration
+   :pack/merge {:re-frame/registered :union :re-frame/not-read :union}
    :pack/dataflow {:consumes [:re-frame/reads] :produces [:re-frame/writes]}
    :pack/find find-forms
    :pack/read read-forms

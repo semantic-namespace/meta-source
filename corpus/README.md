@@ -179,3 +179,32 @@ for apps like the first 17.
 
 The never-used findings in the new apps (136 events, 297 subs) are not
 judged yet; the same wrappers likely affect them.
+
+## Fourth run: wrappers declared (2026-10-22)
+
+The re-frame pack now reads `:wrappers`: the project's own fns, each
+standing for a re-frame one, and macros that register the ids their
+attr-map lists. It suggests each def or defn that passes its first argument
+to re-frame. The corpus declares what it suggested for status-mobile,
+vetd-app and mercurius, and two it can't find: status-mobile's `rf/defn`
+macro, and vetd-app's `reg-sub-special`, which registers through
+`re-frame.registrar`.
+
+| check | third run | fourth run |
+|---|---|---|
+| `event-not-registered` | 23/278 | 30/30 |
+| `sub-not-registered` | 4/262 | 6/6 |
+
+Reading through the wrappers found 9 more real findings in status-mobile:
+events dispatched and subscriptions read that nothing registers, such as
+`:wallet/derivation-path`, where only `:wallet/derivation-path-state` is
+registered.
+
+It also exposed two bugs in the pack, both fixed:
+- **`:fx` naming a local** (`{:fx requests}`): the pack failed on the whole
+  file, losing every registration in it.
+- **One id both an event and an effect:** each gave `:re-frame/not-read`,
+  and they conflicted.
+
+Still false: logseq's 6 `conflicting-values` errors, from two routers that
+name their routes alike.

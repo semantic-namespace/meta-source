@@ -633,6 +633,47 @@
                        (set (map :dev-id (:referenced-by (index/uses ti :shop.order/paying))))))))
       (fs/delete-tree dir))
 
+    ;; ---- re-frame: a project's own registration and dispatch fns
+    (let [dir (str (fs/create-temp-dir))]
+      (fs/create-dirs (str dir "/src/app"))
+      (spit (str dir "/src/app/rf.clj")
+            (str "(ns app.rf (:require [re-frame.core :as rf]))\n"
+                 "(def reg-event-fx rf/reg-event-fx)\n"
+                 "(def dispatch rf/dispatch)\n"
+                 "(defn reg-root-sub [id k] (rf/reg-sub id (fn [db _] (get db k))))\n"
+                 "(defmacro defevent [n m & body] `(defn ~n ~@body))\n"))
+      (spit (str dir "/src/app/ui.clj")
+            (str "(ns app.ui (:require [re-frame.core :as re-frame] [app.rf :as arf]))\n"
+                 "(arf/reg-event-fx ::load (fn [_ _] {:fx [[:dispatch [::loaded]]]}))\n"
+                 "(arf/defevent loaded {:events [::loaded]} [cofx] {})\n"
+                 "(arf/reg-root-sub ::user :user)\n"
+                 "(defn view [] (arf/dispatch [::load]) @(re-frame/subscribe [::user]))\n"
+                 ";; :fx a local names\n"
+                 "(arf/reg-event-fx ::batch (fn [_ _] (let [requests [[:dispatch [::load]]]] {:fx requests})))\n"
+                 "(defn go [] (arf/dispatch [::batch]))\n"))
+      (let [cfg {:root dir :src ["src"] :registry [] :packs {:re-frame {}}}
+            plain (index/build cfg)
+            declared (index/build (assoc-in cfg [:packs :re-frame :wrappers]
+                                            '{app.rf/reg-event-fx reg-event-fx app.rf/dispatch dispatch
+                                              app.rf/reg-root-sub reg-sub
+                                              app.rf/defevent {:registers :event :ids-in :events}}))
+            warned (fn [idx] (set (map :dev-id (filter #(#{:event-not-registered :sub-not-registered} (:problem %)) (index/check idx)))))
+            suggested (set (keep #(second (re-find #"^(\S+) passes its argument" (str (:reason %))))
+                                 (problems plain :pack-form-not-read)))]
+        (check "re-frame: without :wrappers, a sub the project registers through its own fn looks unregistered"
+               (= #{:app.ui/user} (warned plain)))
+        (check "re-frame: a def or defn passing its first argument to re-frame is suggested as a wrapper, with the line to add"
+               (= #{"app.rf/reg-event-fx" "app.rf/dispatch" "app.rf/reg-root-sub"} suggested))
+        (check "re-frame: with :wrappers declared, their calls register and dispatch; a macro's :events register; nothing is suggested"
+               (and (empty? (warned declared))
+                    (= #{:event} (get-in (index/where declared :app.ui/loaded) [:entry :re-frame/registered]))
+                    (true? (get-in (index/where declared :app.ui/load) [:entry :re-frame/dispatched]))
+                    (not-any? #(re-find #"passes its argument" (str (:reason %))) (problems declared :pack-form-not-read))))
+        (check "re-frame: an :fx a local names doesn't fail the file"
+               (and (= #{:event} (get-in (index/where declared :app.ui/batch) [:entry :re-frame/registered]))
+                    (not-any? #(re-find #"failed reading" (str (:reason %))) (problems declared :pack-form-not-read)))))
+      (fs/delete-tree dir))
+
     ;; ---- check --fail-on: which problems fail a CI run
     (let [ps [{:severity :error} {:severity :warning} {:severity :info}]]
       (check "--fail-on error fails on errors only; warning on warnings and errors; info on all"
