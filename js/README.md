@@ -100,7 +100,17 @@ A JS pack is a module exporting an object with an `id` and any of:
 
 `ctx` gives `opts` (the pack's options from `meta-source.edn`), `vars()`,
 `refs()`, `entities()`, `implOf(id)`, `refsTo(var)`, `sourceFile(file)` (the
-TypeScript AST) and `relative(file)`. `js/test/fixtures/routes` has one.
+TypeScript AST), `ts` (the TypeScript module that parsed it), `kw`, `edn`
+and `relative(file)`. `js/test/fixtures/routes` has one.
+
+A pack named by a path (`"./tools/route-pack.js"`) is the project's own. One
+named by a module is looked up from the project's root, then from where
+meta-source is installed, so a pack in another package runs without adding
+either to the project:
+
+```sh
+npx -p github:semantic-namespace/meta-source -p <the pack's package> meta-source-js check
+```
 
 ## Tests
 
