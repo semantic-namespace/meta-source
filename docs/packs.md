@@ -443,10 +443,35 @@ Not read: `#merge`, `#join` and `#read-edn` contents, `#hostname` and
 ## Events and subscriptions: the re-frame pack
 
 ```clojure
-:re-frame {:provided [:http-xhrio]}   ; ids a library registers: effects, coeffects, events, subs
+:re-frame {:provided [:http-xhrio]   ; ids a library registers: effects, coeffects, events, subs
+           ;; the project's own fns, each standing for a re-frame one
+           :wrappers {app.rf/reg-event-fx reg-event-fx
+                      app.rf/dispatch dispatch
+                      app.rf/reg-root-sub reg-sub
+                      ;; a macro registering the events its attr-map lists
+                      app.rf/defn {:registers :event :ids-in :events}}
+           :report-unused true}       ; also report what's never dispatched or subscribed
 ```
 
 ![A re-frame app adopting meta-source in Emacs](images/meta-source-re-frame.gif)
+
+Big apps often register and dispatch through fns of their own:
+`(def reg-event-fx rf/reg-event-fx)` in a utils namespace, a
+`(defn reg-root-sub [id k] (rf/reg-sub id ...))`, or a macro. The pack only
+knows re-frame's fns, so without `:wrappers` everything registered that way
+looks unregistered. A def or defn that passes its first argument to a
+re-frame fn, and that the project calls, is reported as
+`:pack-form-not-read` at its definition, with the line to add. These are
+reported: the fn itself (`(def dispatch rf/dispatch)`), a call given it
+(`(comp deref rf/subscribe)`), and a fn passing its argument on
+(`(throttle #(rf/dispatch-sync %) 50)`). A fn taking a map of options isn't
+one, and a wrapper that registers through `re-frame.registrar` isn't found:
+declare it.
+
+On the [precision corpus](../corpus/README.md), declaring the wrappers of
+three apps (status-mobile, vetd-app, mercurius) took `event-not-registered`
+and `sub-not-registered` from 540 findings, 27 of them real, to 36, all
+real.
 
 re-frame keeps a registry of events, subscriptions, effects and coeffects. It
 is filled when the registering code runs, and a dispatch to an id nothing
