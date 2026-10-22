@@ -644,14 +644,16 @@
                (= #{[:shop/containers :shop/ghost 1]} (ps :view-of-nothing)))
         (check "overarch: an element no view shows, itself, its ancestors or its descendants, is info"
                (= #{:shop/customer :shop/audit-log} (set (map :dev-id (problems oi :element-in-no-view)))))
-        (check "overarch: the model relates what the system doesn't (api -> mailer), as a warning"
-               (= #{[:shop/api :shop/mailer 3]} (ps :model-relation-not-declared)))
+        (check "overarch: the model relates what the system doesn't (api -> mailer), as a warning at the relation"
+               (= #{[:shop/api :shop/mailer 8]} (ps :model-relation-not-declared)))
         (check "overarch: the system names a model element the model doesn't relate to (api -> audit-log)"
                (= #{[:shop/api :shop/audit-log 3]} (ps :relation-missing-from-model)))
         (check "overarch: an element is an entity; a relation is a fact on the element it starts from"
                (and (= #{:shop/orders-db :shop/mailer :shop/cache}
                        (set (get-in (index/where oi :shop/api) [:entry :overarch/relates-to])))
-                    (= :shop/system (get-in (index/where oi :shop/api) [:entry :overarch/parent]))
+                    (contains? (set (get-in (index/where oi :shop/system) [:entry :overarch/contains])) :shop/api)
+                    ;; a picture of the system: the registry's entry is the primary definition
+                    (str/ends-with? (get-in (index/where oi :shop/api) [:definition :file]) "registry/app.edn")
                     (= :db (get-in (index/where oi :shop/orders-db) [:entry :app/kind]))))
         (check "overarch: uses on an element lists the relations reaching it and the views showing it"
                (= #{:shop/api :shop/api-uses-db :shop/containers :shop/system}

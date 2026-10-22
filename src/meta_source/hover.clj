@@ -54,7 +54,7 @@
         entry (:entry w)
         problems (filter #(= id (:dev-id %)) (index/check idx))
         {:keys [consumes produces]} (index/contract-keys idx entry)
-        deps (map :dev-id (:depends-on (index/dependencies idx id)))
+        deps (distinct (map :dev-id (:depends-on (index/dependencies idx id))))
         ;; places that only refer to it (a dispatch) are not where it is defined
         {referring true defining false} (group-by #(boolean (:refers %)) (:sources w))
         ;; keys only those places give (:re-frame/dispatched) are said by "referred to from"
@@ -68,6 +68,7 @@
                      (when (or (seq consumes) (seq produces))
                        (str "[" (few (sort consumes) 4) "] → [" (few (sort produces) 4) "]")))
         line2 (str/join "  ·  " (remove nil? [contract
+                                               (index/depict idx entry)
                                                (when (seq deps) (str "deps " (few deps 3)))
                                                (str "used by " n-used)
                                                (when (seq problems) (str "⚠ " (count problems)))]))]
@@ -265,6 +266,12 @@
            :initial-state-not-a-state (str id " starts at " (pr-str (:to p)) ", which is no state of it")
            :state-defined-twice (str id " defines the state " (pr-str (:state p)) " twice: tilakone takes the first")
            :state-unreachable (str (pr-str (:state p)) " is not reached from " (pr-str (:from p)) " by " id "'s transitions")
+           :relation-to-nothing (str id "'s " (name (:end p)) " " (pr-str (:to p)) " is no element of the model")
+           :view-of-nothing (str id " shows " (pr-str (:to p)) ", which the model doesn't define")
+           :element-defined-twice (str "the model defines " id " twice")
+           :element-in-no-view (str "no view shows " id)
+           :model-relation-not-declared (str "the model relates " id " to " (pr-str (:to p)) ", which nothing else says of it names")
+           :relation-missing-from-model (str id " names " (pr-str (:to p)) ", and the model draws no relation between them")
            (str (name (:problem p)) (when id (str " " id)) (when (seq (:keys p)) (str " " ks))
                 (when (:reason p) (str ": " (:reason p))) (when (:message p) (str ": " (:message p))))))))
 

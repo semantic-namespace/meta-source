@@ -12,7 +12,6 @@
 
      :overarch/el        what it is: :system, :container, :component, :person…
      :overarch/name, :overarch/desc, :overarch/tech, :overarch/tags
-     :overarch/parent    the element whose :ct holds it
      :overarch/contains  the elements its :ct holds
 
    A relation is an element with :from and :to (:rel, :uses, :dataflow…):
@@ -35,16 +34,13 @@
 (defn- view? [m] (some-> (:el m) name (str/ends-with? "-view")))
 
 (defn- elements
-  "Every element map in `x` with an :id, with the id of the element whose
-   :ct holds it. A view's :ct holds refs, not elements."
-  [x parent]
+  "Every element map in `x` with an :id. A view's :ct holds refs, not
+   elements."
+  [x]
   (cond
-    (and (map? x) (:id x))
-    (cons [x parent]
-          (when-not (view? x)
-            (mapcat #(elements % (:id x)) (:ct x))))
+    (and (map? x) (:id x)) (cons x (when-not (view? x) (mapcat elements (:ct x))))
     (map? x) nil
-    (coll? x) (mapcat #(elements % parent) x)))
+    (coll? x) (mapcat elements x)))
 
 (defn- some-keys
   "The element's own facts under :overarch/*, leaving out what isn't given."
@@ -62,7 +58,7 @@
       (instance? Exception x) [{:file file :row 1 :kind kind :skipped (str "not readable: " (ex-message x))}]
       (not (coll? x)) [{:file file :row 1 :kind kind :skipped "not a collection of Overarch elements"}]
       :else
-      (vec (for [[m parent] (elements x nil)
+      (vec (for [m (elements x)
                  :let [id (:id m)
                        row (or (find-row (str ":id " (pr-str id)) 1) (find-row (pr-str id) 1) 1)]
                  r (cond
@@ -80,7 +76,6 @@
                      :else
                      [{:file file :row row :kind kind :dev-id id
                        :entry (cond-> (some-keys m [:el :name :desc :tech :tags :external :subtype])
-                                parent (assoc :overarch/parent parent)
                                 (seq (keep :id (:ct m))) (assoc :overarch/contains (vec (keep :id (:ct m)))))}])]
              r)))))
 
@@ -140,9 +135,14 @@
         sel-view? (some #(contains? (:entry %) :overarch/selection) (vals model))
         elements (into {} (remove (fn [[id e]] (or (rel? id) (view-of? id) (contains? (:entry e) :overarch/selection)))) model)
         shown (set (mapcat #(get-in % [:entry :overarch/shows]) (vals model)))
-        ancestors (fn [id] (take-while some? (rest (iterate #(get-in elements [% :entry :overarch/parent]) id))))
+        parent (into {} (for [[id e] elements c (get-in e [:entry :overarch/contains])] [c id]))
+        ancestors (fn [id] (take-while some? (rest (iterate parent id))))
         descendants (fn descendants [id] (mapcat #(cons % (descendants %)) (get-in elements [id :entry :overarch/contains])))
-        at (fn [e] (loc (first (own-defs e))))]
+        at (fn [e] (loc (first (own-defs e))))
+        ;; where the model draws from → to: the first relation that does
+        drawn (reduce (fn [m [id e]] (let [{:overarch/keys [from to]} (:entry e)]
+                                       (cond-> m (and (rel? id) (not (m [from to]))) (assoc [from to] e))))
+                      {} (sort-by key model))]
     (concat
      (for [[id e] (sort-by key model)
            :let [{:overarch/keys [from to]} (:entry e)]
@@ -169,7 +169,8 @@
            to (sort-by str (get-in whole [:entry :overarch/relates-to]))
            :let [other (get entities to)]
            :when (and other (described-elsewhere? other) (not (contains? (mentions (:entry whole)) to)))]
-       {:severity :warning :problem :model-relation-not-declared :dev-id id :to to :definition (at e)})
+       {:severity :warning :problem :model-relation-not-declared :dev-id id :to to
+        :definition (at (or (drawn [id to]) e))})
      (for [[id e] (sort-by key elements)
            :let [whole (get entities id)]
            :when (and whole (described-elsewhere? whole))
@@ -195,6 +196,8 @@
    :pack/data-keys? false
    ;; an element is often another registry's id: an atlas entity, a component
    :pack/describes? true
+   ;; a picture of the system: what the system says of an id comes first
+   :pack/depicts? true
    :pack/merge {:overarch/relates-to :union}
    :pack/data-files (fn [opts] (get-in opts [:overarch :models]))
    :pack/read-data read-data
