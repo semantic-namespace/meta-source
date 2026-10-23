@@ -57,12 +57,24 @@
       (= a "--fail-on") (recur (rest more) (assoc opts :fail-on (first more)))
       :else (recur more (update opts :positional conj a)))))
 
+(defn under-root
+  "`deps` with each relative :local/root resolved against `root`, the
+   project's: meta-source.edn names its packs' paths from the project, and
+   meta-source may run from elsewhere (--root, as CI runs it)."
+  [deps root]
+  (update-vals deps (fn [coord]
+                      (let [lr (:local/root coord)]
+                        (if (and lr (not (.isAbsolute (io/file lr))))
+                          (assoc coord :local/root (.getCanonicalPath (io/file root lr)))
+                          coord)))))
+
 (defn- add-deps!
   "Puts `deps` on the classpath, for a project's own packs (:deps in
-   meta-source.edn): babashka resolves them as a deps.edn would."
-  [deps]
+   meta-source.edn): babashka resolves them as a deps.edn would, a relative
+   :local/root from the project's root."
+  [deps root]
   (when (seq deps)
-    ((requiring-resolve 'babashka.deps/add-deps) {:deps deps})))
+    ((requiring-resolve 'babashka.deps/add-deps) {:deps (under-root deps root)})))
 
 (defn- config [{:keys [root registry src no-cache]}]
   (let [root (or root ".")
@@ -71,7 +83,7 @@
                     (try (edn/read-string (slurp f))
                          (catch Exception ex
                            (throw (ex-info (str "meta-source.edn is not readable: " (ex-message ex)) {:file (str f)})))))]
-    (add-deps! (:deps from-file))
+    (add-deps! (:deps from-file) root)
     (cond-> {:root root
              :registry (if (seq registry) registry (:registry from-file ["registry"]))
              :src (if (seq src) src (:src from-file ["src"]))

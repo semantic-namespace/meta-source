@@ -91,7 +91,7 @@
         cfg (or (:config app) (read-edn (str (fs/path root "meta-source.edn"))))]
     ;; a project's own packs, as meta-source.edn's :deps puts them on the classpath
     (when (seq (:deps cfg))
-      ((requiring-resolve 'babashka.deps/add-deps) {:deps (:deps cfg)}))
+      ((requiring-resolve 'babashka.deps/add-deps) {:deps ((requiring-resolve 'meta-source.cli/under-root) (:deps cfg) root)}))
     (merge {:registry [] :src ["src"]} (dissoc cfg :deps) {:root root})))
 
 ;; =============================================================================
@@ -297,7 +297,8 @@
 
 (defn plant
   "For each planted defect: copy its app, make the one edit, check, and see
-   whether a problem matching :expect appears that wasn't there before."
+   whether a problem matching :expect appears that wasn't there before, or
+   one changes (a function already reported for other keys names one more)."
   []
   (let [apps (into {} (map (juxt :id identity)) (:apps (corpus)))
         results (for [{:keys [id app file replace all expect]} (read-edn plants-file)
@@ -315,7 +316,10 @@
                         (throw (ex-info (str "not in " file ": " from) {})))
                       (spit f (if all (str/replace text from to) (str/replace-first text from to)))
                       (let [after (filter #(matches? expect %) (index/check (index/build (config a'))))
-                            found (> (count after) (count before))]
+                            ;; a finding the plant made, or one it changed: a function
+                            ;; already reported for other keys now names one more
+                            known (set (map #(finding-key id %) before))
+                            found (boolean (some #(not (known (finding-key id %))) after))]
                         (println (if found "found " "MISSED") (name id) (pr-str expect))
                         {:id id :problem (:problem expect) :found found}))
                     (catch Exception e
