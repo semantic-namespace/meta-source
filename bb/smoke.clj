@@ -633,6 +633,23 @@
                        (set (map :dev-id (:referenced-by (index/uses ti :shop.order/paying))))))))
       (fs/delete-tree dir))
 
+    ;; ---- integrant: composite keys sharing their last keyword
+    (let [dir (str (fs/create-temp-dir))]
+      (fs/create-dirs (str dir "/resources")) (fs/create-dirs (str dir "/src/app"))
+      (spit (str dir "/resources/system.edn")
+            (str "{[:app/reset :app/done] {}\n"
+                 " [:app/schedule :app/done] {}\n"
+                 " [:app/reset :app/failed] {}\n"
+                 " [:app/schedule :app/failed] {}}\n"))
+      (spit (str dir "/src/app/core.clj")
+            (str "(ns app.core (:require [integrant.core :as ig]))\n"
+                 "(defmethod ig/init-key :app/reset [_ _] :reset)\n"
+                 "(defmethod ig/init-key :app/schedule [_ _] :schedule)\n"))
+      (let [ii (index/build {:root dir :src ["src"] :registry [] :packs {:integrant {:configs ["resources"]}}})]
+        (check "integrant: composite keys merged into one id each make their other keywords configured"
+               (empty? (problems ii :init-key-without-config))))
+      (fs/delete-tree dir))
+
     ;; ---- re-frame: a project's own registration and dispatch fns
     (let [dir (str (fs/create-temp-dir))]
       (fs/create-dirs (str dir "/src/app"))
