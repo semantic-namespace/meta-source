@@ -460,6 +460,8 @@
   (let [config {:root (canonical root) :registry (vec registry) :src (vec src)
                 :packs (or packs {}) :dataflow dataflow :merge (:merge opts) :id-key id-key
                 :rules (vec (:rules opts))
+                ;; the source directories of libraries (:libs): read, never reported on
+                :lib-src (vec (:lib-src opts))
                 ;; fns whose first argument, a literal keyword, is the entity they call
                 :calls-by-id (vec (sort (map symbol (:calls-by-id opts))))
                 ;; a changed clj-kondo config changes what the code analyses to
@@ -1117,12 +1119,27 @@
     (concat (for [p (:rules-problems idx)] (assoc p :severity :error))
             (rules/check view (:rules idx)))))
 
-(defn check
-  "Where code and registry files disagree, most severe first."
+(defn- in-lib?
+  "Whether a finding is about a library's own code (:libs): it is located in
+   a library's sources, or names an entity only a library defines."
   [idx]
-  (let [linked (linked-vars idx)]
+  (let [dirs (map #(str (str/replace % #"/+$" "") "/") (get-in idx [:config :lib-src]))
+        lib-file? (fn [f] (and f (let [f (relative (:root idx) (str f))] (some #(str/starts-with? f %) dirs))))
+        lib-entity? (fn [id] (when-let [ds (seq (get-in idx [:entities id :definitions]))]
+                               (every? #(lib-file? (:file %)) ds)))]
+    (if (empty? dirs)
+      (constantly false)
+      (fn [f] (or (lib-file? (:file f)) (and (:dev-id f) (lib-entity? (:dev-id f))))))))
+
+(defn check
+  "Where code and registry files disagree, most severe first. What is found
+   in a library's own code (:libs) is the library's, and left out."
+  [idx]
+  (let [linked (linked-vars idx)
+        lib? (in-lib? idx)]
     ;; sort-by is stable: findings of one kind keep their order
     (vec (sort-by #(get {:error 0 :warning 1} (:severity %) 2)
+                  (remove lib?
                   (concat
           (for [p (:read-problems idx)] (assoc p :severity :error))
           (for [[id vs] linked :when (> (count vs) 1)]
@@ -1136,7 +1153,7 @@
           (undeclared-calls idx)
           (keys-outside-contract idx)
           (pack-problems idx)
-          (rule-findings idx))))))
+          (rule-findings idx)))))))
 
 (defn summary [idx]
   (let [kinds (frequencies (for [[_ e] (:entities idx)] (:kind e)))]

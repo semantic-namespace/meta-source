@@ -727,6 +727,33 @@
                (= [[:fn/bare [:k/a]]] (map (juxt :dev-id :keys) (problems ii :keys-outside-contract)))))
       (fs/delete-tree dir))
 
+    ;; ---- :libs: a library's registrations count, its own findings aren't reported
+    (let [dir (str (fs/create-temp-dir))
+          reg "(ns app.reg)\n(defn register! [id entry f] f)\n"]
+      (fs/create-dirs (str dir "/src/app"))
+      (fs/create-dirs (str dir "/lib/src/lib"))
+      (spit (str dir "/deps.edn") "{:deps {my/lib {:local/root \"lib\"}}}")
+      (spit (str dir "/lib/deps.edn") "{:paths [\"src\"]}")
+      (spit (str dir "/src/app/reg.clj") reg)
+      (spit (str dir "/lib/src/lib/tools.clj")
+            (str "(ns lib.tools (:require [app.reg :as reg]))\n"
+                 ";; the lib's own: returns :k/b, outside its contract\n"
+                 "(defn ^{:meta-source/id :lib/tool} tool-impl [m] {:k/a 1 :k/b 2})\n"
+                 "(reg/register! :lib/tool {:fn/returns [:k/a]} nil)\n"
+                 "(reg/register! :lib/other {:fn/returns [:k/b]} nil)\n"))
+      (spit (str dir "/src/app/core.clj")
+            (str "(ns app.core (:require [app.reg :as reg]))\n"
+                 "(defn ^{:meta-source/id :fn/run} run-impl [m] {:k/a 1 :k/b 2})\n"
+                 "(reg/register! :fn/run {:fn/returns [:k/a] :fn/uses [:lib/tool]} nil)\n"))
+      (let [libs ((requiring-resolve 'meta-source.libs/materialize) dir '[my/lib])
+            ii (index/build {:root dir :src (into ["src"] libs) :lib-src libs :registry []
+                             :packs {'smoke/inline-pack {}} :dataflow {:produces [:fn/returns]}})]
+        (check ":libs: a library's sources are copied under .meta-source/libs and its entities are known"
+               (and (= [".meta-source/libs/my/lib@local"] libs) (index/where ii :lib/tool)))
+        (check ":libs: what is found in a library's own code isn't reported; the project's is"
+               (= [[:fn/run [:k/b]]] (map (juxt :dev-id :keys) (problems ii :keys-outside-contract)))))
+      (fs/delete-tree dir))
+
     ;; ---- calls by id (:calls-by-id): (exec :fn/x) calls the entity :fn/x
     (let [dir (str (fs/create-temp-dir))]
       (fs/create-dirs (str dir "/src/app")) (fs/create-dirs (str dir "/registry"))
