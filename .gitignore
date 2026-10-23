@@ -3,3 +3,4 @@
 *.elc
 node_modules/
 *.vsix
+.corpus/
