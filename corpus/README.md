@@ -213,18 +213,20 @@ name their routes alike.
 
 A project can keep its own corpus, for code that can't be public, next to
 the code it judges. The harness is the namespace `meta-source.corpus`, so a
-project that runs meta-source as a dependency runs it the same way, from its
-root:
+project that runs meta-source as a dependency runs it the same way. It can run
+from anywhere, outside the checkout if the project's `bb.edn` would shadow
+meta-source's dependencies:
 
 ```sh
-MS_CORPUS_DIR=meta-source/corpus \
+MS_CORPUS_DIR=<project>/meta-source/corpus \
   bb -Sdeps '{:deps {io.github.semantic-namespace/meta-source {:git/url "https://github.com/semantic-namespace/meta-source" :git/sha "<sha>"}}}' \
      -m meta-source.corpus report
 ```
 
 - **The corpus file.** `meta-source/corpus/corpus.edn` names the project
-  itself: `{:apps [{:id :my-app :path "."}]}`. With no `:config`, it is read
-  with the project's own `meta-source.edn`.
+  itself: `{:apps [{:id :my-app :path "../.."}]}`. A relative `:path` is
+  relative to the directory holding `corpus.edn`. With no `:config`, the
+  project is read with its own `meta-source.edn`.
 - **What gets committed.** Commit `corpus.edn`, `labels.edn` and
   `plants.edn`; git-ignore `meta-source/corpus/.work/`, where findings and
   copies go.

@@ -13,12 +13,14 @@
      bb corpus ci               run, then fail on findings no label judges
 
    From another project, with meta-source as a dependency (as its CI runs
-   meta-source check), from the project's root:
+   meta-source check), from anywhere, outside the checkout if its bb.edn
+   would shadow meta-source's deps:
 
-     MS_CORPUS_DIR=meta-source/corpus bb -Sdeps '<meta-source as a git dep>' -m meta-source.corpus report
+     MS_CORPUS_DIR=<project>/meta-source/corpus bb -Sdeps '<meta-source as a git dep>' -m meta-source.corpus report
 
-   An app's :path is read from the current directory: {:path \".\"} is the
-   project itself, read with its own meta-source.edn.
+   An app's :path is relative to the directory holding corpus.edn:
+   {:path \"../..\"} from <project>/meta-source/corpus is the project itself,
+   read with its own meta-source.edn.
 
    A finding's key leaves out line numbers, so labels survive edits that move
    code: [app problem dev-id file what-else-it-names]."
@@ -50,8 +52,15 @@
 ;; The apps
 ;; =============================================================================
 
-(defn- checkout-dir [{:keys [git path]}]
-  (or path (str work "/apps/" (str/replace (fs/file-name git) #"\.git$" ""))))
+(defn- checkout-dir
+  "Where an app is: its clone, or its :path, which, when relative, is
+   relative to the directory holding corpus.edn, wherever the harness runs
+   from."
+  [{:keys [git path]}]
+  (cond
+    (and path (fs/absolute? path)) path
+    path (str (fs/normalize (fs/path corpus-dir path)))
+    :else (str work "/apps/" (str/replace (fs/file-name git) #"\.git$" ""))))
 
 (defn app-root [app]
   (str (fs/path (checkout-dir app) (or (:root app) "."))))
