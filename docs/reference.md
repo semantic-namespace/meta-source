@@ -175,6 +175,25 @@ call to that entity, as a direct call to its var does:
   `(ig/init-key :app.step/fetch deps)` itself) counts as used, so it isn't
   reported as an init-key without config.
 
+## Libraries' registrations: `:libs`
+
+A project can refer to entities a library registers: a prompt naming a
+tool the library's own source registers. `:libs` names those libraries:
+
+```clojure
+{:libs [io.github.semantic-namespace/atlas] ...}
+```
+
+- **The coordinate is the project's:** meta-source reads it from the
+  project's `deps.edn` (`:deps`, else an alias's `:extra-deps`). It resolves
+  it as the clojure CLI would, so a Maven jar, a git dep or a `:local/root`
+  all work. A lib `deps.edn` doesn't name is an error.
+- **The sources are read like the project's:** they are copied under
+  `.meta-source/libs/<lib>@<version>/`, once per version, and the packs read
+  them. The library's entities, and its ontologies, join the index.
+- **Its findings are its own:** a finding located in a library's sources, or
+  about an entity only a library defines, is not reported.
+
 ## Emacs
 
 ```elisp
