@@ -443,10 +443,35 @@ Not read: `#merge`, `#join` and `#read-edn` contents, `#hostname` and
 ## Events and subscriptions: the re-frame pack
 
 ```clojure
-:re-frame {:provided [:http-xhrio]}   ; ids a library registers: effects, coeffects, events, subs
+:re-frame {:provided [:http-xhrio]   ; ids a library registers: effects, coeffects, events, subs
+           ;; the project's own fns, each standing for a re-frame one
+           :wrappers {app.rf/reg-event-fx reg-event-fx
+                      app.rf/dispatch dispatch
+                      app.rf/reg-root-sub reg-sub
+                      ;; a macro registering the events its attr-map lists
+                      app.rf/defn {:registers :event :ids-in :events}}
+           :report-unused true}       ; also report what's never dispatched or subscribed
 ```
 
 ![A re-frame app adopting meta-source in Emacs](images/meta-source-re-frame.gif)
+
+Big apps often register and dispatch through fns of their own:
+`(def reg-event-fx rf/reg-event-fx)` in a utils namespace, a
+`(defn reg-root-sub [id k] (rf/reg-sub id ...))`, or a macro. The pack only
+knows re-frame's fns, so without `:wrappers` everything registered that way
+looks unregistered. A def or defn that passes its first argument to a
+re-frame fn, and that the project calls, is reported as
+`:pack-form-not-read` at its definition, with the line to add. These are
+reported: the fn itself (`(def dispatch rf/dispatch)`), a call given it
+(`(comp deref rf/subscribe)`), and a fn passing its argument on
+(`(throttle #(rf/dispatch-sync %) 50)`). A fn taking a map of options isn't
+one, and a wrapper that registers through `re-frame.registrar` isn't found:
+declare it.
+
+On the [precision corpus](../corpus/README.md), declaring the wrappers of
+three apps (status-mobile, vetd-app, mercurius) took `event-not-registered`
+and `sub-not-registered` from 540 findings, 27 of them real, to 36, all
+real.
 
 re-frame keeps a registry of events, subscriptions, effects and coeffects. It
 is filled when the registering code runs, and a dispatch to an id nothing
@@ -503,11 +528,11 @@ a `defn` with a dispatch key in it, in a file that uses re-frame.
   handler returns, or a coeffect it injects, that nothing read registers and
   `:provided` doesn't list;
 - `:event-never-dispatched`, `:sub-never-subscribed` (info), only with
-  `:report-unused true`: registered, and referred to nowhere read. They're
-  off by default. Apps reach events and subscriptions in ways no reading
-  sees: an fx map's `:dispatch`, a wrapper fn, a vector held as data. On the
-  [precision corpus](../corpus/README.md), most of these findings were false.
-  Events are not reported while some handler couldn't be read.
+  `:report-unused true`: registered, referred to nowhere read, and at the
+  head of no literal vector. An fx map's `:dispatch [::x]`, an action's
+  `:event [::x]`, or a vector a wrapper fn or a local dispatches all count as
+  uses. A vector built in code doesn't. `:unread-handlers` lists the handlers
+  whose effects couldn't be read.
 
 The events re-pressed registers and day8.re-frame/http-fx's `:http-xhrio`
 need no `:provided`.

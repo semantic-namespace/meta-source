@@ -9059,4 +9059,103 @@
   :confirmed false,
   :by "claude, first pass",
   :why
-  "dispatched in legacy ens/core.cljs, registered nowhere in the repository"}]
+  "dispatched in legacy ens/core.cljs, registered nowhere in the repository"}
+ {:finding
+  [:status-mobile
+   :event-not-registered
+   :process-statuses
+   "src/status_im/contexts/chat/messenger/messages/transport/events.cljs"
+   {}],
+  :label :real,
+  :confirmed false,
+  :by "claude, first pass",
+  :why
+  "dispatched from the transport events, registered nowhere in the repository"}
+ {:finding
+  [:status-mobile
+   :event-not-registered
+   :watch-tx
+   "src/status_im/contexts/chat/messenger/messages/transport/events.cljs"
+   {}],
+  :label :real,
+  :confirmed false,
+  :by "claude, first pass",
+  :why
+  "dispatched from the transport events, registered nowhere in the repository"}
+ {:finding
+  [:status-mobile
+   :event-not-registered
+   :bottom-sheet/hide-old
+   "src/legacy/status_im/ui/screens/communities/members.cljs"
+   {}],
+  :label :real,
+  :confirmed false,
+  :by "claude, first pass",
+  :why
+  "dispatched by legacy screens, registered nowhere in the repository"}
+ {:finding
+  [:status-mobile
+   :event-not-registered
+   :chat.ui/lightbox-scale
+   "src/status_im/common/lightbox/utils.cljs"
+   {}],
+  :label :real,
+  :confirmed false,
+  :by "claude, first pass",
+  :why
+  "dispatched by the lightbox, registered nowhere in the repository"}
+ {:finding
+  [:status-mobile
+   :event-not-registered
+   :chat.ui/set-input-focused
+   "src/status_im/contexts/chat/messenger/composer/utils.cljs"
+   {}],
+  :label :real,
+  :confirmed false,
+  :by "claude, first pass",
+  :why
+  "dispatched by the composer and message views, registered nowhere in the repository"}
+ {:finding
+  [:status-mobile
+   :event-not-registered
+   :chat.ui/set-input-focused
+   "src/status_im/contexts/chat/messenger/messages/content/view.cljs"
+   {}],
+  :label :real,
+  :confirmed false,
+  :by "claude, first pass",
+  :why
+  "dispatched by the composer and message views, registered nowhere in the repository"}
+ {:finding
+  [:status-mobile
+   :event-not-registered
+   :chat.ui/set-input-focused
+   "src/status_im/contexts/chat/messenger/messages/list/view.cljs"
+   {}],
+  :label :real,
+  :confirmed false,
+  :by "claude, first pass",
+  :why
+  "dispatched by the composer and message views, registered nowhere in the repository"}
+ {:finding
+  [:status-mobile
+   :sub-not-registered
+   :market/tokens
+   "src/status_im/contexts/market/view.cljs"
+   {}],
+  :label :real,
+  :confirmed false,
+  :by "claude, first pass",
+  :why
+  "subscribed in the market view, registered nowhere in the repository"}
+ {:finding
+  [:status-mobile
+   :sub-not-registered
+   :wallet/derivation-path
+   "src/status_im/contexts/wallet/add_account/create_account/edit_derivation_path/view.cljs"
+   {}],
+  :label :real,
+  :confirmed false,
+  :by "claude, first pass",
+  :why
+  "subscribed in edit-derivation-path; only :wallet/derivation-path-state is registered"}]
