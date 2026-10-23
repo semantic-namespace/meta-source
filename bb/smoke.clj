@@ -22,6 +22,22 @@
 
 (def root "test/fixtures/shop")
 
+;; a library registering entities with their implementation inline:
+;; (register! :fn/x {...} (fn [...] ...)), whose rows the pack reports
+(def inline-pack
+  {:pack/id :inline-reg
+   :pack/kinds #{:inline-reg}
+   :pack/vocabulary #{"fn"}
+   :pack/find (fn [analysis _]
+                (for [u (:var-usages analysis)
+                      :when (and (= 'app.reg (:to u)) (= 'register! (:name u)))]
+                  (select-keys u [:filename :row :end-row :name-row :name-col])))
+   :pack/read (fn [sites {:keys [form-at]} _]
+                (vec (for [{:keys [row end-row name-row name-col]} sites
+                           :let [[_ id entry] (form-at name-row name-col)]]
+                       {:row row :kind :inline-reg :dev-id id :entry entry
+                        :impl-range {:row row :end-row end-row}})))})
+
 (def job-pack
   "A project's own pack: the shop's defjob registry. Enabled by its
    qualified symbol under :packs; a job reads the data keys :job/reads lists."
@@ -642,6 +658,29 @@
                   (= {:mvn/version "1.0"} (get out 'lib/x))
                   (= "/opt/p" (get-in out ['abs/p :local/root]))))
       (fs/delete-tree r))
+
+    ;; ---- an implementation located by rows: an inline fn in a top-level register!
+    (let [dir (str (fs/create-temp-dir))]
+      (fs/create-dirs (str dir "/src/app"))
+      (spit (str dir "/src/app/reg.clj") "(ns app.reg)\n(defn register! [id entry f] f)\n")
+      (spit (str dir "/src/app/core.clj")
+            (str "(ns app.core (:require [app.reg :as reg]))\n"
+                 "(defn ^{:meta-source/id :fn/load} load-impl [] {:k/a 1})\n"
+                 "(reg/register! :fn/load {:fn/returns [:k/a]} nil)\n"
+                 "(reg/register! :fn/other {:fn/returns [:k/b]} nil)\n"
+                 ";; inline: calls load-impl, which its entry doesn't name, and returns :k/b\n"
+                 "(reg/register! :fn/run {:fn/returns [:k/a]}\n"
+                 "  (fn [_] (load-impl) {:k/a 1 :k/b 2}))\n"))
+      (let [ii (index/build {:root dir :src ["src"] :registry [] :packs {'smoke/inline-pack {}}
+                             :dataflow {:produces [:fn/returns]}})]
+        (check "an inline implementation: its undeclared call is reported, from the entity whose rows hold it"
+               (= #{[:fn/run :fn/load]} (set (map (juxt :dev-id :calls) (problems ii :undeclared-call)))))
+        (check "an inline implementation: a key it returns outside its contract is reported"
+               (= [[:fn/run [:k/b]]] (map (juxt :dev-id :keys) (problems ii :keys-outside-contract))))
+        (check "an inline implementation: where says where, uses says who calls from it"
+               (and (:inline (:impl (index/where ii :fn/run)))
+                    (some #(= :fn/run (:dev-id %)) (:called-from (index/uses ii :fn/load))))))
+      (fs/delete-tree dir))
 
     ;; ---- calls by id (:calls-by-id): (exec :fn/x) calls the entity :fn/x
     (let [dir (str (fs/create-temp-dir))]

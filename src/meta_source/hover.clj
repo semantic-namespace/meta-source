@@ -87,7 +87,7 @@
          (str (if (zero? i) "defined    " "           ") (source-line s)))
        (when (and (seq referring) (empty? defining)) ["defined    nowhere read"])
        [(if-let [impl (:impl w)]
-          (str "impl       " (:var impl) "    " (at impl))
+          (str "impl       " (or (:var impl) "inline") "    " (at impl))
           "impl       none")]
        [""]
        (when (seq referring)
@@ -111,7 +111,7 @@
                                  {:file (abs-path idx (:file s)) :line (:line s)
                                   :summary (str "defined: " (str/join " " (map name (:keys s))))})
                                (when-let [impl (:impl w)]
-                                 [{:file (abs-path idx (:file impl)) :line (:line impl) :summary (str "impl: " (:var impl))}])))
+                                 [{:file (abs-path idx (:file impl)) :line (:line impl) :summary (str "impl: " (or (:var impl) "inline"))}])))
      :references (vec (concat (for [s referring :when (:file s)]
                                 {:file (abs-path idx (:file s)) :line (:line s)
                                  :summary (str/join " " (map name (:keys s)))})

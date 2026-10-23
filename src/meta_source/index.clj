@@ -33,7 +33,7 @@
 
 (def ^:private bb? (some? (System/getProperty "babashka.version")))
 
-(def cache-version 4)
+(def cache-version 5)
 
 (def default-id-key
   "The meta key a plain var carries to say which id it implements. A
@@ -376,8 +376,10 @@
                                  (cond-> (select-keys d [:filename :ns :name :row :end-row :private :defined-by])
                                    k (assoc :dev-id (get meta k))
                                    (pack-keys k) (assoc :linked-by-pack (pack-keys k)))))))
+          ;; calls and keywords outside any var too: an implementation a pack
+          ;; locates by its rows (an inline fn in a top-level register!) owns them
           calls (by-file :var-usages
-                         (comp (filter :from-var)
+                         (comp (filter :from)
                                (map #(select-keys % [:filename :from :from-var :to :name :row :col :end-row :end-col]))))
           own-ns (into {} (for [{:keys [filename name]} (:namespace-definitions analysis)] [filename (str name)]))
           aliases (update-vals (group-by :filename (filter :alias (:namespace-usages analysis)))
@@ -393,7 +395,7 @@
                                   [{:filename (canonical (first files)) :row 1 :name-row 1 :name-col 1
                                     :pack-failed (str "the pack failed finding its forms: " (or (ex-message ex) (str (type ex))))}]}))]))
           kws (by-file :keywords
-                       (comp (filter #(and (:from-var %) (:ns %)))
+                       (comp (filter #(and (:from %) (:ns %)))
                              (map #(select-keys % [:filename :from :from-var :ns :name :row :col]))))
           ;; a call to a fn :calls-by-id names, whose first argument is a literal
           ;; keyword: (exec-fn :fn/load ...) calls the entity :fn/load
@@ -522,7 +524,7 @@
                     :lines (update-vals located :line) :entities (update-vals located :entry)})
                  ;; packs: one source per entry a pack reads, from code or data files
                  ;; :dropped, the props a pack read as code rather than data
-                 (for [{:keys [file row kind dev-id entry dropped refers var]}
+                 (for [{:keys [file row kind dev-id entry dropped refers var impl-range]}
                        (concat (for [[f {:keys [pack-results]}] code
                                      [_ results] (sort-by key pack-results)
                                      r results]
@@ -530,7 +532,7 @@
                                data-results)
                        :when dev-id]
                    {:label (str file ":" row ":" dev-id) :file file :kind kind :dropped dropped :refers refers :var var
-                    :lines {dev-id row} :entities {dev-id entry}})
+                    :impl-range impl-range :lines {dev-id row} :entities {dev-id entry}})
                  ;; a call by id: the entity is called there, as a var call would
                  (for [[f {:keys [id-calls]}] code
                        {:keys [row id]} id-calls]
@@ -601,6 +603,10 @@
      :entities (merge bindings static)
      ;; vars a pack says implement an id: {ns/name dev-id}
      :pack-links (into {} (for [{:keys [var entities]} sources :when var] [var (key (first entities))]))
+     ;; code a pack says implements an id, by its rows, with no var of its own:
+     ;; {dev-id {:filename :row :end-row}}
+     :impl-ranges (into {} (for [{:keys [file impl-range entities]} sources :when impl-range]
+                             [(key (first entities)) (assoc impl-range :filename file)]))
      :code code
      :analysed (count stale)
      :pack-snapshots (mapv #(-> % (dissoc :entities) (assoc :ids (set (keys (:entities %))))) snapshots)
@@ -630,7 +636,23 @@
                                     :when (and id (not= id (:dev-id v)))]
                                 (assoc v :dev-id id :linked-by :pack))))))
 
-(defn- impl-of [idx id] (first (get (linked-vars idx) id)))
+(defn- impl-ranges-in
+  "{filename [[dev-id {:row :end-row}] ...]}: the implementations a pack
+   locates by rows."
+  [idx]
+  (group-by (comp :filename second) (:impl-ranges idx)))
+
+(defn- range-owner
+  "The id whose implementation, located by rows, holds `row` of `filename`."
+  [by-file filename row]
+  (when row
+    (some (fn [[id r]] (when (and (:row r) (:end-row r) (<= (:row r) row (:end-row r))) id)) (get by-file filename))))
+
+(defn- impl-of
+  "Where `id` is implemented: its var, or the rows a pack located."
+  [idx id]
+  (or (first (get (linked-vars idx) id))
+      (some-> (get-in idx [:impl-ranges id]) (assoc :inline true))))
 
 (defn- loc [idx {:keys [file line filename row end-row ns name kind] :as m}]
   (cond
@@ -640,6 +662,7 @@
            (= kind :binding) (assoc :binding true)
            ((pack-kinds idx) kind) (assoc :pack kind))
     (contains? m :file) nil
+    (:inline m) {:file (relative (:root idx) filename) :line row :end-line end-row :inline true}
     filename {:file (relative (:root idx) filename) :line row :end-line end-row :var (symbol (str ns) (str name))}))
 
 (defn- data-key?
@@ -719,24 +742,29 @@
    its var."
   [idx id]
   (let [impl (impl-of idx id)
-        var->id (into {} (for [[k [v]] (linked-vars idx)] [[(:ns v) (:name v)] k]))]
+        var->id (into {} (for [[k [v]] (linked-vars idx)] [[(:ns v) (:name v)] k]))
+        ranges (impl-ranges-in idx)
+        caller (fn [c] (or (var->id [(:from c) (:from-var c)])
+                           (when-not (:from-var c) (range-owner ranges (:filename c) (:row c)))))]
     {:dev-id id
      :referenced-by (vec (for [[other e] (sort-by key (:entities idx))
                                [prop x] (references idx (:entry e))
                                :when (= x id)]
                            {:dev-id other :via prop :definition (loc idx e)}))
-     :called-from (vec (when impl
-                         (for [c (mapcat :calls (vals (:code idx)))
-                               :when (and (= (:to c) (:ns impl)) (= (:name c) (:name impl)))]
-                           (cond-> {:var (symbol (str (:from c)) (str (:from-var c)))
-                                    :file (relative (:root idx) (:filename c)) :line (:row c)}
-                             (var->id [(:from c) (:from-var c)]) (assoc :dev-id (var->id [(:from c) (:from-var c)]))))
-                       ;; and where a :calls-by-id fn calls it by its id
-                       (for [c (mapcat :id-calls (vals (:code idx)))
-                             :when (= id (:id c))]
-                         (cond-> {:var (symbol (str (:from c)) (str (:from-var c))) :by-id true
-                                  :file (relative (:root idx) (:filename c)) :line (:row c)}
-                           (var->id [(:from c) (:from-var c)]) (assoc :dev-id (var->id [(:from c) (:from-var c)]))))))
+     :called-from (vec (concat
+                        (when (and impl (not (:inline impl)))
+                          (for [c (mapcat :calls (vals (:code idx)))
+                                :when (and (= (:to c) (:ns impl)) (= (:name c) (:name impl))
+                                           (or (:from-var c) (caller c)))]
+                            (cond-> {:file (relative (:root idx) (:filename c)) :line (:row c)}
+                              (:from-var c) (assoc :var (symbol (str (:from c)) (str (:from-var c))))
+                              (caller c) (assoc :dev-id (caller c)))))
+                        ;; and where a :calls-by-id fn calls it by its id
+                        (for [c (mapcat :id-calls (vals (:code idx)))
+                              :when (and (= id (:id c)) (or (:from-var c) (caller c)))]
+                          (cond-> {:by-id true :file (relative (:root idx) (:filename c)) :line (:row c)}
+                            (:from-var c) (assoc :var (symbol (str (:from c)) (str (:from-var c))))
+                            (caller c) (assoc :dev-id (caller c))))))
      :coverage (coverage-note idx)}))
 
 (defn dependencies
@@ -786,10 +814,14 @@
   [idx]
   (let [linked (for [[k [v]] (linked-vars idx)] [[(:ns v) (:name v)] k v])
         var->id (into {} (map (juxt first second)) linked)
-        declaring (into {} (for [[nv k v] linked :when (not= :pack (:linked-by v))] [nv k]))]
+        declaring (into {} (for [[nv k v] linked :when (not= :pack (:linked-by v))] [nv k]))
+        ranges (impl-ranges-in idx)
+        ;; the entity a call is made from: its var's, or the rows holding it
+        from-of (fn [c] (or (declaring [(:from c) (:from-var c)])
+                            (when-not (:from-var c) (range-owner ranges (:filename c) (:row c)))))]
     (concat
      (for [c (mapcat :calls (vals (:code idx)))
-          :let [from (declaring [(:from c) (:from-var c)])
+          :let [from (from-of c)
                 to (var->id [(:to c) (:name c)])]
           :when (and from to (not= from to)
                      (not (some #(= to (second %)) (references idx (get-in idx [:entities from :entry])))))]
@@ -797,7 +829,7 @@
        :file (relative (:root idx) (:filename c)) :line (:row c)})
     ;; and the calls by id (:calls-by-id): to an entity the index has
     (for [c (mapcat :id-calls (vals (:code idx)))
-          :let [from (declaring [(:from c) (:from-var c)])
+          :let [from (from-of c)
                 to (:id c)]
           :when (and from (not= from to) (get-in idx [:entities to])
                      (not (some #(= to (second %)) (references idx (get-in idx [:entities from :entry])))))]
@@ -834,7 +866,10 @@
                       (into (mapcat (fn [{:keys [consumes produces]}] (concat consumes produces))) (vals contracts))
                       (into (map key) (data-key-entities idx))
                       (into (inline-data-keys idx)))]
-    (for [[id [v]] (sort-by key (linked-vars idx))
+    ;; each implementation: a linked var, or the rows a pack located (an
+    ;; inline fn), whose keywords are those outside any var
+    (for [[id v] (sort-by key (merge (update-vals (:impl-ranges idx) #(assoc % :inline true))
+                                     (update-vals (linked-vars idx) first)))
           :when (and (contains? (:entities idx) id)
                      (not (every? #(= :binding (:kind %)) (get-in idx [:entities id :definitions]))))
           :let [own (contracts id)
@@ -851,7 +886,9 @@
                                                 (neg? (compare [row col] [(:end-row %) (:end-col %)])))
                                           cs)))
                 outside (->> (get-in idx [:code (:filename v) :keywords])
-                             (filter #(and (= (:from %) (:ns v)) (= (:from-var %) (:name v))))
+                             (filter (if (:inline v)
+                                       #(and (nil? (:from-var %)) (:row %) (<= (:row v) (:row %) (:end-row v)))
+                                       #(and (= (:from %) (:ns v)) (= (:from-var %) (:name v)))))
                              (remove in-schema-call?)
                              (map #(keyword (str (:ns %)) (str (:name %))))
                              (filter data-keys)
