@@ -645,7 +645,8 @@
 (defn- range-owner
   "The id whose implementation, located by rows, holds `row` of `filename`."
   [by-file filename row]
-  (some (fn [[id r]] (when (<= (:row r) row (:end-row r)) id)) (get by-file filename)))
+  (when row
+    (some (fn [[id r]] (when (and (:row r) (:end-row r) (<= (:row r) row (:end-row r))) id)) (get by-file filename))))
 
 (defn- impl-of
   "Where `id` is implemented: its var, or the rows a pack located."
@@ -886,7 +887,7 @@
                                           cs)))
                 outside (->> (get-in idx [:code (:filename v) :keywords])
                              (filter (if (:inline v)
-                                       #(and (nil? (:from-var %)) (<= (:row v) (:row %) (:end-row v)))
+                                       #(and (nil? (:from-var %)) (:row %) (<= (:row v) (:row %) (:end-row v)))
                                        #(and (= (:from %) (:ns v)) (= (:from-var %) (:name v)))))
                              (remove in-schema-call?)
                              (map #(keyword (str (:ns %)) (str (:name %))))
