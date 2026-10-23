@@ -682,6 +682,23 @@
                     (some #(= :fn/run (:dev-id %)) (:called-from (index/uses ii :fn/load))))))
       (fs/delete-tree dir))
 
+    ;; ---- a keyword passed as a value is not a key read
+    (let [dir (str (fs/create-temp-dir))]
+      (fs/create-dirs (str dir "/src/app"))
+      (spit (str dir "/src/app/reg.clj") "(ns app.reg)\n(defn register! [id entry f] f)\n")
+      (spit (str dir "/src/app/core.clj")
+            (str "(ns app.core (:require [app.reg :as reg]))\n"
+                 "(defn fetch [& _] nil)\n"
+                 "(reg/register! :fn/other {:fn/returns [:k/a :k/b :k/c :k/d :k/e :k/f :k/g]} nil)\n"
+                 "(defn ^{:meta-source/id :fn/run} run-impl [{:keys [:k/a] m :k/b}]\n"
+                 "  {:x (fetch m :k/c) :y ((fetch [:k/d]) :k/e) :z (:k/f m) :w (assoc m :k/g 1)})\n"
+                 "(reg/register! :fn/run {:fn/returns [:k/x]} nil)\n"))
+      (let [ii (index/build {:root dir :src ["src"] :registry [] :packs {'smoke/inline-pack {}}
+                             :dataflow {:produces [:fn/returns]}})]
+        (check "keys-outside-contract: keys destructured, read, assoc'd count; keywords passed as arguments don't"
+               (= [[:fn/run [:k/a :k/b :k/f :k/g]]] (map (juxt :dev-id :keys) (problems ii :keys-outside-contract)))))
+      (fs/delete-tree dir))
+
     ;; ---- calls by id (:calls-by-id): (exec :fn/x) calls the entity :fn/x
     (let [dir (str (fs/create-temp-dir))]
       (fs/create-dirs (str dir "/src/app")) (fs/create-dirs (str dir "/registry"))
