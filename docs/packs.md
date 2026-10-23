@@ -268,8 +268,9 @@ adds, as info:
 - `:input-without-producer`: a resolver needs a key that nothing produces, no
   resolver and no other contract. The query can still pass it in (that is how
   a graph's entry points look); when nothing does, the resolver is
-  unreachable. When some operation's output couldn't be read,
-  `:unread-outputs` names those operations: any of them may produce the key;
+  unreachable. Not reported while some operation's output couldn't be read:
+  any of them may produce the key, and `:operation-option-not-read` says
+  which;
 - `:operation-option-not-read`: an input, params or output written as code;
 - `:pack-form-not-read` with `:pack :pathom`: a form the pack couldn't read.
 
@@ -364,7 +365,9 @@ Each config key becomes a component, in the pack's own vocabulary:
 `check` adds:
 
 - `:ref-to-undefined` (warning): a ref to a key no config read defines,
-  directly, as a composite's parent or by `derive`, and not `:provided`;
+  directly, as a composite's parent or by `derive`, that no configured duct
+  module adds (`:duct.module/logging` adds `:duct/logger`,
+  `:duct.module/sql` `:duct.database/sql`), and not `:provided`;
 - `:init-key-without-config` (info): an `init-key` for a key nothing configures
   or derives from: unused, or configured somewhere not read.
 
@@ -374,7 +377,7 @@ On real systems:
 |---|---|---|
 | a production app, 18 config files | 409 components, defmethods and derives | 16 `init-key`s no config read configures; of the four checked, two are configured nowhere in the repo, one only in tests, one in code |
 | [Swirrl/datahost-prototypes](https://github.com/Swirrl/datahost-prototypes), two services | 55 | none from integrant |
-| [walkable-server/realworld-fulcro](https://github.com/walkable-server/realworld-fulcro) (duct and Pathom) | 27 components, 16 resolvers and mutations | `:duct/logger`, which duct's logging module adds, declared with `:provided` |
+| [walkable-server/realworld-fulcro](https://github.com/walkable-server/realworld-fulcro) (duct and Pathom) | 27 components, 16 resolvers and mutations | nothing: `:duct/logger` and `:duct.database/sql` come from the duct modules it configures |
 
 Those systems shaped the pack. Each of these was found on one of them:
 
@@ -499,9 +502,15 @@ a `defn` with a dispatch key in it, in a file that uses re-frame.
 - `:effect-not-registered`, `:cofx-not-registered` (info): an effect a
   handler returns, or a coeffect it injects, that nothing read registers and
   `:provided` doesn't list;
-- `:event-never-dispatched`, `:sub-never-subscribed` (info): registered, and
-  referred to nowhere read. A dispatch written as code may still reach it.
-  `:unread-handlers` lists the handlers whose effects weren't read.
+- `:event-never-dispatched`, `:sub-never-subscribed` (info), only with
+  `:report-unused true`: registered, and referred to nowhere read. They're
+  off by default. Apps reach events and subscriptions in ways no reading
+  sees: an fx map's `:dispatch`, a wrapper fn, a vector held as data. On the
+  [precision corpus](../corpus/README.md), most of these findings were false.
+  Events are not reported while some handler couldn't be read.
+
+The events re-pressed registers and day8.re-frame/http-fx's `:http-xhrio`
+need no `:provided`.
 
 clj-kondo's analysis marks re-frame registrations, and some of the references
 to them (`:<-`, `inject-cofx`, `dispatch` calls). The pack reads the forms
@@ -512,7 +521,7 @@ On open-source apps (read, never run):
 
 | | Read | Found |
 |---|---|---|
-| [jacekschae/conduit](https://github.com/jacekschae/conduit) (RealWorld) | 161 registrations and references | nothing, with `:provided [:http-xhrio]` |
+| [jacekschae/conduit](https://github.com/jacekschae/conduit) (RealWorld) | 161 registrations and references | nothing |
 | re-frame's own todomvc, simple and flow examples | 68 | nothing: flows' `:reg-flow`, `:clear-flow` and `:flow` are built-ins |
 | [athensresearch/athens](https://github.com/athensresearch/athens), 146 files | 1,064, with 14 dispatches whose id is code | two dispatches to events nothing registers: `:fail-resolve-forward-transact`, whose handler is registered as `:fail-resolve-transact-forward`, and `:alert/unset`; 20 events never dispatched, several of them only from code commented out with `#_` |
 
@@ -566,8 +575,10 @@ rest is the child's when it gives it.
 literal route name are references to it. `check` adds:
 
 - `:route-not-defined` (warning): a link to a route name no route read
-  defines. Info, with `:unread-trees`, when some route trees couldn't be
-  read, since the name may be defined in one;
+  defines. A name that a form the pack can't read as a tree gives literally
+  counts as defined: `{:view about :name :about-page}` in an `:expand` fn, or
+  in a defn that builds the routes. While some route tree couldn't be read,
+  it is info, with `:unread-trees`, since a name may still be built there;
 - `:handler-not-found` (warning): a handler written with a namespace
   (`api/login`) that the namespace, read by the analysis, doesn't define. A
   bare symbol may be a local, and isn't reported.

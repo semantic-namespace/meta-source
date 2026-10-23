@@ -228,6 +228,16 @@
       (last form)
       (when (>= (count form) 3) (last form)))))
 
+(defn- named-in
+  "The keywords `form` gives as a map's :name, each with the line it is
+   written on: route names a form the pack can't read as a tree still
+   spells out."
+  [form find-row row]
+  (distinct (for [x (tree-seq coll? seq form)
+                  :when (and (map? x) (keyword? (:name x)))
+                  :let [id (:name x)]]
+              [id (or (find-row (str ":name " (pr-str id)) row) (find-row (pr-str id) row) row)])))
+
 (defn- read-forms [sites {:keys [form-at] :as f} _opts]
   (let [defs (for [{:keys [site name-row name-col] :as s} sites :when (= :def site)
                    :let [form (form-at name-row name-col)
@@ -261,7 +271,19 @@
           (for [d defs
                 :when (not (inlined (symbol (name (:var d)))))
                 r (tree-results (:value d) f local (:var d) (:row d))]
-            r)))))
+            r)
+          ;; routes a fn builds (reitit's :expand, a defn returning a tree)
+          ;; still name them literally: {:view about :name :about-page}
+          (for [{:keys [site name-row name-col] :as s} sites
+                :let [form (form-at name-row name-col)]
+                :when (and (seq? form)
+                           (or (and (= :def site)
+                                    (let [v (def-value form (:defined-by s))]
+                                      ;; a router call is read at its own site
+                                      (not (or (routes? v) (and (seq? v) (symbol? (first v)) (= "router" (name (first v))))))))
+                               (and (= :router site) (not (symbol? (second form))) (not (routes? (second form))))))
+                [id row] (named-in form (:find-row f) name-row)]
+            {:row row :kind kind :dev-id id :refers true :entry {:reitit/named-in-code true}})))))
 
 ;; =============================================================================
 ;; Checks and the hover
@@ -269,8 +291,10 @@
 
 (defn- checks
   "- :route-not-defined (warning): a link to a route name no route read
-     defines, at the place that links to it; info, with :unread-trees,
-     when some route trees couldn't be read, since it may be in one;
+     defines, at the place that links to it. A name a form the pack can't
+     read as a tree gives literally ({:name :about-page} in an :expand fn)
+     counts as defined. While some route trees couldn't be read, info, with
+     :unread-trees: a name may still be built in one;
    - :handler-not-found (warning): a route's handler, written with a
      namespace (api/login), names a var in a namespace the analysis read,
      which defines no such var. A bare symbol may be a local, and isn't
@@ -280,7 +304,7 @@
         unread (not-read kind)]
     (concat
      (for [[id e] routes
-           :when (not (get-in e [:entry :reitit/path]))
+           :when (not (or (get-in e [:entry :reitit/path]) (get-in e [:entry :reitit/named-in-code])))
            d (:definitions e)
            :when (some #{:reitit/linked} (:keys d))]
        (cond-> {:severity (if (pos? unread) :info :warning) :problem :route-not-defined :dev-id id :definition (loc d)}

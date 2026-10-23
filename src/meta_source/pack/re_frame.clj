@@ -49,7 +49,16 @@
 
 ;; what re-frame registers itself; :reg-flow, :clear-flow and :flow are re-frame.alpha's flows
 (def ^:private builtin-effects #{:db :fx :dispatch :dispatch-n :dispatch-later :deregister-event-handler :reg-flow :clear-flow})
-(def ^:private builtin {:cofx #{:db} :sub #{:flow}})
+;; what re-frame registers itself, and what common libraries register when
+;; required: their ids need no :provided (re-pressed's events,
+;; day8.re-frame/http-fx's :http-xhrio). A library's ids are its own
+;; namespace's, so listing them costs an app nothing.
+(def ^:private builtin
+  {:cofx #{:db}
+   :sub #{:flow}
+   :event #{:re-pressed.core/add-keyboard-event-listener :re-pressed.core/set-keydown-rules
+            :re-pressed.core/set-keypress-rules :re-pressed.core/set-keyup-rules}
+   :fx #{:http-xhrio}})
 
 ;; =============================================================================
 ;; Finding the calls
@@ -273,13 +282,17 @@
    - :effect-not-registered, :cofx-not-registered (info): an effect a
      handler returns, or a coeffect it injects, that nothing read registers
      and :provided doesn't list (a library registers :http-xhrio);
-   - :event-never-dispatched, :sub-never-subscribed (info): registered and
-     referred to nowhere read. A dispatch written as code, or from a handler
-     the pack couldn't read (:unread-handlers), may still reach it."
+   - :event-never-dispatched, :sub-never-subscribed (info), only with
+     :report-unused true: registered and referred to nowhere read. Off by
+     default: apps reach events and subs in ways no reading sees (an fx
+     map's :dispatch, a wrapper fn, a vector held as data), and on the
+     precision corpus most of these findings were false. Events are not
+     reported while some handler couldn't be read."
   [{:keys [of-kinds loc opts]}]
   (let [entities (sort-by key (of-kinds #{kind}))
         provided (set (get-in opts [:re-frame :provided]))
         unread (vec (for [[id e] entities :when (get-in e [:entry :re-frame/not-read])] id))
+        report-unused? (get-in opts [:re-frame :report-unused])
         registration #(or (first (filter (fn [d] (some #{:re-frame/registered} (:keys d))) (:definitions %))) %)]
     (concat
      (for [[id e] entities
@@ -294,9 +307,9 @@
      (for [[id e] entities
            :let [{:re-frame/keys [registered dispatched subscribed]} (:entry e)]
            [as used? problem] [[:event dispatched :event-never-dispatched] [:sub subscribed :sub-never-subscribed]]
-           :when (and (contains? registered as) (not used?))]
-       (cond-> {:severity :info :problem problem :dev-id id :definition (loc (registration e))}
-         (and (= :event as) (seq unread)) (assoc :unread-handlers unread))))))
+           :when (and report-unused? (contains? registered as) (not used?)
+                      (not (and (= :event as) (seq unread))))]
+       {:severity :info :problem problem :dev-id id :definition (loc (registration e))}))))
 
 (defn- describe [entry]
   (when (some #(= "re-frame" (namespace %)) (keys entry))

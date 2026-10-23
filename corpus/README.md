@@ -98,3 +98,36 @@ Not yet judged: `data-key-without-schema` (42) and a few single findings.
 
 Planted defects: 8 of 8 found. Each was a typo or a removal, with one check
 per defect.
+
+## Second run: checks quiet where the pack didn't read (2026-10-22)
+
+These changes follow from the first results:
+- **`route-not-defined`:** a name a form gives literally (`:name :about-page`
+  in an `:expand` fn) counts as defined, even when the pack can't read the
+  tree around it.
+- **`input-without-producer`:** not reported while some output couldn't be read.
+- **The never-used checks:** opt-in (`:report-unused`), and events aren't
+  reported while some handler couldn't be read. The corpus turns them on:
+  it measures every check, not only the default ones.
+- **Library ids:** re-pressed's events, `:http-xhrio` and the keys duct's
+  logging and sql modules add need no `:provided`.
+
+| check | first run | second run |
+|---|---|---|
+| `event-not-registered` | 8/9 | 8/8 |
+| `event-never-dispatched` | 13/88 | no findings: athens and repath-studio both have handlers the pack can't read |
+| `route-not-defined` | 0/26 | no findings: tubo's names are read from its `:expand` fn |
+| `input-without-producer` | 0/8 | 3 findings, 2 useless, 1 unjudged |
+| `ref-to-undefined` | 0/1 | no findings |
+| `sub-never-subscribed` (opt-in) | 4/33 | 4/33: subscriptions held as data still aren't seen |
+
+What it cost: the 13 real never-dispatched events found in the first run
+are no longer reported. athens and repath-studio both have handlers the pack
+can't read. Planted defects: 8 of 8 found. The route typo planted in tubo is
+reported as info, since part of tubo's tree is still built in code.
+
+That is the trade made: the checks are right when they speak, and say less.
+
+125 labels judge findings this run no longer produces. They are kept: they
+are the record of what the first run reported, and they apply again if a
+check comes back.
