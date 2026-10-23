@@ -91,7 +91,7 @@
         cfg (or (:config app) (read-edn (str (fs/path root "meta-source.edn"))))]
     ;; a project's own packs, as meta-source.edn's :deps puts them on the classpath
     (when (seq (:deps cfg))
-      ((requiring-resolve 'babashka.deps/add-deps) {:deps (:deps cfg)}))
+      ((requiring-resolve 'babashka.deps/add-deps) {:deps ((requiring-resolve 'meta-source.cli/under-root) (:deps cfg) root)}))
     (merge {:registry [] :src ["src"]} (dissoc cfg :deps) {:root root})))
 
 ;; =============================================================================

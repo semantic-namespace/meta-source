@@ -633,6 +633,16 @@
                        (set (map :dev-id (:referenced-by (index/uses ti :shop.order/paying))))))))
       (fs/delete-tree dir))
 
+    ;; ---- :deps in meta-source.edn: a relative :local/root is the project's
+    (let [r (str (fs/create-temp-dir))
+          out ((requiring-resolve 'meta-source.cli/under-root)
+               {'app/packs {:local/root "tools/packs"} 'lib/x {:mvn/version "1.0"} 'abs/p {:local/root "/opt/p"}} r)]
+      (check "a relative :local/root in :deps resolves against the project's root, wherever meta-source runs"
+             (and (= (str (fs/canonicalize (fs/path r "tools/packs") {:nofollow-links false})) (get-in out ['app/packs :local/root]))
+                  (= {:mvn/version "1.0"} (get out 'lib/x))
+                  (= "/opt/p" (get-in out ['abs/p :local/root]))))
+      (fs/delete-tree r))
+
     ;; ---- calls by id (:calls-by-id): (exec :fn/x) calls the entity :fn/x
     (let [dir (str (fs/create-temp-dir))]
       (fs/create-dirs (str dir "/src/app")) (fs/create-dirs (str dir "/registry"))
