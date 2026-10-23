@@ -34,9 +34,13 @@
                   (select-keys u [:filename :row :end-row :name-row :name-col])))
    :pack/read (fn [sites {:keys [form-at]} _]
                 (vec (for [{:keys [row end-row name-row name-col]} sites
-                           :let [[_ id entry] (form-at name-row name-col)]]
-                       {:row row :kind :inline-reg :dev-id id :entry entry
-                        :impl-range {:row row :end-row end-row}})))})
+                           :let [[_ id entry] (form-at name-row name-col)
+                                 ;; a prop written as code, (into [] ..), is not read
+                                 code (vec (sort (keep (fn [[k v]] (when (seq? v) k)) entry)))]]
+                       (cond-> {:row row :kind :inline-reg :dev-id id
+                                :entry (apply dissoc entry code)
+                                :impl-range {:row row :end-row end-row}}
+                         (seq code) (assoc :dropped code)))))})
 
 (def job-pack
   "A project's own pack: the shop's defjob registry. Enabled by its
@@ -697,6 +701,30 @@
                              :dataflow {:produces [:fn/returns]}})]
         (check "keys-outside-contract: keys destructured, read, assoc'd count; keywords passed as arguments don't"
                (= [[:fn/run [:k/a :k/b :k/f :k/g]]] (map (juxt :dev-id :keys) (problems ii :keys-outside-contract)))))
+      (fs/delete-tree dir))
+
+    ;; ---- declared otherwise: a key the entry names, a dep's input, a contract written as code
+    (let [dir (str (fs/create-temp-dir))]
+      (fs/create-dirs (str dir "/src/app"))
+      (spit (str dir "/src/app/reg.clj") "(ns app.reg)\n(defn register! [id entry f] f)\n")
+      (spit (str dir "/src/app/core.clj")
+            (str "(ns app.core (:require [app.reg :as reg]))\n"
+                 "(defn fetch [& _] nil)\n"
+                 "(reg/register! :fn/other {:fn/returns [:k/a :k/c]} nil)\n"
+                 "(reg/register! :fn/callee {:fn/reads [:k/in]} nil)\n"
+                 ";; :k/a is in its deps, :k/in is the input of :fn/callee it names\n"
+                 "(defn ^{:meta-source/id :fn/run} run-impl [{:keys [:k/a]}] (fetch {:k/in a}) {:k/x 1})\n"
+                 "(reg/register! :fn/run {:fn/deps [:k/a :fn/callee] :fn/returns [:k/x]} nil)\n"
+                 ";; its returns are code: not read, nothing to compare with\n"
+                 "(defn ^{:meta-source/id :fn/code} code-impl [m] {:k/c (:k/a m)})\n"
+                 "(reg/register! :fn/code {:fn/returns (into [] [:k/z])} nil)\n"
+                 ";; the control: reads :k/a, declared nowhere\n"
+                 "(defn ^{:meta-source/id :fn/bare} bare-impl [m] {:k/x (:k/a m)})\n"
+                 "(reg/register! :fn/bare {:fn/returns [:k/x]} nil)\n"))
+      (let [ii (index/build {:root dir :src ["src"] :registry [] :packs {'smoke/inline-pack {}}
+                             :dataflow {:produces [:fn/returns] :consumes [:fn/reads]}})]
+        (check "keys-outside-contract: a key the entry names and a dep's input are declared; a contract written as code isn't compared"
+               (= [[:fn/bare [:k/a]]] (map (juxt :dev-id :keys) (problems ii :keys-outside-contract)))))
       (fs/delete-tree dir))
 
     ;; ---- calls by id (:calls-by-id): (exec :fn/x) calls the entity :fn/x
