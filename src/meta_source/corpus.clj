@@ -1,4 +1,4 @@
-(ns corpus
+(ns meta-source.corpus
   "The precision corpus: meta-source's checks run over pinned real apps, each
    finding judged by a person, and per check how many of its findings are
    real. See corpus/README.md.
@@ -11,6 +11,16 @@
                                 unjudged finding, its code as comments above it
      bb corpus plant            plant each known defect, see if its check finds it
      bb corpus ci               run, then fail on findings no label judges
+
+   From another project, with meta-source as a dependency (as its CI runs
+   meta-source check), from anywhere, outside the checkout if its bb.edn
+   would shadow meta-source's deps:
+
+     MS_CORPUS_DIR=<project>/meta-source/corpus bb -Sdeps '<meta-source as a git dep>' -m meta-source.corpus report
+
+   An app's :path is relative to the directory holding corpus.edn:
+   {:path \"../..\"} from <project>/meta-source/corpus is the project itself,
+   read with its own meta-source.edn.
 
    A finding's key leaves out line numbers, so labels survive edits that move
    code: [app problem dev-id file what-else-it-names]."
@@ -42,13 +52,20 @@
 ;; The apps
 ;; =============================================================================
 
-(defn- checkout-dir [{:keys [git path]}]
-  (or path (str work "/apps/" (str/replace (fs/file-name git) #"\.git$" ""))))
+(defn- checkout-dir
+  "Where an app is: its clone, or its :path, which, when relative, is
+   relative to the directory holding corpus.edn, wherever the harness runs
+   from."
+  [{:keys [git path]}]
+  (cond
+    (and path (fs/absolute? path)) path
+    path (str (fs/normalize (fs/path corpus-dir path)))
+    :else (str work "/apps/" (str/replace (fs/file-name git) #"\.git$" ""))))
 
 (defn app-root [app]
   (str (fs/path (checkout-dir app) (or (:root app) "."))))
 
-(defn- git [dir & args]
+(defn- run-git [dir & args]
   (apply p/shell {:dir dir :out :string :err :string} "git" args))
 
 (defn fetch
@@ -61,10 +78,10 @@
       (println "clone" git)
       (fs/create-dirs (fs/parent dir))
       (p/shell "git" "clone" "-q" "--filter=blob:none" git dir))
-    (when-not (= sha (str/trim (:out (corpus/git dir "rev-parse" "HEAD"))))
+    (when-not (= sha (str/trim (:out (run-git dir "rev-parse" "HEAD"))))
       (println "checkout" dir sha)
-      (corpus/git dir "fetch" "-q" "origin" sha)
-      (corpus/git dir "checkout" "-q" "--detach" sha))))
+      (run-git dir "fetch" "-q" "origin" sha)
+      (run-git dir "checkout" "-q" "--detach" sha))))
 
 (defn- config
   "What meta-source reads the app with: its :config, or the app's own
@@ -338,4 +355,4 @@
     "todo" (todo)
     "plant" (plant)
     "ci" (ci)
-    (println (:doc (meta (the-ns 'corpus))))))
+    (println (:doc (meta (the-ns 'meta-source.corpus))))))

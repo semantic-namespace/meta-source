@@ -4,7 +4,8 @@
 ;;
 ;;   :id      the app's name in findings and labels
 ;;   :git     where it comes from, :sha the commit (never a branch)
-;;   :path    instead of :git, a directory in this repository
+;;   :path    instead of :git, a directory, relative to this file's
+;;            directory
 ;;   :root    the directory inside the checkout meta-source reads from
 ;;   :config  what meta-source.edn would say: :src, :registry, :packs.
 ;;            Opt-in checks are on (:report-unused): the corpus measures
@@ -121,7 +122,7 @@
 
   ;; ---- this repository's fixture: where defects are planted to measure recall
   ;; its findings are the fixture's own planted problems: never in precision
-  {:id :shop-fixture :path "test/fixtures/shop" :plants-only true}]
+  {:id :shop-fixture :path "../test/fixtures/shop" :plants-only true}]
 
  ;; problems that say what wasn't read, not that something is wrong: counted,
  ;; never in precision

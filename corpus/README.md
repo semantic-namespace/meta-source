@@ -208,3 +208,27 @@ It also exposed two bugs in the pack, both fixed:
 
 Still false: logseq's 6 `conflicting-values` errors, from two routers that
 name their routes alike.
+
+## A corpus in another project
+
+A project can keep its own corpus, for code that can't be public, next to
+the code it judges. The harness is the namespace `meta-source.corpus`, so a
+project that runs meta-source as a dependency runs it the same way. It can run
+from anywhere, outside the checkout if the project's `bb.edn` would shadow
+meta-source's dependencies:
+
+```sh
+MS_CORPUS_DIR=<project>/meta-source/corpus \
+  bb -Sdeps '{:deps {io.github.semantic-namespace/meta-source {:git/url "https://github.com/semantic-namespace/meta-source" :git/sha "<sha>"}}}' \
+     -m meta-source.corpus report
+```
+
+- **The corpus file.** `meta-source/corpus/corpus.edn` names the project
+  itself: `{:apps [{:id :my-app :path "../.."}]}`. A relative `:path` is
+  relative to the directory holding `corpus.edn`. With no `:config`, the
+  project is read with its own `meta-source.edn`.
+- **What gets committed.** Commit `corpus.edn`, `labels.edn` and
+  `plants.edn`; git-ignore `meta-source/corpus/.work/`, where findings and
+  copies go.
+- **CI.** `ci` fails while a finding has no label, so every new finding is
+  judged before it merges.

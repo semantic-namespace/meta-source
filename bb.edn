@@ -15,8 +15,8 @@
                       :requires ([conformance])
                       :task (apply conformance/-main *command-line-args*)}
          corpus {:doc "Precision and recall of the checks over pinned real apps: fetch | run [app ...] | report | unlabeled [n] | plant | ci (corpus/README.md)"
-                 :requires ([corpus])
-                 :task (apply corpus/-main *command-line-args*)}
+                 :requires ([meta-source.corpus])
+                 :task (apply meta-source.corpus/-main *command-line-args*)}
          pathom-snapshot-check {:doc "Rebuilds the shop fixture's Pathom snapshot from real Pathom 3 and 2 and checks it matches the committed one. Needs the clojure CLI."
                                 :requires ([pathom-snapshot-check])
                                 :task (pathom-snapshot-check/-main)}}}
