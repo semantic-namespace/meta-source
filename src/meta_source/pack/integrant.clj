@@ -205,14 +205,19 @@
      :duct.module/sql :duct.database/sql), and that :provided doesn't list.
      Integrant can't init the system unless something adds it;
    - :init-key-without-config (info): the code has an init-key method for
-     a key no config defines, and no composite key derives from: unused, or
-     configured somewhere not read. A key some configured component
+     a key no config defines, no composite key derives from, and no code
+     calls by its id (:calls-by-id): unused, or configured somewhere not
+     read. A key some configured component
      derives from, by a composite key or a derive call, counts as configured."
   [{:keys [of-kinds loc opts]}]
   (let [components (sort-by key (of-kinds #{kind}))
         configured (filter #(get-in (val %) [:entry :integrant/config-in]) components)
         parents #(concat (get-in (val %) [:entry :integrant/derives]) (get-in (val %) [:entry :integrant/isa]))
+        ;; a key some code calls by its id (:calls-by-id): a workflow engine
+        ;; running (ig/init-key k deps) itself
+        called (for [[id e] components :when (get-in e [:entry :meta-source/called-by-id])] id)
         defined (-> (set (map key configured))
+                    (into called)
                     (into (mapcat parents) configured)
                     (into (mapcat duct-modules) (map key configured))
                     (into (get-in opts [:integrant :provided])))]

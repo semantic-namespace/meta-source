@@ -356,7 +356,7 @@
    `root` (its :lint-as and hooks, the configs it imports), as the editor's
    clj-kondo does, wherever meta-source runs from: macros the project
    teaches clj-kondo are analysed as what they define."
-  [root files packs packs-config id-key]
+  [root files packs packs-config id-key calls-by-id]
   (if (empty? files)
     {}
     (let [{:keys [analysis]} (@kondo (cond-> {:lint (vec files)
@@ -394,9 +394,24 @@
                                     :pack-failed (str "the pack failed finding its forms: " (or (ex-message ex) (str (type ex))))}]}))]))
           kws (by-file :keywords
                        (comp (filter #(and (:from-var %) (:ns %)))
-                             (map #(select-keys % [:filename :from :from-var :ns :name :row :col]))))]
+                             (map #(select-keys % [:filename :from :from-var :ns :name :row :col]))))
+          ;; a call to a fn :calls-by-id names, whose first argument is a literal
+          ;; keyword: (exec-fn :fn/load ...) calls the entity :fn/load
+          id-calls (into {} (for [[f us] calls]
+                              [f (vec (for [u us
+                                            :when (contains? calls-by-id (symbol (str (:to u)) (str (:name u))))
+                                            :let [k (first (sort-by (juxt :row :col)
+                                                                    (for [k (get kws f)
+                                                                          :when (or (> (:row k) (:row u))
+                                                                                    (and (= (:row k) (:row u)) (> (:col k) (:col u))))
+                                                                          :when (<= (:row k) (or (:end-row u) (:row u)) )]
+                                                                      k)))]
+                                            :when k]
+                                        {:filename f :from (:from u) :from-var (:from-var u) :row (:row u)
+                                         :id (keyword (str (:ns k)) (str (:name k)))}))]))]
       (into {} (for [f files :let [f (canonical f)]]
                  [f {:vars (vec (get vars f)) :calls (vec (get calls f)) :keywords (vec (get kws f))
+                     :id-calls (get id-calls f [])
                      :pack-results (let [here (for [[p by-file] found :let [sites (get by-file f)] :when (seq sites)] [p sites])]
                                      (if (seq here)
                                        (read-packs f here packs-config (get own-ns f "user") (get aliases f {}))
@@ -443,6 +458,8 @@
   (let [config {:root (canonical root) :registry (vec registry) :src (vec src)
                 :packs (or packs {}) :dataflow dataflow :merge (:merge opts) :id-key id-key
                 :rules (vec (:rules opts))
+                ;; fns whose first argument, a literal keyword, is the entity they call
+                :calls-by-id (vec (sort (map symbol (:calls-by-id opts))))
                 ;; a changed clj-kondo config changes what the code analyses to
                 :kondo-config (kondo-config-stamps root)}
         edn-files (vec (files-under root registry [".edn"]))
@@ -482,7 +499,7 @@
   (let [fresh? #(and (= (stamps %) (get-in cached [:stamps %])) (contains? (:code cached) %))
         stale (remove fresh? src-files)
         code (merge (select-keys (:code cached) (filter fresh? src-files))
-                    (analyse-code root stale packs (pack-opts config) (:id-key config)))
+                    (analyse-code root stale packs (pack-opts config) (:id-key config) (set (:calls-by-id config))))
         ;; registry files: re-read only the ones that changed
         edn (into {} (for [f edn-files]
                        [f (if (= (edn-stamps f) (get-in cached [:edn-stamps f]))
@@ -513,7 +530,12 @@
                                data-results)
                        :when dev-id]
                    {:label (str file ":" row ":" dev-id) :file file :kind kind :dropped dropped :refers refers :var var
-                    :lines {dev-id row} :entities {dev-id entry}}))
+                    :lines {dev-id row} :entities {dev-id entry}})
+                 ;; a call by id: the entity is called there, as a var call would
+                 (for [[f {:keys [id-calls]}] code
+                       {:keys [row id]} id-calls]
+                   {:label (str f ":" row ":" id ":call") :file f :kind :call-by-id :refers true
+                    :lines {id row} :entities {id {:meta-source/called-by-id true}}}))
         by-label (into {} (map (juxt :label identity)) sources)
         data-key-kinds (set (mapcat :pack/kinds (filter :pack/data-keys? packs)))
         describing-kinds (set (mapcat :pack/kinds (filter :pack/describes? packs)))
@@ -708,7 +730,13 @@
                                :when (and (= (:to c) (:ns impl)) (= (:name c) (:name impl)))]
                            (cond-> {:var (symbol (str (:from c)) (str (:from-var c)))
                                     :file (relative (:root idx) (:filename c)) :line (:row c)}
-                             (var->id [(:from c) (:from-var c)]) (assoc :dev-id (var->id [(:from c) (:from-var c)]))))))
+                             (var->id [(:from c) (:from-var c)]) (assoc :dev-id (var->id [(:from c) (:from-var c)]))))
+                       ;; and where a :calls-by-id fn calls it by its id
+                       (for [c (mapcat :id-calls (vals (:code idx)))
+                             :when (= id (:id c))]
+                         (cond-> {:var (symbol (str (:from c)) (str (:from-var c))) :by-id true
+                                  :file (relative (:root idx) (:filename c)) :line (:row c)}
+                           (var->id [(:from c) (:from-var c)]) (assoc :dev-id (var->id [(:from c) (:from-var c)]))))))
      :coverage (coverage-note idx)}))
 
 (defn dependencies
@@ -759,13 +787,22 @@
   (let [linked (for [[k [v]] (linked-vars idx)] [[(:ns v) (:name v)] k v])
         var->id (into {} (map (juxt first second)) linked)
         declaring (into {} (for [[nv k v] linked :when (not= :pack (:linked-by v))] [nv k]))]
-    (for [c (mapcat :calls (vals (:code idx)))
+    (concat
+     (for [c (mapcat :calls (vals (:code idx)))
           :let [from (declaring [(:from c) (:from-var c)])
                 to (var->id [(:to c) (:name c)])]
           :when (and from to (not= from to)
                      (not (some #(= to (second %)) (references idx (get-in idx [:entities from :entry])))))]
       {:severity :warning :problem :undeclared-call :dev-id from :calls to
-       :file (relative (:root idx) (:filename c)) :line (:row c)})))
+       :file (relative (:root idx) (:filename c)) :line (:row c)})
+    ;; and the calls by id (:calls-by-id): to an entity the index has
+    (for [c (mapcat :id-calls (vals (:code idx)))
+          :let [from (declaring [(:from c) (:from-var c)])
+                to (:id c)]
+          :when (and from (not= from to) (get-in idx [:entities to])
+                     (not (some #(= to (second %)) (references idx (get-in idx [:entities from :entry])))))]
+      {:severity :warning :problem :undeclared-call :dev-id from :calls to :by-id true
+       :file (relative (:root idx) (:filename c)) :line (:row c)}))))
 
 (defn- with-members
   "`ks` and, transitively, the keys the schemas among them are made of

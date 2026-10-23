@@ -633,6 +633,40 @@
                        (set (map :dev-id (:referenced-by (index/uses ti :shop.order/paying))))))))
       (fs/delete-tree dir))
 
+    ;; ---- calls by id (:calls-by-id): (exec :fn/x) calls the entity :fn/x
+    (let [dir (str (fs/create-temp-dir))]
+      (fs/create-dirs (str dir "/src/app")) (fs/create-dirs (str dir "/registry"))
+      (spit (str dir "/registry/fns.edn")
+            (str "{:fn/load {:fn/deps []}\n"
+                 " :fn/save {:fn/deps []}\n"
+                 " :fn/run {:fn/deps [:fn/load]}\n"
+                 ;; a step whose entry names the init-key it runs
+                 " :fn/fetch {:fn/step :app.step/fetch}}\n"))
+      (spit (str dir "/src/app/core.clj")
+            (str "(ns app.core (:require [integrant.core :as ig]))\n"
+                 "(defn exec [k & args] k)\n"
+                 "(defmethod ig/init-key :app.step/fetch [_ _] identity)\n"
+                 "(defn ^{:meta-source/id :fn/load} load-impl [] 1)\n"
+                 "(defn ^{:meta-source/id :fn/save} save-impl [] 2)\n"
+                 ";; declared, by id; undeclared, by id; and a direct call\n"
+                 "(defn ^{:meta-source/id :fn/run} run-impl []\n"
+                 "  (exec :fn/load) (exec :fn/save) (save-impl))\n"
+                 "(def ^{:meta-source/id :fn/fetch} fetch-impl (exec :app.step/fetch))\n"))
+      (let [cfg {:root dir :src ["src"] :registry ["registry"] :packs {:integrant {}}}
+            calls (fn [idx] (set (map (juxt :calls :by-id) (problems idx :undeclared-call))))
+            plain (index/build cfg)
+            by-id (index/build (assoc cfg :calls-by-id '[app.core/exec]))]
+        (check "calls by id: without :calls-by-id only the direct call is undeclared"
+               (= #{[:fn/save nil]} (calls plain)))
+        (check "calls by id: with it, (exec :fn/save) is an undeclared call too; (exec :fn/load) and the step its entry names are declared"
+               (= #{[:fn/save nil] [:fn/save true]} (calls by-id)))
+        (check "calls by id: uses lists where it is called by id"
+               (some #(and (:by-id %) (= :fn/run (:dev-id %))) (:called-from (index/uses by-id :fn/load))))
+        (check "calls by id: an init-key code calls by its id is used, not unconfigured"
+               (and (seq (problems plain :init-key-without-config))
+                    (empty? (problems by-id :init-key-without-config)))))
+      (fs/delete-tree dir))
+
     ;; ---- integrant: composite keys sharing their last keyword
     (let [dir (str (fs/create-temp-dir))]
       (fs/create-dirs (str dir "/resources")) (fs/create-dirs (str dir "/src/app"))
