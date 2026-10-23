@@ -850,12 +850,107 @@
 
 (def ^:private schema-nses '#{clojure.spec.alpha cljs.spec.alpha malli.core})
 
+(defn- token-positions
+  "{[row col] position} for each token of `text` (1-based, as clj-kondo
+   counts): the form it is in (:list :vector :map :set, :rc for a reader
+   conditional), its index there, the form's head symbol (a list's), the
+   map key before it (a map's), and the same of the form around that one.
+   Read by scanning: strings, comments, characters and #_ are skipped, and
+   metadata and #_ don't count as an element."
+  [^String text]
+  (let [n (count text)
+        delim? (fn [c] (or (Character/isWhitespace (char c)) (#{\, \( \) \[ \] \{ \} \" \;} c)))
+        out (volatile! (transient {}))]
+    (loop [i 0 row 1 col 1 stack ()]
+      (if (>= i n)
+        (persistent! @out)
+        (let [c (.charAt text i)
+              frame (first stack)
+              ;; a finished element of the form on top: counted, unless a
+              ;; ^meta or #_ before it said to skip it
+              done (fn [stack tok]
+                     (if-let [f (first stack)]
+                       (if (pos? (:skip f 0))
+                         (cons (update f :skip dec) (rest stack))
+                         (cons (cond-> (update f :idx inc)
+                                 (and (= :list (:type f)) (zero? (:idx f)) (symbol? tok)) (assoc :head tok)
+                                 (and (= :map (:type f)) (even? (:idx f))) (assoc :key tok))
+                               (rest stack)))
+                       stack))
+              open (fn [type skip]
+                     (cons {:type type :idx 0 :rc (= type :rc)
+                            :parent (when frame (select-keys frame [:type :head :key :idx]))}
+                           (drop skip stack)))]
+          (cond
+            (= c \newline) (recur (inc i) (inc row) 1 stack)
+            (or (Character/isWhitespace c) (= c \,)) (recur (inc i) row (inc col) stack)
+            (= c \;) (let [e (or (str/index-of text "\n" i) n)] (recur e row (+ col (- e i)) stack))
+            (= c \") (let [e (loop [j (inc i)] (cond (>= j n) n (= \\ (.charAt text j)) (recur (+ j 2))
+                                                     (= \" (.charAt text j)) (inc j) :else (recur (inc j))))
+                           s (subs text i e) nl (count (filter #{\newline} s))]
+                       (recur e (+ row nl) (if (pos? nl) (- (count s) (str/last-index-of s "\n")) (+ col (count s)))
+                              (done stack nil)))
+            (= c \\) (let [e (loop [j (+ i 2)] (if (and (< j n) (not (delim? (.charAt text j)))) (recur (inc j)) j))]
+                       (recur e row (+ col (- e i)) (done stack nil)))
+            (#{\( \[ \{} c) (recur (inc i) row (inc col) (open ({\( :list \[ :vector \{ :map} c) 0))
+            (#{\) \] \}} c) (recur (inc i) row (inc col) (done (rest stack) nil))
+            (= c \^) (recur (inc i) row (inc col) (cons (update (or frame {:type :top :idx 0}) :skip (fnil inc 0)) (rest stack)))
+            (#{\' \` \~ \@} c) (recur (inc i) row (inc col) stack)
+            (= c \#) (let [d (when (< (inc i) n) (.charAt text (inc i)))]
+                       (case d
+                         \{ (recur (+ i 2) row (+ col 2) (open :set 0))
+                         \( (recur (+ i 2) row (+ col 2) (open :list 0))
+                         \_ (recur (+ i 2) row (+ col 2) (cons (update (or frame {:type :top :idx 0}) :skip (fnil inc 0)) (rest stack)))
+                         \? (let [j (if (= \@ (.charAt text (+ i 2))) (+ i 3) (+ i 2))]
+                              (recur (inc j) row (+ col (- (inc j) i)) (open :rc 0)))
+                         \" (recur (inc i) row (inc col) stack) ; a regex: the string after it
+                         ;; #' #inst #:ns{..}: a prefix, the form after it is the element
+                         (let [e (loop [j (inc i)] (if (and (< j n) (not (delim? (.charAt text j)))) (recur (inc j)) j))]
+                           (recur e row (+ col (- e i)) stack))))
+            :else
+            (let [e (loop [j i] (if (and (< j n) (not (delim? (.charAt text j)))) (recur (inc j)) j))
+                  s (subs text i e)
+                  tok (cond (str/starts-with? s ":") (keyword (str/replace s #"^:+" ""))
+                            (re-matches #"[-+]?\d.*" s) nil
+                            :else (symbol s))]
+              (when frame
+                (vswap! out assoc! [row col] (assoc (select-keys frame [:type :idx :head :key :rc :parent]) :token tok)))
+              (recur e row (+ col (- e i)) (done stack tok)))))))))
+
+(def ^:private key-fns
+  "Fns whose keyword arguments are keys of the map they take."
+  '#{get get-in assoc assoc-in dissoc update update-in contains? find select-keys
+     -> ->> some-> some->> cond-> cond->> doto})
+
+(defn- key-fn? [head]
+  (and (symbol? head)
+       (contains? key-fns (if (#{"clojure.core" "cljs.core"} (namespace head)) (symbol (name head)) head))))
+
+(defn- key-position?
+  "Whether a keyword at `pos` (from token-positions) is in a key's place:
+   (:k m), a key fn's argument, a map's key, {:keys [..]}, {sym :k}. A
+   positional argument of any other call, or a map's value after a keyword
+   key, holds the keyword as a value: (fetch cache ::count), [::a ::b]
+   passed along. Where it isn't known, it counts as a key."
+  [pos]
+  (let [{:keys [type idx head key rc parent]} pos
+        keys-key? #(and (keyword? %) (= "keys" (name %)))]
+    (case type
+      nil true
+      :list (or rc (zero? idx) (key-fn? head))
+      :map (or (even? idx) (symbol? key))
+      (:vector :set) (or (and (= :map (:type parent)) (keys-key? (:key parent)))
+                         (and (= :list (:type parent)) (key-fn? (:head parent))))
+      true)))
+
 (defn- keys-outside-contract
   "Data keys a linked var mentions that are neither in what it consumes or
    produces nor in what an entity it names produces, nor (the keys of the
    schemas among those), leaving out keys written inside a clojure.spec or
    malli call, or a call to a fn :spec or :malli lists under :schema-fns
-   (a project's own validate), which name a schema rather than read a key. Only keys that appear
+   (a project's own validate), which name a schema rather than read a key,
+   and keywords passed as values: an argument of a call other than a key
+   fn's (fetch cache ::count), a map's value (key-position?). Only keys that appear
    in some entity's contract, or that a pack shapes, count as data keys. A
    binding-only entity has declared no contract, so it has none to keep."
   [idx]
@@ -865,7 +960,8 @@
         data-keys (-> #{}
                       (into (mapcat (fn [{:keys [consumes produces]}] (concat consumes produces))) (vals contracts))
                       (into (map key) (data-key-entities idx))
-                      (into (inline-data-keys idx)))]
+                      (into (inline-data-keys idx)))
+        positions (memoize (fn [f] (try (token-positions (slurp f)) (catch Exception _ {}))))]
     ;; each implementation: a linked var, or the rows a pack located (an
     ;; inline fn), whose keywords are those outside any var
     (for [[id v] (sort-by key (merge (update-vals (:impl-ranges idx) #(assoc % :inline true))
@@ -885,15 +981,20 @@
                                                 (neg? (compare [(:row %) (:col %)] [row col]))
                                                 (neg? (compare [row col] [(:end-row %) (:end-col %)])))
                                           cs)))
-                outside (->> (get-in idx [:code (:filename v) :keywords])
-                             (filter (if (:inline v)
-                                       #(and (nil? (:from-var %)) (:row %) (<= (:row v) (:row %) (:end-row v)))
-                                       #(and (= (:from %) (:ns v)) (= (:from-var %) (:name v)))))
-                             (remove in-schema-call?)
-                             (map #(keyword (str (:ns %)) (str (:name %))))
-                             (filter data-keys)
-                             (remove allowed)
-                             distinct sort vec)]
+                candidates (->> (get-in idx [:code (:filename v) :keywords])
+                                (filter (if (:inline v)
+                                          #(and (nil? (:from-var %)) (:row %) (<= (:row v) (:row %) (:end-row v)))
+                                          #(and (= (:from %) (:ns v)) (= (:from-var %) (:name v)))))
+                                (remove in-schema-call?)
+                                (filter #(let [k (keyword (str (:ns %)) (str (:name %)))]
+                                           (and (data-keys k) (not (allowed k))))))
+                ;; a keyword passed as a value, (fetch cache ::count), is not a key read
+                outside (when (seq candidates)
+                          (let [pos (positions (:filename v))]
+                            (->> candidates
+                                 (filter #(key-position? (get pos [(:row %) (:col %)])))
+                                 (map #(keyword (str (:ns %)) (str (:name %))))
+                                 distinct sort vec)))]
           :when (seq outside)]
       {:severity :info :problem :keys-outside-contract :dev-id id :keys outside
        :impl (loc idx v)})))
