@@ -15,6 +15,8 @@
       :merge {:app/tags :union}
       :rules [\"rules\"]                   ; EDN files of the project's own rules
       :id-key :meta-source/id             ; the meta key a var carries
+      :calls-by-id [app.engine/exec]      ; fns whose first argument, a literal keyword,
+                                          ; is the entity they call: (exec :fn/load)
       :deps {app/packs {:local/root \"tools\"}}}  ; where a project's own packs live
 
    The code analysis is cached in <root>/.meta-source/index.transit and
@@ -77,6 +79,7 @@
              :dataflow (:dataflow from-file)
              :merge (:merge from-file)
              :rules (:rules from-file)
+             :calls-by-id (:calls-by-id from-file)
              :cache (when-not no-cache (str (io/file root ".meta-source" "index.transit")))}
       (:id-key from-file) (assoc :id-key (:id-key from-file)))))
 

@@ -155,6 +155,26 @@ missing `:when`) is an error at the rule, saying why, and so is anything
 written after a rules file's map. Rules files are read again when they
 change, as registry files are.
 
+## Calls by id: `:calls-by-id`
+
+Some systems call an implementation by its id instead of its var: a
+workflow engine running `(exec :fn/load ...)`, an `(exec-fn :fn/load arg)`
+that looks the entity up in a registry. `:calls-by-id` names those fns:
+
+```clojure
+{:calls-by-id [app.engine/exec app.registry/exec-fn] ...}
+```
+
+A call to one of them whose first argument is a literal keyword counts as a
+call to that entity, as a direct call to its var does:
+
+- `undeclared-call` reports it when the caller's entry doesn't name the
+  entity (`:by-id true` on the problem);
+- `uses` lists the place under "called from";
+- an integrant key called that way (`(exec :app.step/fetch)` running
+  `(ig/init-key :app.step/fetch deps)` itself) counts as used, so it isn't
+  reported as an init-key without config.
+
 ## Emacs
 
 ```elisp
