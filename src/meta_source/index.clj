@@ -952,7 +952,10 @@
    and keywords passed as values: an argument of a call other than a key
    fn's (fetch cache ::count), a map's value (key-position?). Only keys that appear
    in some entity's contract, or that a pack shapes, count as data keys. A
-   binding-only entity has declared no contract, so it has none to keep."
+   key the entry names anywhere (a component in its deps) is declared, and
+   so is what an entity it names consumes, the input it is passed. A
+   binding-only entity has declared no contract, so it has none to keep; nor
+   has one whose contract a pack read as code (a context built by (into ..))."
   [idx]
   (let [contracts (into {} (for [[id e] (:entities idx)] [id (contract-keys idx (:entry e))]))
         ;; a project's own fns that take a schema: (schema/validate ::message x)
@@ -961,18 +964,26 @@
                       (into (mapcat (fn [{:keys [consumes produces]}] (concat consumes produces))) (vals contracts))
                       (into (map key) (data-key-entities idx))
                       (into (inline-data-keys idx)))
-        positions (memoize (fn [f] (try (token-positions (slurp f)) (catch Exception _ {}))))]
+        positions (memoize (fn [f] (try (token-positions (slurp f)) (catch Exception _ {}))))
+        dataflow-props (set (mapcat val (select-keys (:dataflow idx) [:consumes :produces])))]
     ;; each implementation: a linked var, or the rows a pack located (an
     ;; inline fn), whose keywords are those outside any var
     (for [[id v] (sort-by key (merge (update-vals (:impl-ranges idx) #(assoc % :inline true))
                                      (update-vals (linked-vars idx) first)))
+          :let [defs (get-in idx [:entities id :definitions])
+                entry (get-in idx [:entities id :entry])]
           :when (and (contains? (:entities idx) id)
-                     (not (every? #(= :binding (:kind %)) (get-in idx [:entities id :definitions]))))
+                     (not (every? #(= :binding (:kind %)) defs))
+                     ;; a contract written as code wasn't read: nothing to compare with
+                     (not (some #(some dataflow-props (:dropped %)) defs)))
           :let [own (contracts id)
-                via-deps (into #{} (mapcat #(get-in contracts [(second %) :produces]))
-                               (references idx (get-in idx [:entities id :entry])))
+                ;; what the entities it names produce, and consume: the input it passes them
+                via-deps (into #{} (mapcat #(let [c (contracts (second %))] (concat (:produces c) (:consumes c))))
+                               (references idx entry))
+                ;; a key the entry names anywhere: a component in its deps
+                named (filter qualified-keyword? (tree-seq coll? seq (vals entry)))
                 ;; a schema key in the contract stands for the keys it is made of
-                allowed (with-members idx (into (into (:consumes own) (:produces own)) via-deps))
+                allowed (into (with-members idx (into (into (:consumes own) (:produces own)) via-deps)) named)
                 ;; (s/valid? ::order x), (m/validate ::order x): a schema named, no key read
                 in-schema-call? (let [cs (filter #(or (schema-nses (:to %)) (schema-fns (symbol (str (:to %)) (str (:name %)))))
                                                  (get-in idx [:code (:filename v) :calls]))]
