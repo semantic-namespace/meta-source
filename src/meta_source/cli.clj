@@ -76,6 +76,13 @@
   (when (seq deps)
     ((requiring-resolve 'babashka.deps/add-deps) {:deps (under-root deps root)})))
 
+(def ^:private lib-src
+  "The source directories of meta-source.edn's :libs (meta-source.libs)."
+  (memoize (fn [root from-file]
+             (if (seq (:libs from-file))
+               ((requiring-resolve 'meta-source.libs/materialize) root (:libs from-file))
+               []))))
+
 (defn- config [{:keys [root registry src no-cache]}]
   (let [root (or root ".")
         f (io/file root "meta-source.edn")
@@ -86,7 +93,8 @@
     (add-deps! (:deps from-file) root)
     (cond-> {:root root
              :registry (if (seq registry) registry (:registry from-file ["registry"]))
-             :src (if (seq src) src (:src from-file ["src"]))
+             :src (into (vec (if (seq src) src (:src from-file ["src"]))) (lib-src root from-file))
+             :lib-src (lib-src root from-file)
              :packs (:packs from-file {})
              :dataflow (:dataflow from-file)
              :merge (:merge from-file)
