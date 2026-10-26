@@ -124,7 +124,9 @@
 (defn- within?
   "Whether `row`/`col` is inside the span {:row :col :end-row :end-col}."
   [{r0 :row c0 :col r1 :end-row c1 :end-col} row col]
-  (and (or (> row r0) (and (= row r0) (>= col c0)))
+  ;; what clj-kondo gives no position (a usage a macro made) is not inside
+  (and row col r0 c0 r1 c1
+       (or (> row r0) (and (= row r0) (>= col c0)))
        (or (< row r1) (and (= row r1) (<= col c1)))))
 
 (defn- hand-calls
@@ -157,7 +159,7 @@
    in the body is :unknown: what it carries isn't followed. nil when the
    parameter can't be read."
   [param calls]
-  (when-let [{ks :keys} (config-symbols param)]
+  (when-let [{ks :keys} (and (not= :unknown calls) (config-symbols param))]
     (reduce (fn [m {:keys [callee params rebound?]}]
               (let [c (if (or rebound? (some #(not (contains? ks %)) params)) :unknown (set (map ks params)))]
                 (update m callee (fn [old] (if (or (= :unknown old) (= :unknown c)) :unknown (vec (sort (distinct (concat old c)))))))))
@@ -310,7 +312,9 @@
            :when (and (= 'clojure.core (:to u)) (= 'defmethod (:name u)) (ig-rows [(:filename u) (:row u)]))]
        (let [site (select-keys u [:filename :row :col :end-row :end-col :name-row :name-col])]
          (cond-> (assoc site :method true)
-           (= 'init-key (ig-rows [(:filename u) (:row u)])) (assoc :hand-calls (hand-calls analysis site)))))
+           ;; reading what it hands on fails for this method alone: not followed
+           (= 'init-key (ig-rows [(:filename u) (:row u)]))
+           (assoc :hand-calls (try (hand-calls analysis site) (catch Exception _ :unknown))))))
      (for [u (:var-usages analysis)
            :when (and (= 'clojure.core (:to u)) (= 'derive (:name u)) (= 2 (:arity u)) (ig-files (:filename u)))]
        (assoc (select-keys u [:filename :row :name-row :name-col]) :derive true))
