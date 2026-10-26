@@ -25,9 +25,18 @@
      :data-key true            it is a data key (a schema shapes it)
      :not cond                 cond doesn't hold
      :or [cond ...]            one of them holds
+     :id :k or #{:k ...}       it is one of these entities
      :consumers, :producers    a data key's consumers or producers,
-     :deps, :used-by           what its entry names, or what names it:
+     :deps, :used-by           what its entry names, or what names it,
+     :calls, :called-by        whose linked var its code calls, or whose code calls its,
+     :provided-by, :provides   the entity whose code builds the var it is defined
+                               in (a route's component), or what it so builds:
                                {:all cond}, {:some cond} or {:none cond}
+     :reaches {q cond}         everything it depends on, transitively, through
+                               :deps, :calls and :provided-by (or the ones
+                               :via names): {:reaches {:none {:id :infra/db}}},
+                               {:reaches {:via #{:deps} :some {:kind :spec}}};
+                               a violation names the path to each offender
      :refs {:k q}              what its entry's :k names, q as above:
                                {:refs {:fn/deps {:all {:has :tier/x}}}}
      :referenced-by {:k q}     the entities whose :k names it
@@ -39,11 +48,15 @@
    at the entity, naming the rule, the clauses that failed and, for a
    relation, the entities that broke it, with where each is defined.")
 
-(def ^:private relations #{:consumers :producers :deps :used-by})
+(def ^:private relations #{:consumers :producers :deps :used-by :calls :called-by :provided-by :provides})
+(def ^:private depends-on
+  "What :reaches follows by default: each a relation from an entity to what it
+   depends on."
+  #{:deps :calls :provided-by})
 (def ^:private quantifiers #{:all :some :none})
 (def ^:private property-relations #{:refs :referenced-by})
 (def ^:private condition-keys
-  (into #{:kind :has :missing := :in :matches :id-ns :data-key :not :or :resolves} (concat relations property-relations)))
+  (into #{:kind :has :missing := :in :matches :id-ns :id :data-key :not :or :resolves :reaches} (concat relations property-relations)))
 
 (defn- many [x] (if (or (sequential? x) (set? x)) x [x]))
 
@@ -94,6 +107,16 @@
                    p)
                  [(str (pr-str r) " takes {:key {:all cond}}, a key, and a clause on what it names")]))]
        p)
+     (when (contains? c :reaches)
+       (let [q (:reaches c)
+             via (:via q)
+             qs (when (map? q) (dissoc q :via))]
+         (concat
+          (if (and (map? qs) (= 1 (count qs)) (quantifiers (key (first qs))))
+            (problems-in (val (first qs)))
+            [":reaches takes {:all cond}, {:some cond} or {:none cond}, and optionally :via"])
+          (when (and via (not (and (coll? via) (every? depends-on via))))
+            [(str ":reaches :via takes some of " (pr-str (sort depends-on)))]))))
      (when (contains? c :resolves)
        (when-not (every? keyword? (many (:resolves c)))
          [":resolves takes a key or a vector of keys"]))
@@ -154,6 +177,26 @@
                  b)]
     (when (seq broken) (vec (distinct (apply concat broken))))))
 
+(defn reachable
+  "{reached-id path} for what `id` depends on through the relations `via`,
+   transitively; path is the ids from `id`'s first step to the reached one,
+   one shortest path each."
+  [view via id]
+  (loop [frontier [[id []]] seen {id []}]
+    (if-let [[[x path] & more] (seq frontier)]
+      (let [nexts (for [r via n (related view r x) :when (not (contains? seen n))] n)
+            nexts (distinct nexts)
+            seen (reduce #(assoc %1 %2 (conj path %2)) seen nexts)]
+        (recur (concat more (for [n nexts] [n (conj path n)])) seen))
+      (dissoc seen id))))
+
+(defn- reach-breakers
+  "For {:reaches {q cond}}: nil when it holds on `id`, otherwise the reached
+   ids that break it (empty when :some found none)."
+  [view q id]
+  (let [via (or (:via q) depends-on)]
+    (quantified view (dissoc q :via) (sort (keys (reachable view via id))))))
+
 (defn- unresolved
   "The ids `id`'s entry names under the :resolves keys that no source
    defines, or nil when there are none."
@@ -178,6 +221,8 @@
                 := (every? (fn [[ek want]] (holds-value? (at entry ek) want)) v)
                 :in (every? (fn [[ek allowed]] (contains? (set allowed) (at entry ek))) v)
                 :matches (every? (fn [[ek re]] (let [x (at entry ek)] (and (string? x) (re-find (re-pattern re) x)))) v)
+                :id (contains? (set (many v)) id)
+                :reaches (nil? (reach-breakers view v id))
                 :id-ns (when-let [n (and (keyword? id) (namespace id))]
                          (or (= n v) (.startsWith ^String n (str v "."))))
                 :data-key (= (boolean v) (boolean ((:data-key? view) e)))
@@ -192,16 +237,22 @@
   "The :require clauses of `rule` that fail on `id`: [{:clause c :offenders [...]}]."
   [view rule id]
   (for [c (:require rule)
-        :let [own (apply dissoc c :resolves (concat relations property-relations))
+        :let [own (apply dissoc c :resolves :reaches (concat relations property-relations))
               own-fails? (and (seq own) (not (holds? view own id)))
               ;; each related clause: nil when it holds, else who breaks it
               results (concat (for [r relations :when (contains? c r)] (breakers view r (get c r) id))
                               (for [r property-relations :when (contains? c r)] (property-breakers view r (get c r) id))
-                              (when (contains? c :resolves) [(unresolved view (:resolves c) id)]))
-              broken (vec (distinct (apply concat (remove nil? results))))]
+                              (when (contains? c :resolves) [(unresolved view (:resolves c) id)])
+                              (when (contains? c :reaches) [(reach-breakers view (:reaches c) id)]))
+              broken (vec (distinct (apply concat (remove nil? results))))
+              ;; how each offender a :reaches clause names is reached
+              paths (when (and (contains? c :reaches) (seq broken))
+                      (let [r (reachable view (or (:via (:reaches c)) depends-on) id)]
+                        (into {} (for [b broken :when (contains? r b)] [b (get r b)]))))]
         :when (or own-fails? (some some? results))]
     (cond-> {:clause c}
-      (seq broken) (assoc :offenders broken))))
+      (seq broken) (assoc :offenders broken)
+      (seq paths) (assoc :paths paths))))
 
 (defn check
   "The findings `rules` give over `view`: {:entities, :data-key? (fn [e]),
@@ -224,6 +275,7 @@
                          :failed (mapv :clause fs) :rule-at {:file file :line line}
                          :definition ((:loc view) (get (:entities view) e-id))}
                   (:doc rule) (assoc :doc (:doc rule))
+                  (some :paths fs) (assoc :paths (apply merge (keep :paths fs)))
                   (some :offenders fs)
                   (assoc :offenders (vec (distinct (mapcat :offenders fs)))
                          ;; where each is defined: an editor marks them too

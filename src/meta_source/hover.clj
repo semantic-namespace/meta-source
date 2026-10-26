@@ -238,7 +238,12 @@
            :runtime-only (str id " is registered in the running process, and in no file read")
            :binding-only (str id ": the meta key names it, no source says anything about it yet")
            :rule-violated (str (or (:doc p) (pr-str (:rule p))) ": " id
-                               (when (seq (:offenders p)) (str " (" (str/join " " (map pr-str (:offenders p))) ")"))
+                               (when (seq (:offenders p))
+                                 (str " (" (str/join " " (for [o (:offenders p)]
+                                                             (if-let [path (get (:paths p) o)]
+                                                               (str/join " → " (map pr-str path))
+                                                               (pr-str o))))
+                                      ")"))
                                "  [" (pr-str (:rule p)) "]")
            :rule-not-understood (str "rule " (pr-str (:rule p)) " not understood: " (str/join "; " (:reasons p)))
            :unreadable-rules-file (str "rules file not readable: " (:message p))

@@ -34,6 +34,8 @@
   where <id>          where it is defined (EDN entries, packs) and implemented (var), with its entry
   uses <id>           entries that name it, and code that calls its var
   deps <id>           entities its entry names
+  reach <id>          what it depends on, transitively (entries, calls, the component
+                      that builds it), with the path to each (--via deps,calls,provided-by)
   data <data-key>     entities producing and consuming the key
   check               where code and registry files disagree (--brief: one line each;
                       --fail-on error: exit 1 when a problem is that severe or more, as CI wants)
@@ -55,6 +57,7 @@
       (= a "--no-cache") (recur more (assoc opts :no-cache true))
       (= a "--brief") (recur more (assoc opts :brief true))
       (= a "--fail-on") (recur (rest more) (assoc opts :fail-on (first more)))
+      (= a "--via") (recur (rest more) (assoc opts :via (mapv keyword (str/split (first more) #","))))
       :else (recur more (update opts :positional conj a)))))
 
 (defn under-root
@@ -175,6 +178,8 @@
               "where" (or (index/where @idx (kw arg)) {:not-found (kw arg)})
               "uses" (index/uses @idx (kw arg))
               "deps" (or (index/dependencies @idx (kw arg)) {:not-found (kw arg)})
+              "reach" (or (if (:via opts) (index/reach @idx (kw arg) (:via opts)) (index/reach @idx (kw arg)))
+                          {:not-found (kw arg)})
               "data" (index/data-key @idx (kw arg))
               "check" (if (:brief opts) (hover/brief @idx) (index/check @idx))
               "diagnostics" (hover/diagnostics @idx arg)

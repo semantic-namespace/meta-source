@@ -205,7 +205,7 @@
     (concat
      (for [u (:var-usages analysis)
            :when (and (= 'clojure.core (:to u)) (= 'defmethod (:name u)) (ig-rows [(:filename u) (:row u)]))]
-       (assoc (select-keys u [:filename :row :name-row :name-col]) :method true))
+       (assoc (select-keys u [:filename :row :end-row :name-row :name-col]) :method true))
      (for [u (:var-usages analysis)
            :when (and (= 'clojure.core (:to u)) (= 'derive (:name u)) (= 2 (:arity u)) (ig-files (:filename u)))]
        (assoc (select-keys u [:filename :row :name-row :name-col]) :derive true))
@@ -236,7 +236,7 @@
                                        {:row row :child child :parent parent}))]
             {:row (:row (first ds)) :kind kind :dev-id child
              :entry {:integrant/isa (vec (sort (distinct (map :parent ds))))}})
-          (for [{:keys [row name-row name-col]} methods-sites
+          (for [{:keys [row end-row name-row name-col]} methods-sites
                 :let [form (form-at name-row name-col)
                       [_ mm dispatch & body] (when (seq? form) form)
                       id (component-id dispatch)
@@ -244,6 +244,9 @@
                       adds (when id (written-keys body))]]
             (if (and id method (ig-methods (symbol method)))
               {:row row :kind kind :dev-id id
+               ;; the method that builds the component: its calls are the component's
+               :body-range (when (and end-row (#{"init-key" "expand-key" "prep-key"} method))
+                             {:row row :end-row end-row})
                :entry (cond-> {(keyword "integrant" method) true}
                         ;; what a key that expands writes, its keys or a duct module's
                         (and (seq adds) (#{"expand-key" "prep-key"} method)) (assoc :integrant/expands-to adds)

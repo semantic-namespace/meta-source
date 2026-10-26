@@ -363,6 +363,10 @@ Each config key becomes a component, in the pack's own vocabulary:
 - duct's merge hints on a tag (`^:replace #ig/ref :k`) are read past.
 - The keys an `expand-key` (or `prep-key`, or a duct module's `init-key`)
   writes as map keys are what it adds to the system.
+- An `init-key` (or `expand-key`, `prep-key`) method is its component's
+  code: what it calls is what the component calls, and a route or other
+  entity defined in a fn it calls is provided by the component (`reach`, and
+  `:reaches` in rules).
 - `integrant/hierarchy.edn` and `duct_hierarchy.edn` under `src/` or
   `resources/` (or the files `:hierarchies` names) are read as derive calls,
   as `ig/load-hierarchy` reads them; so is what duct's own libraries derive
