@@ -83,7 +83,11 @@
                ((requiring-resolve 'meta-source.libs/materialize) root (:libs from-file))
                []))))
 
-(defn- config [{:keys [root registry src no-cache]}]
+(defn config
+  "The index options for the project at `root`: the flags, else its
+   meta-source.edn, else the defaults. Puts the project's own packs on the
+   classpath."
+  [{:keys [root registry src no-cache]}]
   (let [root (or root ".")
         f (io/file root "meta-source.edn")
         from-file (when (.exists f)

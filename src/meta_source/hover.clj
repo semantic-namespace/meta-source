@@ -169,7 +169,7 @@
 ;; Diagnostics: check's problems, for one file
 ;; =============================================================================
 
-(defn- locations
+(defn locations
   "Every {:file :line :end-line} a problem points at."
   [p]
   (concat
@@ -210,7 +210,7 @@
         (concat (for [[_ e] (:entities idx) d (:definitions e) :when (and (= path (:file d)) (:line d))] (:line d))
                 (for [v (get-in idx [:code path :vars])] (:row v)))))
 
-(defn- message
+(defn message
   "What the problem says, in a line, about `k` when it is about one key."
   [p k]
   (let [id (some-> (:dev-id p) pr-str)
