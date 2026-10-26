@@ -811,6 +811,7 @@
                        (doseq [[p text] files] (fs/create-dirs (fs/parent (str dir "/" p))) (spit (str dir "/" p) text))
                        (try (let [idx (index/build {:root dir :src ["src"] :registry [] :packs {:integrant {:configs ["resources"]}}})]
                               {:refs (problems idx :ref-to-undefined) :maybe (problems idx :ref-maybe-from-module)
+                               :amb (problems idx :ref-ambiguous) :cycles (problems idx :ref-cycle)
                                :ids (set (keys (:entities idx)))
                                :not-read (:not-read (:integrant (:packs (index/summary idx))))})
                             (finally (fs/delete-tree dir)))))
@@ -831,6 +832,57 @@
                          "resources/config.edn" "{:app.etl/datasets {}}\n"})]
         (check "integrant: an option named like the key it refers to, defined in another config, is no nested system"
                (and (contains? (:ids r) :app.etl/load) (empty? (:refs r)))))
+      ;; what ig/init throws on, each confirmed against integrant 0.13.1
+      (let [amb (fn [r] (map (juxt :dev-id :keys :candidates) (:amb r)))]
+        (check "integrant: a ref matching a key and a composite deriving from it is ambiguous"
+               (= [[:app/h [:app/kv] [:app/kv :app/redis]]]
+                  (amb (ig-check {"resources/config.edn" "{:app/kv {}\n [:app/kv :app/redis] {}\n :app/h {:kv #ig/ref :app/kv}}\n"}))))
+        (check "integrant: a ref two composites match is ambiguous"
+               (= [[:app/h [:app/kv] [:app/mem :app/redis]]]
+                  (amb (ig-check {"resources/config.edn" "{[:app/kv :app/redis] {}\n [:app/kv :app/mem] {}\n :app/h {:kv #ig/ref :app/kv}}\n"}))))
+        (check "integrant: a ref two derived keys match is ambiguous"
+               (= [[:app/h [:app/store] [:app/mem :app/redis]]]
+                  (amb (ig-check {"resources/config.edn" "{:app/redis {}\n :app/mem {}\n :app/h {:s #ig/ref :app/store}}\n"
+                                  "src/app/store.clj" (str "(ns app.store (:require [integrant.core :as ig]))\n"
+                                                           "(derive :app/redis :app/store)\n(derive :app/mem :app/store)\n"
+                                                           "(defmethod ig/init-key :app/redis [_ v] v)\n")}))))
+        (let [r (ig-check {"resources/config.edn" "{[:app/kv :app/redis] {}\n [:app/kv :app/mem] {}\n :app/h {:kv #ig/refset :app/kv :plugins #ig/refset :app/plugin}}\n"})]
+          (check "integrant: a refset matching several is fine, and so is one matching nothing"
+                 (and (empty? (amb r)) (empty? (:refs r)))))
+        (check "integrant: the branches of a key a tag chooses are alternatives, not rivals"
+               (empty? (amb (ig-check {"resources/config.edn"
+                                       (str "{:app/handler {:email #ig/ref :app.email/service}\n"
+                                            " #profile{:dev :app.email/logging :prod :app.email/sendgrid} {}}\n")
+                                       "src/app/email.clj" (str "(ns app.email (:require [integrant.core :as ig]))\n"
+                                                                "(derive ::logging ::service)\n(derive ::sendgrid ::service)\n"
+                                                                "(defmethod ig/init-key ::sendgrid [_ v] v)\n")}))))
+        (check "integrant: keys in different config files are alternatives, not rivals"
+               (empty? (amb (ig-check {"resources/system.edn" "{[:app/kv :app/redis] {}\n :app/h {:kv #ig/ref :app/kv}}\n"
+                                       "resources/system.test.edn" "{[:app/kv :app/mem] {}\n :app/h {:kv #ig/ref :app/kv}}\n"}))))
+        (check "integrant: keys in duct profiles not active together are alternatives; base and dev are rivals"
+               (and (empty? (amb (ig-check {"resources/config.edn"
+                                            (str "{:duct.profile/base {:app/h {:kv #ig/ref :app/kv}}\n"
+                                                 " :duct.profile/dev {[:app/kv :app/mem] {}}\n"
+                                                 " :duct.profile/prod {[:app/kv :app/redis] {}}}\n")})))
+                    (= [[:app/h [:app/kv] [:app/mem :app/redis]]]
+                       (amb (ig-check {"resources/config.edn"
+                                       (str "{:duct.profile/base {:app/h {:kv #ig/ref :app/kv} [:app/kv :app/redis] {}}\n"
+                                            " :duct.profile/dev {[:app/kv :app/mem] {}}}\n")}))))))
+      (let [r (ig-check {"resources/config.edn"
+                         (str "{[:g/a :app/kv] {}\n [:g/b :app/kv] {}\n"
+                              " :app/h {:a #ig/ref [:g/a :app/kv] :c #ig/ref [:g/c :app/kv]}}\n")})]
+        (check "integrant: a composite ref matches a key deriving from all of it; one nothing matches is undefined"
+               (and (empty? (:amb r)) (= [[:app/h [[:g/c :app/kv]]]] (map (juxt :dev-id :keys) (:refs r))))))
+      (let [cycles (fn [files] (map :cycle (:cycles (ig-check files))))]
+        (check "integrant: refs going round in a circle are a cycle, once, from its least key"
+               (= [[:a/x :a/y :a/z :a/x]]
+                  (cycles {"resources/config.edn" "{:a/x {:r #ig/ref :a/y}\n :a/y {:r #ig/ref :a/z}\n :a/z {:r #ig/ref :a/x}}\n"})))
+        (check "integrant: a key referring to itself is a cycle"
+               (= [[:a/x :a/x]] (cycles {"resources/config.edn" "{:a/x {:r #ig/ref :a/x}}\n"})))
+        (check "integrant: a refset closes a cycle too"
+               (= 1 (count (cycles {"resources/config.edn" "{[:s/a :a/x] {:r #ig/refset :a/y}\n :a/y {:r #ig/ref :s/a}}\n"}))))
+        (check "integrant: a chain is no cycle"
+               (empty? (cycles {"resources/config.edn" "{:a/x {:r #ig/ref :a/y}\n :a/y {:r #ig/ref :a/z}\n :a/z {}}\n"}))))
       (let [r (ig-check {"resources/config.edn"
                          (str "{:app/handler {:email #ig/ref :app.email/service}\n"
                               " #profile{:dev :app.email/logging :prod :app.email/sendgrid} {:key \"k\"}}\n")

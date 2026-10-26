@@ -382,7 +382,9 @@ Each config key becomes a component, in the pack's own vocabulary:
 
 `check` adds:
 
-- `:ref-to-undefined` (warning): a ref to a key no config read defines,
+- `:ref-to-undefined` (warning): a ref (a refset may match nothing, as
+  integrant allows; a composite ref must match a key deriving from all of
+  it) to a key no config read defines,
   directly, as a composite's parent or by `derive`, that no configured duct
   module adds (`:duct.module/logging` adds `:duct/logger`,
   `:duct.module/sql` `:duct.database/sql`), and not `:provided`;
@@ -390,6 +392,14 @@ Each config key becomes a component, in the pack's own vocabulary:
   expands into others (an `expand-key` or `prep-key`, or a duct module), which
   may add it. What such a key adds is read from its method, where the body
   writes the keys as data (`{::app {}}`); a key it builds isn't read;
+- `:ref-ambiguous` (warning): a ref (not a refset) that more than one key
+  configured together matches, by being it or deriving from it (a composite
+  key, a `derive`, a hierarchy file). Integrant can't choose and `ig/init`
+  fails. Keys in different config files, in duct profiles not active
+  together, or the branches of one `#profile` key are alternatives, not rivals;
+- `:ref-cycle` (warning): components whose refs or refsets go round in a
+  circle, shown as the shortest path back to the first: `ig/init` can't
+  order them;
 - `:init-key-without-config` (info): an `init-key` for a key nothing configures
   or derives from: unused, or configured somewhere not read.
 
