@@ -1,0 +1,85 @@
+;; HTTP routes. saas.router/routes mounts saas.routes/saas-routes under "/v1", so the real
+;; paths are /v1/account/... (meta-source's :reitit/path omits the /v1 prefix because
+;; saas-routes is a fn called inside the router). Router data middleware (outer->inner):
+;; swagger, params, muuntaja negotiate/response/request, saas.middleware/exception-middleware,
+;; coerce-response, coerce-request, multipart; then the route-level
+;; saas.middleware/wrap-snake->kebab->snake is innermost (kebab-izes :parameters, snake-izes
+;; the response :body BEFORE response coercion sees it). Coercion: malli (saas.schema).
+;; Whole ring handler is wrapped in CORS allowing any origin. Fallbacks: swagger-ui at "/",
+;; then 404. No route has authentication middleware. /v1/telegram-webhook is NOT under the
+;; snake/kebab middleware (it receives Telegram's snake_case JSON as-is).
+{:saas.routes/saas-routes.post.telegram-webhook
+ {:note/doc "POST /v1/telegram-webhook (saas.telegram.handlers/telegram-webhook-handler, built with the whole :saas/handler config): body coerced with s/telegram-webhook-request {:update_id, optional :message}; returns 200 \"ok\" for group chats or updates without :message. Otherwise it is meant to enqueue the message onto :telegram/channel for :telegram/threads, but the code is (go (>! ) (respond-ok)): >! has no channel/value (likely a compile error for the ns, which saas.routes requires) and the handler has no reference to the channel anyway; even if it compiled it would return a core.async channel instead of a ring response. Unauthenticated: no secret-token check on Telegram requests."
+  :note/aspects #{:tier/api :domain/telegram :status/bug}
+  :note/depends-on #{:telegram/channel}
+  :note/handler-fn saas.telegram.handlers/telegram-webhook-handler
+  :note/real-path "/v1/telegram-webhook"}
+
+:saas.router/route.get.swagger.json
+ {:note/doc "GET /swagger.json: swagger spec from reitit.swagger/create-swagger-handler (:no-doc). Swagger UI is served at / by the default handler in saas.router/routes."
+  :note/aspects #{:tier/http :concern/docs}
+  :note/real-path "/swagger.json"}
+
+ :saas.routes/saas-routes.post.account.sign-up
+ {:note/doc "POST /v1/account/sign-up (saas.account.handlers/sign-up!): Cognito SignUp, then INSERT into account (uid,email,first_name,last_name) via saas.account.db/insert-account!; 201 with Location /account/<uid> (missing /v1) and the account minus :password. Body schema s/create-account-request (email, password, optional first_name/last_name). Gotcha: s/account-response requires :first_name and :last_name keys (values may be nil); if the client omits them the response likely fails coercion (500) AFTER the Cognito user and DB row were created. Not transactional: a DB failure leaves an orphaned Cognito user."
+  :note/aspects #{:tier/api :domain/auth :domain/account}
+  :note/depends-on #{:auth/cognito :saas/db}
+  :note/handler-fn saas.account.handlers/sign-up!
+  :note/real-path "/v1/account/sign-up"}
+
+ :saas.routes/saas-routes.post.account.confirm
+ {:note/doc "POST /v1/account/confirm (saas.account.handlers/confirm-account): Cognito ConfirmSignUp with {email, confirmation_code (6 digits)} -> 204."
+  :note/aspects #{:tier/api :domain/auth}
+  :note/depends-on #{:auth/cognito}
+  :note/handler-fn saas.account.handlers/confirm-account
+  :note/real-path "/v1/account/confirm"}
+
+ :saas.routes/saas-routes.post.account.log-in
+ {:note/doc "POST /v1/account/log-in (saas.account.handlers/log-in): Cognito AdminInitiateAuth ADMIN_USER_PASSWORD_AUTH; returns {:token AccessToken :refresh-token RefreshToken}. Likely BUG: wrap-snake->kebab->snake turns :refresh-token into :refresh_token before response coercion, but s/log-in-response requires :refresh-token (kebab, unlike the snake_case account-response), so a successful log-in should fail response coercion."
+  :note/aspects #{:tier/api :domain/auth :status/bug}
+  :note/depends-on #{:auth/cognito}
+  :note/handler-fn saas.account.handlers/log-in
+  :note/real-path "/v1/account/log-in"}
+
+ :saas.routes/saas-routes.post.account.refresh
+ {:note/doc "POST /v1/account/refresh (saas.account.handlers/refresh-token): Cognito AdminInitiateAuth REFRESH_TOKEN_AUTH, secret hash computed with the token's sub. BROKEN: the route declares no :parameters, so (-> req :parameters :body :refresh-token) is nil, and it reads (get-in req [:claims \"sub\"]) but no middleware ever sets :claims (no JWT auth middleware exists). Returns Cognito's AuthenticationResult as-is."
+  :note/aspects #{:tier/api :domain/auth :status/bug}
+  :note/depends-on #{:auth/cognito}
+  :note/handler-fn saas.account.handlers/refresh-token
+  :note/real-path "/v1/account/refresh"}
+
+ :saas.middleware/case
+ {:note/doc "Name of the reitit middleware map saas.middleware/wrap-snake->kebab->snake, applied to every /v1/account route: kebab-keys on :parameters (so handlers see :first-name, :confirmation-code), snake_keys on the response :body."
+  :note/aspects #{:tier/http :kind/middleware}
+  :note/used-by #{:saas.routes/saas-routes.post.account.sign-up :saas.routes/saas-routes.post.account.confirm :saas.routes/saas-routes.post.account.log-in :saas.routes/saas-routes.post.account.refresh}}
+
+ :saas.middleware/error
+ {:note/doc "Exception type keyword (derive ::error ::exception) for saas.middleware/exception-middleware: ex-data :type ::error -> 500 {:message \"error\" ...}. meta-source reports derive as :integrant/isa; it is a reitit exception-handler hierarchy, not integrant. Nothing in the code throws it."
+  :note/aspects #{:tier/http :concern/errors}}
+ :saas.middleware/failure
+ {:note/doc "Exception type keyword derived from ::exception (handled as \"exception\" 500). Never thrown in the code."
+  :note/aspects #{:tier/http :concern/errors}}
+ :saas.middleware/horror
+ {:note/doc "Exception type keyword derived from ::exception (handled as \"exception\" 500). Never thrown in the code."
+  :note/aspects #{:tier/http :concern/errors}}
+
+ :saas.openai.openai/add-headers
+ {:note/doc "Martian interceptor name (not a reitit route): adds Authorization Bearer <api-key> and OpenAI-Organization from :saas/openai config, overridable per call via :saas.openai.core/options."
+  :note/aspects #{:domain/openai :kind/interceptor :concern/secrets}
+  :note/used-by #{:saas/openai}}
+ :saas.openai.openai/multipart-form-data
+ {:note/doc "Martian interceptor name: turns params into a multipart body for operations whose OpenAPI requestBody is multipart/form-data."
+  :note/aspects #{:domain/openai :kind/interceptor}
+  :note/used-by #{:saas/openai}}
+ :saas.openai.sse/perform-sse-capable-request
+ {:note/doc "Martian interceptor name: performs the HTTP request (hato), supporting server-sent-event streaming when :stream is set. Used by :saas/openai and the dead Azure client."
+  :note/aspects #{:domain/openai :kind/interceptor}
+  :note/used-by #{:saas/openai}}
+ :saas.openai.azure/add-authentication-header
+ {:note/doc "Dead code (ns ^:no-doc, vendored from wkok/openai-clojure): Azure api-key header from AZURE_OPENAI_API_KEY. The Azure martian loads resources/azure_openai.json, which does not exist, and reads options under :wkok.openai-clojure.core/options; nothing uses this ns."
+  :note/aspects #{:domain/openai :kind/interceptor :status/dead-code}
+  :note/env #{"AZURE_OPENAI_API_KEY"}}
+ :saas.openai.azure/override-api-endpoint
+ {:note/doc "Dead code: rewrites URL host from AZURE_OPENAI_API_ENDPOINT. See :saas.openai.azure/add-authentication-header."
+  :note/aspects #{:domain/openai :kind/interceptor :status/dead-code}
+  :note/env #{"AZURE_OPENAI_API_ENDPOINT"}}}

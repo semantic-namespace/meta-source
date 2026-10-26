@@ -1,0 +1,86 @@
+;; Claims verified by reading the code; re-checked by meta-source on every run.
+{:mine/account-routes-snake-case-mw
+ {:doc "Every /account route (real path /v1/account/...) uses wrap-snake->kebab->snake"
+  :when {:kind :reitit :matches {:reitit/path "^/account"}}
+  :require [{:= {:reitit/middleware [saas.middleware/wrap-snake->kebab->snake]}}]}
+
+ :mine/account-routes-post-only
+ {:doc "Account routes are POST-only"
+  :when {:kind :reitit :matches {:reitit/path "^/account"}}
+  :require [{:= {:reitit/methods [:post]}}]}
+
+ :mine/sign-up-handler
+ {:doc "sign-up is built by saas.account.handlers/sign-up! (the only route that gets the whole system map and touches :saas/db)"
+  :when {:id :saas.routes/saas-routes.post.account.sign-up}
+  :require [{:= {:reitit/handler-built-by [saas.account.handlers/sign-up!]}}]}
+
+ :mine/jetty-serves-handler
+ {:doc "Jetty is built from :saas/handler and :webserver/port"
+  :when {:id :server/jetty}
+  :require [{:= {:integrant/refs [:saas/handler :webserver/port]}} {:has :integrant/halt-key!}]}
+
+ :mine/handler-reaches-db-and-auth
+ {:doc "The ring handler reaches the DB pool and Cognito (so they init before it)"
+  :when {:id :saas/handler}
+  :require [{:reaches {:some {:id :saas/db}}} {:reaches {:some {:id :auth/cognito}}}]}
+
+ :mine/migrator-needs-db
+ {:doc "Migrator runs against :saas/db, and the handler waits for it"
+  :when {:id :saas/migrator}
+  :require [{:reaches {:some {:id :saas/db}}} {:reached-by {:some {:id :saas/handler}}}]}
+
+ :mine/config-components-have-init-key
+ {:doc "Every key in resources/config.edn has an ig/init-key method (except the two known-broken telegram keys below)"
+  :when {:kind :integrant :has :integrant/config-in :not {:id #{:saas/telegram :saas/telegram-webhook}}}
+  :require [{:has :integrant/init-key}]}
+
+ :mine/known-bug-telegram-keys-unbuilt
+ {:doc "KNOWN BUG: :saas/telegram and :saas/telegram-webhook are config keys with no init-key (methods live on :telegram/instance and :telegram/webhook)"
+  :when {:id #{:saas/telegram :saas/telegram-webhook}}
+  :require [{:missing :integrant/init-key}]}
+
+ :mine/known-dead-telegram-webhook-method
+ {:doc "KNOWN DEAD: :telegram/webhook has init/halt methods but no config key"
+  :when {:id :telegram/webhook}
+  :require [{:missing :integrant/config-in}]}
+
+ :mine/telegram-webhook-route
+ {:doc "The Telegram webhook route is POST, built by telegram-webhook-handler, and has no snake/kebab middleware"
+  :when {:id :saas.routes/saas-routes.post.telegram-webhook}
+  :require [{:= {:reitit/methods [:post] :reitit/handler-built-by [saas.telegram.handlers/telegram-webhook-handler]}} {:missing :reitit/middleware}]}
+
+ :mine/telegram-threads-wiring
+ {:doc "Telegram consumers get the channel, DB and bot instance - and not :saas/openai"
+  :when {:id :telegram/threads}
+  :require [{:= {:integrant/refs [:saas/db :telegram/channel :telegram/instance]}}]}
+
+ :mine/webhook-after-jetty
+ {:doc "The webhook-registration key refs :server/jetty, :saas/environment, :telegram/instance"
+  :when {:id :saas/telegram-webhook}
+  :require [{:= {:integrant/refs [:saas/environment :server/jetty :telegram/instance]}}]}
+
+ :mine/secrets-from-home
+ {:doc "Secrets file location comes from $HOME"
+  :when {:id :saas/secrets}
+  :require [{:= {:integrant/env ["HOME"]}}]}
+
+ :mine/dark-mode-effect
+ {:doc "toggle-dark-mode emits the DOM effect"
+  :when {:id :saas.events/toggle-dark-mode}
+  :require [{:= {:re-frame/effects [:saas.events/toggle-dark-mode-dom]}}]}
+
+ ;; Known bugs recorded in the registry: these fail (prompting a note update) once fixed.
+ :mine/known-bug-toggle-sidebar-unregistered
+ {:doc "KNOWN BUG: UI dispatches :app/toggle-mobile-sidebar, which is not registered"
+  :when {:id :app/toggle-mobile-sidebar}
+  :require [{:missing :re-frame/registered}]}
+
+ :mine/known-bug-registered-toggle-never-dispatched
+ {:doc "KNOWN BUG: :saas.events/toggle-mobile-sidebar is registered but never dispatched"
+  :when {:id :saas.events/toggle-mobile-sidebar}
+  :require [{:missing :re-frame/dispatched}]}
+
+ :mine/known-dead-db-migrations
+ {:doc "KNOWN DEAD: :db/migrations has an init-key but no config entry"
+  :when {:id :db/migrations}
+  :require [{:missing :integrant/config-in}]}}

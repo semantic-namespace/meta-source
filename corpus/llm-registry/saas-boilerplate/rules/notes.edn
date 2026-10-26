@@ -1,0 +1,9 @@
+;; Checks on the notes in registry/: what they name exists.
+{:notes/name-what-exists
+ {:doc "A note's :note/depends-on and :note/used-by name entities the code defines"
+  :when {:kind :edn}
+  :require [{:resolves [:note/depends-on :note/used-by]}]}
+ :notes/about-what-exists
+ {:doc "A note is about something the code or config defines"
+  :when {:kind :edn}
+  :require [{:kind #{:integrant :reitit :re-frame}}]}}

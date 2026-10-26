@@ -1,0 +1,4 @@
+{:src ["src"]
+ :registry ["registry"]
+ :rules ["rules"]
+ :packs {:integrant {:configs ["resources"]} :reitit {} :re-frame {}}}

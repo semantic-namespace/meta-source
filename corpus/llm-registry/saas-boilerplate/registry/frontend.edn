@@ -1,0 +1,59 @@
+;; re-frame frontend (shadow-cljs build :app, init-fn saas.core/init). init dispatch-syncs
+;; ::initialize-db and renders only saas.ui/authentication, a static sign-in form with no
+;; events/subs and no HTTP calls to the backend. saas.views/main-panel and saas.templates
+;; (sidebar shell) are not required by any namespace, so their dispatches/subscriptions
+;; are unreachable in the app. The sidebar code mixes three id spellings
+;; (:app/..., ::events/..., ::subs/...), most of them unregistered.
+{:saas.events/initialize-db
+ {:note/doc "reg-event-db: replaces app-db with saas.db/default-db {:name \"Ovi Clojure\" :dark-mode? false :app {:show-mobile-sidebar? false}}. dispatch-sync'd from saas.core/init."
+  :note/aspects #{:tier/frontend :kind/event}}
+
+ :saas.events/toggle-dark-mode
+ {:note/doc "reg-event-fx: flips :dark-mode? in app-db and emits ::toggle-dark-mode-dom. Dispatched only from saas.views/main-panel, which is never mounted."
+  :note/aspects #{:tier/frontend :kind/event :domain/theme}
+  :note/depends-on #{:saas.events/toggle-dark-mode-dom}}
+
+ :saas.events/toggle-dark-mode-dom
+ {:note/doc "reg-fx: adds/removes the \"dark\" class on document.body (tailwind dark mode); leftover debug (prn \"this got called\")."
+  :note/aspects #{:tier/frontend :kind/effect :domain/theme}
+  :note/used-by #{:saas.events/toggle-dark-mode}}
+
+ :saas.events/toggle-mobile-sidebar
+ {:note/doc "reg-event-db: toggles [:app :show-mobile-sidebar?]. Registered but never dispatched: the UI dispatches :app/toggle-mobile-sidebar instead (id mismatch)."
+  :note/aspects #{:tier/frontend :kind/event :domain/navigation :status/bug}}
+
+ :app/toggle-mobile-sidebar
+ {:note/doc "Dispatched from saas.templates/application-top-bar (the copy in saas.ui is #_-commented out) but NOT registered; the registered handler is :saas.events/toggle-mobile-sidebar."
+  :note/aspects #{:tier/frontend :kind/event :domain/navigation :status/bug}}
+
+ :app/show-mobile-sidebar
+ {:note/doc "Dispatched (with false, to close) from saas.templates/mobile-sidebar but NOT registered anywhere."
+  :note/aspects #{:tier/frontend :kind/event :domain/navigation :status/bug}}
+
+ :saas.events/show-mobile-sidebar
+ {:note/doc "Dispatched from saas.ui/mobile-sidebar (close) but NOT registered."
+  :note/aspects #{:tier/frontend :kind/event :domain/navigation :status/bug}}
+
+ :app/show-mobile-sidebar?
+ {:note/doc "reg-sub (registered in saas.subs) reading [:app :show-mobile-sidebar?]; subscribed by saas.templates/mobile-sidebar."
+  :note/aspects #{:tier/frontend :kind/sub :domain/navigation}}
+
+ :saas.subs/show-mobile-sidebar?
+ {:note/doc "Subscribed by saas.ui/mobile-sidebar but NOT registered (the registered sub is :app/show-mobile-sidebar?); the component defaults to closed when the value is not boolean."
+  :note/aspects #{:tier/frontend :kind/sub :domain/navigation :status/bug}}
+
+ :nav/active-page
+ {:note/doc "Subscribed by saas.templates/desktop-sidebar and saas.ui (desktop sidebar) but NOT registered; there is also no ::events/set-active-page (its dispatches live in #_-commented navigation-elements)."
+  :note/aspects #{:tier/frontend :kind/sub :domain/navigation :status/bug}}
+
+ :nav/page-title
+ {:note/doc "Subscribed by saas.templates/application-shell but NOT registered."
+  :note/aspects #{:tier/frontend :kind/sub :domain/navigation :status/bug}}
+
+ :saas.subs/name
+ {:note/doc "reg-sub for :name in app-db (\"Ovi Clojure\"); never subscribed."
+  :note/aspects #{:tier/frontend :kind/sub :status/dead-code}}
+
+ :saas.subs/dark-mode?
+ {:note/doc "reg-sub for :dark-mode?; never subscribed (dark mode is applied via the DOM effect)."
+  :note/aspects #{:tier/frontend :kind/sub :domain/theme :status/dead-code}}}

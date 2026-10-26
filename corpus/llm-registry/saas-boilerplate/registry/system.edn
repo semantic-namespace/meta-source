@@ -1,0 +1,101 @@
+;; Integrant system (resources/config.edn, read by saas.config/config via aero).
+;; Boot: dev -> user/reset (dev/user.clj, prep = saas.config/config);
+;; prod jar -> saas.server/-main calls start-system (config minus :saas/secrets,
+;; ig/prep + ig/init of ALL keys) and then starts an nREPL server.
+;; :saas/environment is hard-coded to :production in config.edn (a commented
+;; :development line sits above it), so dev REPL boots also count as production.
+{:saas/secrets
+ {:note/doc "Secrets map #include'd from $HOME/.saas-secrets.edn (copy saas-secrets.example.edn). Other components take sub-maps via aero #ref [:saas/secrets k], resolved at config-read time, so meta-source sees no ref edge. init-key is identity; saas.server/start-system dissocs this key before ig prep (dev/user.clj does not). The example file only has :db and :cognito; :openai (:api-key, :organization) and :telegram (:nutri-bot-token, :webhook-url) must be added by hand or those components get nil config."
+  :note/aspects #{:tier/config :concern/secrets}
+  :note/used-by #{:auth/cognito :saas/db :saas/openai :telegram/instance :telegram/channel :saas/telegram-webhook}
+  :note/env #{"HOME"}
+  :note/source-file "~/.saas-secrets.edn"}
+
+ :webserver/port
+ {:note/doc "HTTP port: #or [#env PORT 8080]; init-key is identity (saas.server). Gotcha: when PORT is set, the value is a string passed straight to run-jetty (saas.config/webserver-port parses it to Long but is unused). Dockerfile EXPOSEs 3000, not 8080."
+  :note/aspects #{:tier/config :tier/http}
+  :note/env #{"PORT"}
+  :note/used-by #{:server/jetty}}
+
+ :server/jetty
+ {:note/doc "Jetty server (ring.adapter.jetty/run-jetty, :join? false) on :webserver/port serving the :saas/handler ring handler; halt-key! calls .stop. Defined in saas.server."
+  :note/aspects #{:tier/http :kind/component}
+  :note/depends-on #{:saas/handler :webserver/port}}
+
+ :saas/handler
+ {:note/doc "Ring handler: init-key prints the whole config (including secrets-derived values) and calls saas.server/app -> saas.router/routes with the config map {:auth :db :migrator :openai :telegram}. :auth and :db are used by /v1/account routes; the whole map is also handed to the /v1/telegram-webhook handler, which only destructures :db (unused). :openai and :migrator are unused by routes (the :migrator ref does guarantee migrations run before the handler starts). Note :telegram here is :saas/telegram, which has no init-key (see there)."
+  :note/aspects #{:tier/http :kind/component}
+  :note/depends-on #{:auth/cognito :saas/db :saas/migrator :saas/openai :saas/telegram}
+  :note/used-by #{:server/jetty}
+  :note/handler-fn saas.router/routes}
+
+ :auth/cognito
+ {:note/doc "AWS Cognito client (saas.auth). Config = #ref [:saas/secrets :cognito] {:client-id :client-secret :user-pool-id :jwks}. Returns {:cognito-idp (aws client) :key-provider (JWK RSA provider from :jwks URL) :config}. Used by account handlers for SignUp/ConfirmSignUp/AdminInitiateAuth (USER_PASSWORD and REFRESH_TOKEN). Every call sends SecretHash = HMAC-SHA256(client-secret, username+client-id). JWT verification (saas.auth/verify-and-get-payload) exists but no middleware calls it: no route is authenticated. verify-payload compares token iss to the :jwks value, so :jwks must be the issuer URL. cognito-update-role (group \"cheffs\") and cognito-delete-user are unused."
+  :note/aspects #{:tier/integration :domain/auth :concern/secrets :kind/component}
+  :note/depends-on #{:saas/secrets}
+  :note/secrets #{:client-id :client-secret :user-pool-id :jwks}
+  :note/used-by #{:saas/handler :saas.routes/saas-routes.post.account.sign-up :saas.routes/saas-routes.post.account.confirm :saas.routes/saas-routes.post.account.log-in :saas.routes/saas-routes.post.account.refresh}}
+
+ :saas/db
+ {:note/doc "Postgres connection pool (saas.db.core): HikariCP (max pool 8) from :jdbc-url or next.jdbc jdbc-url of the spec, wrapped with jdbc/with-options unqualified-snake-kebab-opts (so plain jdbc results are kebab-case; saas.db.utils/execute-one! overrides builder-fn to as-unqualified-lower-maps, i.e. snake_case keys). halt-key! closes the datasource via :connectable. Config = #ref [:saas/secrets :db]."
+  :note/aspects #{:tier/data :concern/secrets :kind/component}
+  :note/depends-on #{:saas/secrets}
+  :note/secrets #{:host :port :user :password :dbname}
+  :note/used-by #{:saas/handler :saas/migrator :telegram/threads :saas.routes/saas-routes.post.account.sign-up}
+  :note/tables #{"account" "telegram_updates" "user_goal" "telegram_user" "calories" "migrations"}}
+
+ :saas/migrator
+ {:note/doc "Migratus runner (saas.db.core) over resources/migrations (init.sql + timestamped up/down). Runs migratus/init (init.sql, creates account) only when db-initiated? is false, i.e. unless BOTH the migration table and account exist in schema public; then migratus/migrate (telegram_updates, user_goal, telegram_user, calories). (Older versions had an inverted subset check here; now fixed.) Note init.sql starts with 'drop table if exists account'."
+  :note/aspects #{:tier/data :kind/component}
+  :note/depends-on #{:saas/db}
+  :note/used-by #{:saas/handler}}
+
+ :saas/openai
+ {:note/doc "OpenAI client (saas.openai.openai): martian bootstrapped from resources/openapi.yaml with interceptors add-headers (Bearer :api-key, OpenAI-Organization), encode-body, multipart-form-data, sse/perform-sse-capable-request. Config = #ref [:saas/secrets :openai] {:api-key :organization} (absent from the secrets example). Intended consumer is the Telegram calorie bot (saas.telegram.handlers: gpt-3.5-turbo calorie/macros estimate, /recommend), which reads (:openai config) - but :telegram/threads' config has no :openai key, so those calls get a nil client. Only :saas/handler refs it, and no route uses it."
+  :note/aspects #{:tier/integration :domain/openai :concern/secrets :kind/component}
+  :note/depends-on #{:saas/secrets}
+  :note/secrets #{:api-key :organization}
+  :note/used-by #{:saas/handler}}
+
+ :saas/telegram
+ {:note/doc "Config map {:instance #ig/ref :telegram/instance :channel #ig/ref :telegram/channel} with NO init-key (meta-source warns 'nothing builds :saas/telegram'; the old :saas/telegram init-key was renamed to :telegram/instance). Under integrant 0.8.0 ig/init either fails for want of a method or passes the resolved map through unchanged, depending on whether a default init-key applies. It is passed to :saas/handler as :telegram but nothing reads it. dev/user.clj's (telegram) still returns this key, so tbot calls there get the wrapper map, not a bot instance."
+  :note/aspects #{:tier/integration :domain/telegram :kind/component :status/bug}
+  :note/depends-on #{:telegram/instance :telegram/channel}
+  :note/used-by #{:saas/handler}}
+
+ :telegram/instance
+ {:note/doc "Telegram bot instance (saas.telegram.core): {:bot-token (:nutri-bot-token cfg)}; config = #ref [:saas/secrets :telegram]. Requests go through saas.telegram.http (sync clj-http POST to api.telegram.org/bot<token>/<method>)."
+  :note/aspects #{:tier/integration :domain/telegram :concern/secrets :kind/component}
+  :note/depends-on #{:saas/secrets}
+  :note/secrets #{:nutri-bot-token}
+  :note/used-by #{:saas/telegram :telegram/channel :telegram/threads :saas/telegram-webhook}}
+
+ :telegram/channel
+ {:note/doc "core.async (chan 1024) meant as the queue between the webhook route and :telegram/threads; halt-key! closes it. Its config (:telegram, :telegram-config secrets) is ignored by init-key. BUG: nothing ever puts onto it: the webhook handler has no access to the channel (it is not in :saas/handler's config) and its put is (>! ) with no arguments."
+  :note/aspects #{:domain/telegram :kind/component :concern/async :status/bug}
+  :note/depends-on #{:telegram/instance :saas/secrets}
+  :note/used-by #{:saas/telegram :telegram/threads}}
+
+ :telegram/threads
+ {:note/doc "Intended 8 go-loop consumers of :telegram/channel, each running saas.telegram.handlers/handle-telegram-message in a thread: registers unknown users (telegram_user), handles /start, /recommend (OpenAI next-meal suggestion), /today (sum of today's rows in calories), else asks OpenAI for calories+macros of the text, inserts a calories row and replies. Not referenced by any other key; started only because ig/init inits every key. BUGS: init-key returns a lazy (for ...) so the go-loops are probably never started (nothing realizes the seq; halt-key! would realize it just to close); its config lacks :openai, so OpenAI calls get nil; total-calories-for-today reduces from {} with (update :calories + x) -> (+ nil x) NPE whenever the user has entries today (and never sums :fat)."
+  :note/aspects #{:domain/telegram :domain/openai :kind/component :concern/async :status/bug}
+  :note/depends-on #{:telegram/channel :saas/db :telegram/instance}}
+
+ :saas/telegram-webhook
+ {:note/doc "Config map {:app #ig/ref :server/jetty :env #ig/ref :saas/environment :telegram #ig/ref :telegram/instance :telegram-config #ref [:saas/secrets :telegram]} meant to call Telegram setWebhook(<:webhook-url secret>) after Jetty starts when env is :production, and clear it on halt. BUG: key-name mismatch - the methods are defined on :telegram/webhook, so nothing builds :saas/telegram-webhook (meta-source warns) and the webhook is never registered by the system."
+  :note/aspects #{:domain/telegram :kind/component :concern/secrets :status/bug}
+  :note/depends-on #{:server/jetty :saas/environment :telegram/instance :saas/secrets}
+  :note/secrets #{:webhook-url}}
+
+ :telegram/webhook
+ {:note/doc "init-key/halt-key! in saas.telegram.core (set-webhook to :webhook-url from :telegram-config when (= env :production); halt sets it to \"\"). No config key uses this name; the config key is :saas/telegram-webhook, so these methods are dead as wired."
+  :note/aspects #{:domain/telegram :status/dead-code}}
+
+ :saas/environment
+ {:note/doc "Keyword environment; identity init-key in saas.server. config.edn hard-codes :production (the :development line is commented out), so the Telegram webhook logic would always treat the run as production."
+  :note/aspects #{:tier/config}
+  :note/used-by #{:saas/telegram-webhook}}
+
+ :db/migrations
+ {:note/doc "Dead: init-key (identity) in saas.server but no config key. saas.config/migrations-config reads (:db/migrations (config)) -> nil, so dev/migrations.clj create-migration gets nil config. Migrations are configured under :saas/migrator instead."
+  :note/aspects #{:status/dead-code :tier/data}}}
