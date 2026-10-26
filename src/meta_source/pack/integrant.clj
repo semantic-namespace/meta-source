@@ -100,6 +100,70 @@
                                        :when (and (= :ref k) (vector? t) (next t))]
                                    t)))))
 
+(defn- ref-keys
+  "{config-key [ref-target ...]} over the configs `vs` (maps): the refs each
+   key of a component's config holds."
+  [vs]
+  (into (sorted-map)
+        (for [[k ts] (apply merge-with into (for [v vs :when (map? v) [k x] v :when (keyword? k)] {k (refs [x])}))
+              :when (seq ts)]
+          [k (vec (sort (distinct ts)))])))
+
+(defn- config-symbols
+  "What an init-key's config parameter binds: {:keys {sym config-key}
+   :whole #{sym}}, the symbols naming one key and those naming the whole
+   map. nil when the parameter can't be read."
+  [param]
+  (cond
+    (symbol? param) {:keys {} :whole #{param}}
+    (map? param) {:keys (into {} (concat (for [k (:keys param)] [(symbol (name k)) (keyword (name k))])
+                                         (for [[sym k] param :when (and (symbol? sym) (keyword? k))] [sym k])))
+                  :whole (set (filter symbol? [(:as param)]))}
+    :else nil))
+
+(defn- within?
+  "Whether `row`/`col` is inside the span {:row :col :end-row :end-col}."
+  [{r0 :row c0 :col r1 :end-row c1 :end-col} row col]
+  (and (or (> row r0) (and (= row r0) (>= col c0)))
+       (or (< row r1) (and (= row r1) (<= col c1)))))
+
+(defn- hand-calls
+  "What clj-kondo says each call inside the method at `site` is handed of
+   the method's own parameters: [{:callee \"ns/name\" :params [sym ...]
+   :rebound? bool}], for the calls handed any local. A parameter is a local
+   whose scope is the whole method; any other local in a call (an as->, a
+   let, a fn param) is a value bound in the body, not followed."
+  [analysis site]
+  (let [in-file #(= (:filename %) (:filename site))
+        in-method #(and (in-file %) (within? site (:row %) (:col %)))
+        locals (filter in-method (:locals analysis))
+        scope-end (fn [l] [(:scope-end-row l) (:scope-end-col l)])
+        widest (when (seq locals) (last (sort (map scope-end locals))))
+        local (into {} (for [l locals] [(:id l) (assoc l :param? (= widest (scope-end l)))]))
+        usages (filter #(and (in-method %) (local (:id %))) (:local-usages analysis))]
+    (vec (for [u (:var-usages analysis)
+               :when (and (in-method u) (:end-row u) (not= [(:row u) (:col u)] [(:row site) (:col site)]) (:to u))
+               :let [inside (keep #(when (within? u (:row %) (:col %)) (local (:id %))) usages)]
+               :when (seq inside)]
+           {:callee (str (:to u) "/" (:name u))
+            :params (vec (distinct (map :name (filter :param? inside))))
+            :rebound? (boolean (some (complement :param?) inside))}))))
+
+(defn- passes
+  "What each call in an init-key is handed of its config, from `calls`
+   (hand-calls) and the config parameter `param` read as data:
+   {callee [config-key ...] or :unknown}. A call handed the whole config,
+   a parameter the destructuring doesn't name a key for, or a value bound
+   in the body is :unknown: what it carries isn't followed. nil when the
+   parameter can't be read."
+  [param calls]
+  (when-let [{ks :keys} (config-symbols param)]
+    (reduce (fn [m {:keys [callee params rebound?]}]
+              (let [c (if (or rebound? (some #(not (contains? ks %)) params)) :unknown (set (map ks params)))]
+                (update m callee (fn [old] (if (or (= :unknown old) (= :unknown c)) :unknown (vec (sort (distinct (concat old c)))))))))
+            {}
+            calls)))
+
 (defn- env-vars [v]
   (vec (sort (distinct (for [x (nodes v)
                              :when (and (tagged-literal? x) (#{"env" "duct/env"} (str (:tag x))))
@@ -138,6 +202,8 @@
                    (some (comp vector? :key) ds)
                    (assoc :integrant/derives (vec (distinct (for [d ds :when (vector? (:key d)) x (:key d) :when (not= id x)] x))))
                    (seq (env-vars (map :value ds))) (assoc :integrant/env (env-vars (map :value ds)))
+                   ;; which refs each key of its config holds, for what its init-key hands on
+                   (seq (ref-keys (map :value ds))) (assoc :integrant/ref-keys (ref-keys (map :value ds)))
                    (> (count values) 1) (assoc :integrant/varies true)
                    (seq (keep :profile ds)) (assoc :integrant/profiles (vec (sort (distinct (keep :profile ds)))))
                    (seq (mapcat :alternatives ds))
@@ -235,13 +301,16 @@
         ;; derive also builds hierarchies of exceptions and the like: only
         ;; files that use integrant say something about components
         ig-files (set (for [u (:var-usages analysis) :when (= 'integrant.core (:to u))] (:filename u)))
-        ig-rows (set (for [u (:var-usages analysis)
-                           :when (and (:defmethod u) (= 'integrant.core (:to u)) (ig-methods (:name u)))]
-                       [(:filename u) (:row u)]))]
+        ;; {[file row] method}: the integrant method a defmethod on that row defines
+        ig-rows (into {} (for [u (:var-usages analysis)
+                               :when (and (:defmethod u) (= 'integrant.core (:to u)) (ig-methods (:name u)))]
+                           [[(:filename u) (:row u)] (:name u)]))]
     (concat
      (for [u (:var-usages analysis)
            :when (and (= 'clojure.core (:to u)) (= 'defmethod (:name u)) (ig-rows [(:filename u) (:row u)]))]
-       (assoc (select-keys u [:filename :row :end-row :name-row :name-col]) :method true))
+       (let [site (select-keys u [:filename :row :col :end-row :end-col :name-row :name-col])]
+         (cond-> (assoc site :method true)
+           (= 'init-key (ig-rows [(:filename u) (:row u)])) (assoc :hand-calls (hand-calls analysis site)))))
      (for [u (:var-usages analysis)
            :when (and (= 'clojure.core (:to u)) (= 'derive (:name u)) (= 2 (:arity u)) (ig-files (:filename u)))]
        (assoc (select-keys u [:filename :row :name-row :name-col]) :derive true))
@@ -272,9 +341,11 @@
                                        {:row row :child child :parent parent}))]
             {:row (:row (first ds)) :kind kind :dev-id child
              :entry {:integrant/isa (vec (sort (distinct (map :parent ds))))}})
-          (for [{:keys [row end-row name-row name-col]} methods-sites
+          (for [{:keys [row end-row name-row name-col hand-calls]} methods-sites
                 :let [form (form-at name-row name-col)
                       [_ mm dispatch & body] (when (seq? form) form)
+                      ;; (defmethod ig/init-key ::k [_ config] body...)
+                      [params] body
                       id (component-id dispatch)
                       method (when (symbol? mm) (name mm))
                       adds (when id (written-keys body))]]
@@ -286,7 +357,13 @@
                :entry (cond-> {(keyword "integrant" method) true}
                         ;; what a key that expands writes, its keys or a duct module's
                         (and (seq adds) (#{"expand-key" "prep-key"} method)) (assoc :integrant/expands-to adds)
-                        (and (seq adds) (= "init-key" method)) (assoc :integrant/init-writes adds))}
+                        (and (seq adds) (= "init-key" method)) (assoc :integrant/init-writes adds)
+                        ;; what each call in it is handed of the config
+                        ;; nothing handed on is said by saying nothing
+                        (= "init-key" method) (as-> e (let [p (when (vector? params) (passes (second params) hand-calls))]
+                                                        (cond (nil? p) (assoc e :integrant/passes {"*" :unknown})
+                                                              (seq p) (assoc e :integrant/passes p)
+                                                              :else e))))}
               {:row row :kind kind :skipped (str "dispatch value " (pr-str dispatch) " is not a config key")}))
           (for [{:keys [row name-row name-col config-var]} var-sites
                 :let [form (form-at name-row name-col)
@@ -513,6 +590,8 @@
    :pack/vocabulary #{"integrant"}
    :pack/data-keys? false
    :pack/find find-forms
+   ;; which locals a call is handed, and where each is bound
+   :pack/kondo-config {:analysis {:locals true}}
    :pack/read read-forms
    ;; the configs, and where duct keeps derive calls written as data
    :pack/data-files (fn [opts] (concat (get-in opts [:integrant :configs])
@@ -521,4 +600,15 @@
                                         "src/integrant/hierarchy.edn" "resources/integrant/hierarchy.edn"]))
    :pack/read-data read-configs
    :pack/checks checks
-   :pack/describe describe})
+   :pack/describe describe
+   ;; what a component's init-key hands each fn it calls, as the components
+   ;; its config refers to under the keys passed; :unknown when not followed
+   :pack/not-references #{:integrant/ref-keys}
+   :pack/hands (fn [entry]
+                 (cond
+                   (:integrant/passes entry)
+                   (update-vals (:integrant/passes entry)
+                                (fn [ks] (if (= :unknown ks)
+                                           :unknown
+                                           (vec (sort (distinct (mapcat #(get (:integrant/ref-keys entry) %) ks)))))))
+                   (:integrant/init-key entry) {}))})

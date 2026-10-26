@@ -182,13 +182,15 @@
    transitively; path is the ids from `id`'s first step to the reached one,
    one shortest path each."
   [view via id]
+  ;; through :provided-by, what is reached is what the builder hands over
+  (let [via (map #(get {:provided-by :handed} % %) via)]
   (loop [frontier [[id []]] seen {id []}]
     (if-let [[[x path] & more] (seq frontier)]
       (let [nexts (for [r via n (related view r x) :when (not (contains? seen n))] n)
             nexts (distinct nexts)
             seen (reduce #(assoc %1 %2 (conj path %2)) seen nexts)]
         (recur (concat more (for [n nexts] [n (conj path n)])) seen))
-      (dissoc seen id))))
+      (dissoc seen id)))))
 
 (defn- reach-breakers
   "For {:reaches {q cond}}: nil when it holds on `id`, otherwise the reached

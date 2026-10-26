@@ -162,6 +162,12 @@
 ;;   :pack/shape            (fn [entry kind]) → a data key's shape, as text
 ;;   :pack/members          (fn [entry]) → the data keys a schema is made of
 ;;   :pack/describe         (fn [entry]) → one line for an editor, or nil
+;;   :pack/not-references   #{prop ...}: props of its entries that name ids
+;;                          only as a lookup (what another prop refers to)
+;;   :pack/hands            (fn [entry]) → {callee [id ...] or :unknown}:
+;;                          what the entity's code hands each fn it calls
+;;                          (callee "ns/name" or a bare name, "*" for any
+;;                          other), {} for nothing, nil when not known
 ;;   :pack/merge            {key :union}: keys whose values it unions across
 ;;                          sources (a set of tags); others conflict
 ;;   :pack/data-files       (fn [opts]) → paths under the root, files or
@@ -665,7 +671,11 @@
    - :provided-by: an entity defined inside a var (a route in the fn that
      builds a route tree) depends on the entity whose code calls that var
      (the component whose init-key builds the routes, handing them what it
-     was given)."
+     was given).
+   - :given: what such an entity is handed, when the builder's pack reads it
+     (:pack/hands): the components behind the config keys an init-key passes
+     to the call. :opaque: the builders of those it isn't known for, whose
+     whole holdings it may reach."
   [idx]
   (let [var->id (into {} (for [[id vs] (linked-vars idx) v vs] [[(symbol (str (:ns v))) (symbol (str (:name v)))] id]))
         ranges (group-by (comp :filename second) (concat (:impl-ranges idx) (:body-ranges idx)))
@@ -685,15 +695,30 @@
                                                      id))]
                                     :when (seq ids)]
                                 [k ids])))
-        add (fn [m k v] (if (and k v (not= k v)) (update m k (fnil conj #{}) v) m))]
+        add (fn [m k v] (if (and k v (not= k v)) (update m k (fnil conj #{}) v) m))
+        ;; what an entity's code hands each fn it calls, as its pack reads it
+        hands (memoize (fn [id] (let [entry (get-in idx [:entities id :entry])]
+                                  (some #(when-let [f (:pack/hands %)] (f entry)) (:packs idx)))))
+        handed (fn [from c] (when-let [h (hands from)]
+                              (let [v (some #(when (contains? h %) (get h %))
+                                            [(str (:to c) "/" (:name c)) (str (:name c)) "*"])]
+                                (or v []))))]
     (reduce (fn [acc c]
               (if-let [from (owner c)]
-                (let [k [(:to c) (:name c)]]
+                (let [k [(:to c) (:name c)]
+                      built (defined-in k)
+                      h (when (seq built) (handed from c))]
                   (as-> acc a
                     (update a :calls add from (var->id k))
-                    (reduce #(update %1 :provided-by add %2 from) a (defined-in k))))
+                    (reduce #(update %1 :provided-by add %2 from) a built)
+                    ;; what is built there depends on what it is handed, when
+                    ;; that is known; otherwise on all the builder holds
+                    (reduce (fn [a r] (cond (nil? h) (update a :opaque add r from)
+                                            (= :unknown h) (update a :opaque add r from)
+                                            :else (reduce #(update %1 :given add r %2) a h)))
+                            a built)))
                 acc))
-            {:calls {} :provided-by {}}
+            {:calls {} :provided-by {} :given {} :opaque {}}
             (for [c (mapcat :calls (vals (:code idx)))]
               (update c :to #(symbol (str %)))))))
 
@@ -729,9 +754,12 @@
   "[[prop dev-id] ...] for every registry entity an entry names in its props.
    Data keys are not references: `data-key` answers for them."
   [idx entry]
-  (let [ids (:entities idx)]
+  (let [ids (:entities idx)
+        ;; a pack's lookup tables name ids its other keys already refer to
+        skip (set (mapcat :pack/not-references (:packs idx)))]
     (distinct
      (for [[k v] entry
+           :when (not (skip k))
            x (tree-seq coll? seq v)
            :when (and (qualified-keyword? x) (contains? ids x) (not (data-key? idx (get ids x))))]
        [k x]))))
@@ -1154,7 +1182,7 @@
         used-by (index-by #(map second (references idx (:entry %))))
         consumers (index-by #(:consumes (contract-keys idx (:entry %))))
         producers (index-by #(:produces (contract-keys idx (:entry %))))
-        {:keys [calls provided-by]} (edges idx)
+        {:keys [calls provided-by given opaque]} (edges idx)
         reverse-of (fn [m] (reduce (fn [r [from tos]] (reduce #(update %1 %2 (fnil conj #{}) from) r tos)) {} m))
         called-by (reverse-of calls)
         provides (reverse-of provided-by)]
@@ -1168,7 +1196,9 @@
      :calls #(sort (get calls %))
      :called-by #(sort (get called-by %))
      :provided-by #(sort (get provided-by %))
-     :provides #(sort (get provides %))}))
+     :provides #(sort (get provides %))
+     ;; what :reaches follows for :provided-by: what it is handed
+     :handed #(sort (into (get given % #{}) (get opaque % #{})))}))
 
 (defn- rule-findings
   "The project's own rules (meta-source.rules) over the index, and the
