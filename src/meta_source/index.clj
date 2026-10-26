@@ -181,6 +181,12 @@
 ;;                          all of them at once, so a key several files define
 ;;                          can be one result (meta-source.read/keyed-lines
 ;;                          reads them with each key's line)
+;;   :pack/derive           (fn [entities opts]) → {id {key value}}: facts it
+;;                          derives from what every pack read, entities being
+;;                          {id {:entry merged-entry :kinds #{source-kind}}}
+;;                          (atlas's: a route is an :atlas/interface-endpoint).
+;;                          A fact fills a key the entry lacks, never one a
+;;                          source gave; `where` lists it with :derived-by
 ;;   :pack/runtime-fill     (fn [entry runtime]) → entry with what static reading
 ;;                          couldn't read taken from the running process's entry
 ;;   :pack/id-key           its library's meta key linking a var to an id
@@ -575,6 +581,23 @@
                                                 (first (remove :refers defs))
                                                 (first defs))]]
                           [id (assoc primary :entry entry :definitions defs)]))
+        ;; what packs derive from what was read (atlas's types for routes and
+        ;; components): facts that fill a key no source gave, never one one did
+        static (reduce (fn [st p]
+                         (if-let [f (:pack/derive p)]
+                           (let [seen (into {} (for [[id e] st] [id {:entry (:entry e) :kinds (set (map :kind (:definitions e)))}]))]
+                             (reduce (fn [st [id facts]]
+                                       (let [e (get st id)
+                                             new (into {} (remove #(contains? (:entry e) (key %))) facts)]
+                                         (if (and e (seq new))
+                                           (-> st
+                                               (update-in [id :entry] merge new)
+                                               (update-in [id :definitions] conj {:kind (first (sort (:pack/kinds p))) :derived (:pack/id p)
+                                                                                  :keys (vec (sort (keys new)))}))
+                                           st)))
+                                     st (try (f seen (pack-opts config)) (catch Exception _ nil))))
+                           st))
+                       static packs)
         rules-read (read-rules root rule-files)
         ;; packs' runtime snapshots: fill what static reading couldn't read,
         ;; add what only the running process has
@@ -807,6 +830,7 @@
      :definition (loc idx e)
      :impl (some->> (impl-of idx id) (loc idx))
      :sources (mapv (fn [d] (cond-> (assoc (loc idx d) :keys (:keys d))
+                              (:derived d) (assoc :derived-by (:derived d))
                               (:dropped d) (assoc :dropped (:dropped d))
                               (:refers d) (assoc :refers true)))
                     (:definitions e))
@@ -1103,7 +1127,7 @@
   [idx]
   (let [kind->pack (into {} (for [p (:packs idx) k (:pack/kinds p)] [k p]))]
     (for [[id e] (sort-by key (:entities idx))
-          :let [packs (distinct (keep #(kind->pack (:kind %)) (remove #(or (:runtime %) (:refers %)) (:definitions e))))]
+          :let [packs (distinct (keep #(kind->pack (:kind %)) (remove #(or (:runtime %) (:refers %) (:derived %)) (:definitions e))))]
           :when (> (count (remove #(or (:pack/data-keys? %) (:pack/describes? %)) packs)) 1)]
       {:severity :warning :problem :id-in-several-packs :dev-id id
        :packs (vec (sort (map :pack/id packs)))
@@ -1126,7 +1150,7 @@
               snapshot (relative (:root idx) (:file snap))]
         :let [compared (or (:pack/runtime-kinds pack) #{kind})]
         [id e] (sort-by key (:entities idx))
-        :let [code-defs (filter #(and (compared (:kind %)) (not (:runtime %))) (:definitions e))
+        :let [code-defs (filter #(and (compared (:kind %)) (not (:runtime %)) (not (:derived %))) (:definitions e))
               runtime (:runtime e)]
         p (cond
             (and (seq code-defs) (not (contains? ids id)))

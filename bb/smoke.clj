@@ -42,6 +42,16 @@
                                 :impl-range {:row row :end-row end-row}}
                          (seq code) (assoc :dropped code)))))})
 
+(def derive-pack
+  "A pack deriving a fact from what other packs read: each integrant
+   component a :tier, unless a source says one."
+  {:pack/id :tiers
+   :pack/kinds #{:tiers}
+   :pack/find (fn [_ _] [])
+   :pack/read (fn [_ _ _] [])
+   :pack/derive (fn [entities _opts]
+                  (into {} (for [[id {:keys [kinds]}] entities :when (kinds :integrant)] [id {:app/tier :foundation}])))})
+
 (def job-pack
   "A project's own pack: the shop's defjob registry. Enabled by its
    qualified symbol under :packs; a job reads the data keys :job/reads lists."
@@ -1080,6 +1090,22 @@
       (check "reach: a value rebound inside isn't followed: everything the component holds"
              (= #{:app.routes/drivers :svc/user :svc/article} (:login (reached (str "(defmethod ig/init-key :app.routes/drivers [_ {:keys [user-service]}]\n"
                                                                  "  (let [svc user-service] (ring/router [(auth/->auth-routes svc)])))\n"))))))
+
+    ;; ---- :pack/derive: facts a pack derives from what the others read
+    (let [dir (str (fs/create-temp-dir))]
+      (fs/create-dirs (str dir "/resources")) (fs/create-dirs (str dir "/registry"))
+      (spit (str dir "/resources/config.edn") "{:app/db {}\n :app/billing {:db #ig/ref :app/db}}\n")
+      (spit (str dir "/registry/facts.edn") "{:app/billing {:app/tier :service}}\n")
+      (let [idx (index/build {:root dir :src [] :registry ["registry"]
+                              :packs {:integrant {:configs ["resources"]} 'smoke/derive-pack {}}})]
+        (check "derive: a pack's derived fact fills a key no source gave, listed with :derived-by"
+               (and (= :foundation (get-in idx [:entities :app/db :entry :app/tier]))
+                    (some #(= :tiers (:derived-by %)) (:sources (index/where idx :app/db)))))
+        (check "derive: never over a source's, and no conflict"
+               (and (= :service (get-in idx [:entities :app/billing :entry :app/tier]))
+                    (empty? (problems idx :conflicting-values))
+                    (empty? (problems idx :id-in-several-packs)))))
+      (fs/delete-tree dir))
 
     ;; ---- the pattern (docs/pattern.md): :off-pattern, when a pack's options ask
     (let [pat (index/build (-> cfg (assoc-in [:packs :reitit] {:pattern true}) (assoc-in [:packs :integrant :pattern] true)))
