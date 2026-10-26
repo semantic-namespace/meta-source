@@ -140,7 +140,9 @@
 ;;                          after the form's opening paren
 ;;   :pack/read             (fn [sites file opts]) → [{:row :kind :dev-id
 ;;                          :entry} or {:row :kind :skipped reason}] for one
-;;                          file's sites; file is {:form-at (fn [row col])
+;;                          file's sites (a skipped one with :pattern rule-id
+;;                          breaks that rule of the pack's pattern, reported
+;;                          as :off-pattern when the project asks); file is {:form-at (fn [row col])
 ;;                          :read (fn [text]) :find-row (fn [text row])
 ;;                          :own-ns :aliases}, form-at reading
 ;;                          the form at a position as data, read reading text
@@ -1167,14 +1169,22 @@
                           #(get n % 0))}]
     (concat
      (mapcat #(when-let [c (:pack/checks %)] (c view)) (:packs idx))
-     (for [{:keys [file row kind skipped]} (concat (for [[f {:keys [pack-results]}] (sort-by key (:code idx))
-                                                         [_ results] (sort-by key pack-results)
-                                                         r results]
-                                                     (assoc r :file f))
-                                                   (:pack-data-results idx))
-           :when skipped]
-       {:severity :info :problem :pack-form-not-read :pack kind :reason skipped
-        :file (relative (:root idx) file) :line row})
+     ;; a form not read; one a pack says breaks its pattern (docs/pattern.md),
+     ;; when the project asks for it (:pattern true in the pack's options), is
+     ;; :off-pattern instead
+     (for [{:keys [file row kind skipped pattern]} (concat (for [[f {:keys [pack-results]}] (sort-by key (:code idx))
+                                                                 [_ results] (sort-by key pack-results)
+                                                                 r results]
+                                                             (assoc r :file f))
+                                                           (:pack-data-results idx))
+           :when skipped
+           :let [p (pack-of idx kind)
+                 on? (and pattern (some #(get-in (:config idx) [:packs % :pattern]) (:pack/config-keys p)))]]
+       (if on?
+         {:severity :info :problem :off-pattern :pattern pattern :pack kind :lost skipped
+          :file (relative (:root idx) file) :line row}
+         {:severity :info :problem :pack-form-not-read :pack kind :reason skipped
+          :file (relative (:root idx) file) :line row}))
      (identity-problems idx)
      (runtime-problems idx))))
 

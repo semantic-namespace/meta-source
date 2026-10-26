@@ -1060,6 +1060,37 @@
              (= #{:app.routes/drivers :svc/user :svc/article} (:login (reached (str "(defmethod ig/init-key :app.routes/drivers [_ {:keys [user-service]}]\n"
                                                                  "  (let [svc user-service] (ring/router [(auth/->auth-routes svc)])))\n"))))))
 
+    ;; ---- the pattern (docs/pattern.md): :off-pattern, when a pack's options ask
+    (let [pat (index/build (-> cfg (assoc-in [:packs :reitit] {:pattern true}) (assoc-in [:packs :integrant :pattern] true)))
+          off (fn [idx] (sort (map (juxt :pattern :dev-id :line) (map #(merge % (select-keys (:definition %) [:line])) (problems idx :off-pattern)))))]
+      (check "pattern: off by default, a child route written as code is a form not read"
+             (and (empty? (problems (index/build (assoc-in cfg [:packs :reitit] {})) :off-pattern))
+                  (seq (problems (index/build (assoc-in cfg [:packs :reitit] {})) :pack-form-not-read))))
+      (check "pattern: with :pattern true, a route tree's code child and an unnamed handler route leave it"
+             (and (= [[:pattern/reitit-literal-tree nil 14] [:pattern/reitit-named-route :shop.routes/route.post.api.login 21]] (off pat))
+                  (not-any? #(= :reitit (:pack %)) (problems pat :pack-form-not-read)))))
+    (let [dir (str (fs/create-temp-dir))
+          files {"resources/config.edn" "{:app/router {:users #ig/ref :app/users :db #ig/ref :app/db}\n :app/users {}\n :app/db {}\n :app/api {:users #ig/ref :app/users}}\n"
+                 "src/app/system.clj" (str "(ns app.system (:require [integrant.core :as ig] [app.routes :as r]))\n"
+                                           "(defmethod ig/init-key :app/router [_ config] (r/router config))\n"
+                                           "(defmethod ig/init-key :app/api [_ {:keys [users]}] (r/api users))\n"
+                                           "(defmethod ig/init-key :app/users [_ _] {})\n(defmethod ig/init-key :app/db [_ _] {})\n")
+                 "src/app/routes.clj" (str "(ns app.routes (:require [reitit.ring :as ring] [app.users :as users]))\n"
+                                           "(defn router [cfg] (ring/router [[\"/u\" {:name ::u :get {:handler (fn [_] cfg)}}]]))\n"
+                                           "(defn api [us] (ring/router [[\"/a\" {:name ::a :get {:handler (users/get-user us)}}]\n"
+                                           "                            [\"/b\" {:name ::b :get {:handler (partial users/list-users us)}}]]))\n")
+                 "src/app/users.clj" "(ns app.users)\n(defn get-user [us] (fn [_] us))\n(defn list-users [us _] us)\n"}]
+      (doseq [[p text] files] (fs/create-dirs (fs/parent (str dir "/" p))) (spit (str dir "/" p) text))
+      (let [idx (index/build {:root dir :src ["src"] :registry [] :packs {:integrant {:configs ["resources"] :pattern true} :reitit {:pattern true}}})
+            off (sort (map (juxt :pattern :dev-id) (problems idx :off-pattern)))]
+        (check "pattern: an init-key handing on its whole config, and an inline fn handler, leave it; handlers built by a call don't"
+               (= [[:pattern/integrant-destructure :app/router] [:pattern/reitit-handler-var :app.routes/u]] off))
+        (check "reitit: a handler built by a call, or by partial, names the fn building it"
+               (and (= '[app.users/get-user] (get-in idx [:entities :app.routes/a :entry :reitit/handler-built-by]))
+                    (= '[app.users/list-users] (get-in idx [:entities :app.routes/b :entry :reitit/handler-built-by]))
+                    (not (get-in idx [:entities :app.routes/a :entry :reitit/handler-code])))))
+      (fs/delete-tree dir))
+
     ;; ---- re-frame: a project's own registration and dispatch fns
     (let [dir (str (fs/create-temp-dir))]
       (fs/create-dirs (str dir "/src/app"))

@@ -30,10 +30,10 @@ everything that follows it.
 
 ## Off-pattern is a finding
 
-Today, code meta-source can't read is skipped, with a `:pack-form-not-read`
-note at most. Under the pattern, each rule below has a check, `:off-pattern`
-(info by default, raisable with `--fail-on`). It names the rule broken and
-what is no longer exact because of it:
+Code meta-source can't read is skipped, with a `:pack-form-not-read` note at
+most. A project that adopts the pattern turns on `:pattern true` in a pack's
+options, and each rule below that has a check reports `:off-pattern` (info).
+It names the rule broken and what is no longer exact because of it:
 
 ```
 info  src/app/routes.clj:31  route tree built by (into [] ...): routes under it are not in the graph  [:pattern/reitit-literal-tree]
@@ -48,12 +48,12 @@ that every answer meta-source gives about that part is exact.
 | Rule | Shape | What it makes exact | Today |
 |---|---|---|---|
 | I1 literal config | configs are EDN files, or a def of a literal map; tags only `#ig/ref`, `#ig/refset`, `#ig/var`, `#ig/profile` and readers named in `meta-source.edn` | every component and ref | read; tags kept |
-| I2 qualified keys | every top-level key, ref and composite part is a qualified keyword | refs resolvable; integrant throws otherwise | **new**: invalid refs and keys are dropped silently today |
-| I3 hierarchy as data | `derive` lives in `integrant/hierarchy.edn` (or `duct_hierarchy.edn`), not in code | ambiguous and missing refs through derived keys | read; code `derive` read only in files using integrant |
-| I4 one builder | each key has an `init-key` on itself or an ancestor, or a fn var named like the key (integrant 1.0's default) | what builds each component | **new**: no "configured, nothing builds it" check |
-| I5 destructure | `init-key`'s config parameter is destructured with literal `:keys` (or `{local :ns/key}`), and calls are handed those locals, not the whole map or a rebound value | which components each call is handed: what a route built there reaches | read (`:integrant/passes`); `:unknown` when broken |
-| I6 no removed methods | no `prep-key`, `pre-init-spec` | | **new**: flag on integrant 1.0 |
-| I7 vars bound | each `#ig/var` is one `bind`, or Duct's `:vars`, provides | startup won't throw `::unbound-vars` | **new** |
+| I2 qualified keys | every top-level key, ref and composite part is a qualified keyword | refs resolvable; integrant throws otherwise | `:ref-invalid` |
+| I3 hierarchy as data | `derive` lives in `integrant/hierarchy.edn` (or `duct_hierarchy.edn`), not in code | ambiguous and missing refs through derived keys | read, and code `derive` anywhere, at any depth |
+| I4 one builder | each key has an `init-key` on itself or an ancestor, or a fn var named like the key (integrant 0.10's default) | what builds each component | `:no-init-key` |
+| I5 destructure | `init-key`'s config parameter is destructured with literal `:keys` (or `{local :ns/key}`), and calls are handed those locals, not the whole map or a rebound value | which components each call is handed: what a route built there reaches | read (`:integrant/passes`); `:off-pattern` when broken |
+| I6 no removed methods | no `prep-key`, `pre-init-spec` | | `:removed-method` |
+| I7 vars bound | each `#ig/var` is one `bind`, or Duct's `:vars`, provides | startup won't throw `::unbound-vars` | `:var-unbound`, against Duct's `:vars` |
 
 ```clojure
 ;; resources/system.edn
@@ -72,9 +72,9 @@ that every answer meta-source gives about that part is exact.
 
 | Rule | Shape | What it makes exact | Today |
 |---|---|---|---|
-| R1 literal trees | route trees are literal vectors in a def, a defn's body, or a router call; children are literals or symbols naming route defs | every route and its inherited data | read |
-| R2 named routes | every route with a handler has a qualified `:name`, which is its id | links (`rfe/href`, `match-by-name`) checked; the route is an entity facts can attach to | read; **new**: an unnamed handler route is off-pattern (today it gets a generated id) |
-| R3 handlers by var | `:handler` is a var (or a fn of one built from the args the routes fn is handed), not an inline `fn` | route → code | read; inline fns are `:reitit/handler-code` |
+| R1 literal trees | route trees are literal vectors in a def, a defn's body, or a router call; children are literals or symbols naming route defs | every route and its inherited data | read; `:off-pattern` for code |
+| R2 named routes | every route with a handler has a qualified `:name`, which is its id | links (`rfe/href`, `match-by-name`) checked; the route is an entity facts can attach to | read; `:off-pattern` when unnamed |
+| R3 handlers by var | `:handler` is a var, or a call building one (`(users/get-user db)`), not an inline `fn` | route → code | read; `:off-pattern` for an inline fn |
 | R4 built in a component | the routes fn is called from one `init-key`, handed components by I5 | route → component → everything it refers to | read (`:provided-by`) |
 | R5 contracts | `:parameters` and `:responses` name qualified keys (spec or malli) | what each route consumes and produces | read (`:reitit/parameter-keys`, `:reitit/response-keys`) |
 | R6 middleware by name | middleware and interceptors are vars or registered keywords, not inline fns | what guards each route, inherited | read |

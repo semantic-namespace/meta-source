@@ -327,7 +327,8 @@ rebuilds it from real Pathom and fails if the operations change.
 ```clojure
 :integrant {:configs ["resources/config"]   ; config files, or directories of .edn
             :vars [app.system/config]       ; configs written in code
-            :provided [:duct/logger]}       ; keys something else adds, like a duct module
+            :provided [:duct/logger]        ; keys something else adds, like a duct module
+            :pattern true}                  ; report where the system leaves the pattern
 ```
 
 Each config key becomes a component, in the pack's own vocabulary:
@@ -425,6 +426,12 @@ Each config key becomes a component, in the pack's own vocabulary:
   warning when the project's `deps.edn` or `project.clj` asks for a version
   without it, nothing when it asks for one with it, an info when it doesn't
   say.
+
+With `:pattern true`, `:off-pattern` (info, `:pattern/integrant-destructure`):
+an `init-key` whose config parameter isn't destructured with literal
+`:keys`, or that hands a call the whole config or a value bound in its body.
+What that call builds (a router, its routes) then reaches everything the
+component refers to, not what it was handed. See [the pattern](pattern.md).
 
 On real systems:
 
@@ -642,6 +649,8 @@ rest is the child's when it gives it.
 
 - `:reitit/handlers`: handler vars, written as symbols or `#'vars`;
   `:reitit/handler-code` when a handler is a fn written there.
+  `:reitit/handler-built-by` names the fn a call builds a handler with:
+  `(users/get-user db)` or `(partial users/get-user db)`.
 - `:reitit/parameter-keys` and `:reitit/response-keys`: the qualified keys its
   `:parameters` and `:responses` name, spec or malli. They are the pack's
   dataflow: `meta-source data :user/id` lists the routes taking it.
@@ -662,6 +671,16 @@ literal route name are references to it. `check` adds:
 - `:handler-not-found` (warning): a handler written with a namespace
   (`api/login`) that the namespace, read by the analysis, doesn't define. A
   bare symbol may be a local, and isn't reported.
+
+With `:reitit {:pattern true}`, `check` reports `:off-pattern` (info) where
+routes leave [the pattern](pattern.md), saying what is no longer exact there:
+
+- `:pattern/reitit-literal-tree`: a tree, or a child, written as code. Its
+  routes aren't read; this replaces the `:pack-form-not-read` for it;
+- `:pattern/reitit-named-route`: a route with a handler and no `:name`,
+  keyed by its path, so links can't name it;
+- `:pattern/reitit-handler-var`: a handler written as a fn there. A handler
+  built by a call, `(users/get-user db)`, follows the pattern.
 
 On open-source apps (read, never run):
 

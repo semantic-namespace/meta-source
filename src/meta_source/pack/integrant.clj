@@ -523,6 +523,9 @@
      profiles that aren't active together, are alternatives, not rivals;
    - :ref-cycle (warning): components that refer to one another in a
      circle, through refs and refsets: integrant can't order them;
+   - :off-pattern (info), with :pattern true in the pack's options: an
+     init-key whose calls are handed what can't be followed
+     (:pattern/integrant-destructure, docs/pattern.md);
    - :init-key-without-config (info): the code has an init-key method for
      a key no config defines, no composite key derives from, and no code
      calls by its id (:calls-by-id): unused, or configured somewhere not
@@ -661,7 +664,19 @@
           :problem :removed-method :dev-id id :method method
           :removed-in (str/join "." since) :integrant-version (some->> v (str/join "."))
           ;; at the defmethod, the place to change
-          :definition (loc (or (first (filter #(some #{(keyword "integrant" method)} (:keys %)) (:definitions e))) e))})))))
+          :definition (loc (or (first (filter #(some #{(keyword "integrant" method)} (:keys %)) (:definitions e))) e))}))
+     ;; the pattern (docs/pattern.md, I5): an init-key hands its calls locals
+     ;; its config parameter destructures, so what each is handed is known
+     (when (get-in opts [:integrant :pattern])
+       (for [[id e] components
+             :let [unknown (sort (for [[callee v] (get-in e [:entry :integrant/passes]) :when (= :unknown v)] callee))]
+             :when (seq unknown)]
+         {:severity :info :problem :off-pattern :pattern :pattern/integrant-destructure :dev-id id
+          :calls (vec unknown)
+          :lost (if (= ["*"] unknown)
+                  "its config parameter isn't destructured with literal :keys: what its calls are handed isn't known"
+                  "a call handed the whole config, or a value bound in the body: what it builds reaches everything this component refers to")
+          :definition (loc (or (first (filter #(some #{:integrant/init-key} (:keys %)) (:definitions e))) e))})))))
 
 (defn- describe [entry]
   (when (some #(= "integrant" (namespace %)) (keys entry))

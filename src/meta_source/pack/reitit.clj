@@ -28,6 +28,8 @@
      :reitit/methods      the methods it answers: :get, :post, ...
      :reitit/handlers     the handler vars (symbols), or :reitit/handler-code
                           when a handler is written as a fn there
+     :reitit/handler-built-by  the fns whose call builds a handler there:
+                          (app.users/get-user users)
      :reitit/middleware   middleware and interceptors, inherited, by name
      :reitit/view         a frontend route's view var
      :reitit/parameter-keys  qualified keys its :parameters name: what it consumes
@@ -147,6 +149,12 @@
         handler-forms (map var-ref (concat (when (contains? data :handler) [(:handler data)])
                                            (for [m ms :let [v (get data m)]] (if (map? v) (:handler v) v))))
         handlers (vec (distinct (keep #(qualify % own-ns aliases) (filter symbol? handler-forms))))
+        ;; (app.users/get-user users): a fn that builds the handler, not code inline
+        ;; (partial handle-x deps): handle-x
+        builder #(if (and ('#{partial clojure.core/partial} (first %)) (symbol? (second %))) (second %) (first %))
+        built? #(and (seq? %) (symbol? (first %)) (not ('#{fn fn* clojure.core/fn comp clojure.core/comp} (first %)))
+                     (or (not ('#{partial clojure.core/partial} (first %))) (symbol? (second %))))
+        built-by (vec (distinct (keep #(qualify (builder %) own-ns aliases) (filter built? handler-forms))))
         method-data (for [m ms :let [v (get data m)] :when (map? v)] v)
         params (concat [(:parameters data)] (map :parameters method-data))
         responses (concat [(:responses data)] (map :responses method-data))
@@ -165,7 +173,8 @@
       (cond-> {:reitit/path path :reitit/ns own-ns}
         (seq ms) (assoc :reitit/methods (vec ms))
         (seq handlers) (assoc :reitit/handlers handlers)
-        (some #(and (some? %) (not (symbol? %))) handler-forms) (assoc :reitit/handler-code true)
+        (seq built-by) (assoc :reitit/handler-built-by built-by)
+        (some #(and (some? %) (not (symbol? %)) (not (built? %))) handler-forms) (assoc :reitit/handler-code true)
         (seq mw) (assoc :reitit/middleware mw)
         view (assoc :reitit/view view)
         (seq custom) (assoc :reitit/data custom)
@@ -211,13 +220,17 @@
                                            [{} row] routes)))]
     (concat
      (when (some #(= [:code] %) walked)
-       [{:row row :kind kind :skipped (str (count (filter #(= [:code] %) walked)) " child route(s) written as code, not read")}])
+       [{:row row :kind kind :skipped (str (count (filter #(= [:code] %) walked)) " child route(s) written as code, not read")
+         :pattern :pattern/reitit-literal-tree}])
      (for [[[path data own] at] (map vector routes rows)
           :let [e (route-entry path (assoc data :name (:name own)) own-ns aliases)]
           :when e
           :let [id (if (keyword? (:name own)) (:name own) (slug (first (:reitit/methods e)) path own-ns in))
                 single (when (= 1 (count (:reitit/handlers e))) (first (:reitit/handlers e)))]]
-      (cond-> {:row at :kind kind :dev-id id :entry (cond-> e in (assoc :reitit/in in))}
+      (cond-> {:row at :kind kind :dev-id id :entry (cond-> e
+                                                       in (assoc :reitit/in in)
+                                                       ;; keyed by where it is, for want of a :name
+                                                       (not (keyword? (:name own))) (assoc :reitit/unnamed true))}
         single (assoc :var single))))))
 
 (defn- def-value
@@ -266,7 +279,7 @@
                     (= :link site) (when (keyword? x) [{:row row :kind kind :dev-id x :refers true :entry {:reitit/linked true}}])
                     (symbol? x) (when-not (local x) [{:row row :kind kind :skipped (str "the routes are " x ", not written here")}])
                     (routes? x) (tree-results x f local nil row)
-                    :else [{:row row :kind kind :skipped "the routes are written as code"}])]
+                    :else [{:row row :kind kind :skipped "the routes are written as code" :pattern :pattern/reitit-literal-tree}])]
             r)
           (for [d defs
                 :when (not (inlined (symbol (name (:var d)))))
@@ -298,8 +311,17 @@
    - :handler-not-found (warning): a route's handler, written with a
      namespace (api/login), names a var in a namespace the analysis read,
      which defines no such var. A bare symbol may be a local, and isn't
-     reported."
-  [{:keys [of-kinds loc var-defined? not-read]}]
+     reported.
+
+   With :pattern true in the pack's options, :off-pattern (info) where a
+   route leaves the pattern (docs/pattern.md), and what is no longer exact
+   for it: :pattern/reitit-named-route, a route with a handler and no :name,
+   which nothing can link to and facts can't be given under a name of its
+   own; :pattern/reitit-handler-var, a handler written as a fn there rather
+   than a var, so what the route calls isn't followed.
+   (:pattern/reitit-literal-tree, a tree or child written as code, comes
+   from the forms not read.)"
+  [{:keys [of-kinds loc var-defined? not-read opts]}]
   (let [routes (sort-by key (of-kinds #{kind}))
         unread (not-read kind)]
     (concat
@@ -312,7 +334,19 @@
      (for [[id e] routes
            h (get-in e [:entry :reitit/handlers])
            :when (and (not= (namespace h) (get-in e [:entry :reitit/ns])) (false? (var-defined? h)))]
-       {:severity :warning :problem :handler-not-found :dev-id id :calls h :definition (loc e)}))))
+       {:severity :warning :problem :handler-not-found :dev-id id :calls h :definition (loc e)})
+     (when (get-in opts [:reitit :pattern])
+       (for [[id e] routes
+             :let [entry (:entry e)]
+             :when (:reitit/path entry)
+             [rule lost] [[:pattern/reitit-named-route
+                           (when (and (:reitit/unnamed entry) (some entry [:reitit/handlers :reitit/handler-built-by :reitit/handler-code]))
+                             "no :name: links can't name it, and facts about it are keyed by its path")]
+                          [:pattern/reitit-handler-var
+                           (when (:reitit/handler-code entry)
+                             "a handler written as a fn here: what the route calls isn't followed")]]
+             :when lost]
+         {:severity :info :problem :off-pattern :pattern rule :dev-id id :lost lost :definition (loc e)})))))
 
 (defn- describe [entry]
   (when-let [p (:reitit/path entry)]

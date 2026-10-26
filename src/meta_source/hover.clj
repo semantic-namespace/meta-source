@@ -232,6 +232,7 @@
            :no-init-key (str "nothing builds " id ": no init-key on it or what it derives from, and no fn named like it")
            :removed-method (str (:method p) " for " id ": integrant removed it in " (:removed-in p)
                                 (if (:integrant-version p) (str ", and the project uses " (:integrant-version p)) ""))
+           :off-pattern (str (if id (str id ": ") "") (:lost p) "  [" (pr-str (:pattern p)) "]")
            :ref-maybe-from-module (str "no config defines " ks ", which the project's module " (pr-str (:module p)) " may add")
            :data-key-without-schema (str "no schema shapes " ks)
            :schema-key-without-shape (str ks " has no spec of its own")
