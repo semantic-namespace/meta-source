@@ -223,6 +223,7 @@
                                     (str/join ", " (for [v (:values p) src (:sources v)] (str (:file src) ":" (:line src)))))
            :ref-to-undefined (str "no config defines " ks)
            :init-key-without-config (str "init-key for " id ", which no config defines")
+           :ref-maybe-from-module (str "no config defines " ks ", which the project's module " (pr-str (:module p)) " may add")
            :data-key-without-schema (str "no schema shapes " ks)
            :schema-key-without-shape (str ks " has no spec of its own")
            :unqualified-schema-keys (str "unqualified key " ks ": dataflow can't follow it")

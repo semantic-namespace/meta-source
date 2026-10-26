@@ -355,6 +355,20 @@ Each config key becomes a component, in the pack's own vocabulary:
   one out, the last keyword is the name.
 - A duct profile key (`:duct.profile/base {...}`) holds components, each read
   as one with `:integrant/profiles`.
+- A config's system may sit under one of its keys, as an aero config often
+  has it (`{:port 3000 :app/system {...}}`): a top-level key whose map refers
+  to its own keys is read as the system, or name it with `:system-keys`.
+- A key a tag chooses (`#profile{:dev ::logging :prod ::sendgrid} {...}`)
+  configures each of its branches.
+- duct's merge hints on a tag (`^:replace #ig/ref :k`) are read past.
+- The keys an `expand-key` (or `prep-key`, or a duct module's `init-key`)
+  writes as map keys are what it adds to the system.
+- `integrant/hierarchy.edn` and `duct_hierarchy.edn` under `src/` or
+  `resources/` (or the files `:hierarchies` names) are read as derive calls,
+  as `ig/load-hierarchy` reads them; so is what duct's own libraries derive
+  (`:duct.migrator/ragtime` from `:duct/migrator`, `:duct.server.http/jetty`
+  from `:duct.server/http`...), as their jars say, and the keys the sql,
+  logging and web modules add.
 - `(derive child parent)` calls are read in files that use integrant
   (`:integrant/isa`): there they build component hierarchies, while elsewhere
   `derive` also builds hierarchies of exceptions and the like.
@@ -368,6 +382,10 @@ Each config key becomes a component, in the pack's own vocabulary:
   directly, as a composite's parent or by `derive`, that no configured duct
   module adds (`:duct.module/logging` adds `:duct/logger`,
   `:duct.module/sql` `:duct.database/sql`), and not `:provided`;
+- `:ref-maybe-from-module` (info): such a ref in the namespace of a key that
+  expands into others (an `expand-key` or `prep-key`, or a duct module), which
+  may add it. What such a key adds is read from its method, where the body
+  writes the keys as data (`{::app {}}`); a key it builds isn't read;
 - `:init-key-without-config` (info): an `init-key` for a key nothing configures
   or derives from: unused, or configured somewhere not read.
 

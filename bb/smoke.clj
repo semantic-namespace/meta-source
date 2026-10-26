@@ -805,6 +805,84 @@
                (empty? (problems ii :init-key-without-config))))
       (fs/delete-tree dir))
 
+;; ---- integrant: config shapes from real systems that read as refs to nothing
+    (let [ig-check (fn [files]
+                     (let [dir (str (fs/create-temp-dir))]
+                       (doseq [[p text] files] (fs/create-dirs (fs/parent (str dir "/" p))) (spit (str dir "/" p) text))
+                       (try (let [idx (index/build {:root dir :src ["src"] :registry [] :packs {:integrant {:configs ["resources"]}}})]
+                              {:refs (problems idx :ref-to-undefined) :maybe (problems idx :ref-maybe-from-module)
+                               :ids (set (keys (:entities idx)))
+                               :not-read (:not-read (:integrant (:packs (index/summary idx))))})
+                            (finally (fs/delete-tree dir)))))
+          ig-ns "(ns app.core (:require [integrant.core :as ig]))\n"]
+      (let [r (ig-check {"resources/config.edn"
+                         (str "{:app/port 3000\n"
+                              " :app/system\n"
+                              " {:app/db {:url \"x\"}\n"
+                              "  :app/handler {:db #ig/ref :app/db}}}\n")})]
+        (check "integrant: a system nested under a key of an aero config, its refs to its own keys"
+               (empty? (:refs r))))
+      (let [r (ig-check {"resources/config.edn" "{:app/handler {:db #ig/ref :app/db}\n :app/db {:url \"x\"}}\n"
+                         "resources/wrapped.edn" "{:ig/system {:app/cache {:db #ig/ref :app/db}}}\n"})]
+        (check "integrant: a top-level key holding refs to keys other configs define is a component, not a system"
+               (and (contains? (:ids r) :ig/system) (not (contains? (:ids r) :app/cache)))))
+      (let [r (ig-check {"resources/load.edn"
+                         "{:app.etl/load {:app.etl/datasets #ig/ref :app.etl/datasets :app.etl/page-size 100}}\n"
+                         "resources/config.edn" "{:app.etl/datasets {}}\n"})]
+        (check "integrant: an option named like the key it refers to, defined in another config, is no nested system"
+               (and (contains? (:ids r) :app.etl/load) (empty? (:refs r)))))
+      (let [r (ig-check {"resources/config.edn"
+                         (str "{:app/handler {:email #ig/ref :app.email/service}\n"
+                              " #profile{:dev :app.email/logging :prod :app.email/sendgrid} {:key \"k\"}}\n")
+                         "src/app/email.clj" (str "(ns app.email (:require [integrant.core :as ig]))\n"
+                                                  "(derive ::logging ::service)\n(derive ::sendgrid ::service)\n"
+                                                  "(defmethod ig/init-key ::sendgrid [_ opts] opts)\n")})]
+        (check "integrant: a key chosen by #profile configures each of its branches"
+               (empty? (:refs r))))
+      (let [r (ig-check {"resources/config.edn"
+                         (str "{:duct.module/sql {}\n :duct.module/logging {}\n"
+                              " :app/repo {:db #ig/ref :duct.database.sql/hikaricp :logger #ig/ref :duct.logger/timbre}}\n")})]
+        (check "integrant: the keys duct's sql and logging modules add, under their own names"
+               (empty? (:refs r))))
+      (let [r (ig-check {"resources/config.edn"
+                         (str "{:duct.profile/base\n"
+                              " {:app/router {:routes [#ig/ref [:app.handler/app]]}\n"
+                              "  :app.handler/module {}}}\n")
+                         "src/duct_hierarchy.edn" "{:app.handler/module [:duct/module]}\n"})]
+        (check "integrant: a ref the project's own duct module may add, in its namespace, is an info naming it"
+               (and (empty? (:refs r)) (= [[:app/router [:app.handler/app] :app.handler/module]]
+                                          (map (juxt :dev-id :keys :module) (:maybe r))))))
+      (let [r (ig-check {"resources/config.edn"
+                         (str "{:duct.profile/base\n"
+                              " {:app/router {:routes [#ig/ref [:app.handler/app]]}\n"
+                              "  :app.handler/module {}}}\n")
+                         "src/duct_hierarchy.edn" "{:app.handler/module [:duct/module]}\n"
+                         "src/app/handler.clj"
+                         (str "(ns app.handler (:require [integrant.core :as ig] [duct.core :as duct]))\n"
+                              "(defmethod ig/init-key ::module [_ options]\n"
+                              "  #(duct/merge-configs % {::app {} [:duct/const ::options] options}))\n")})]
+        (check "integrant: the keys a duct module's init-key merges are in the system"
+               (and (empty? (:refs r)) (empty? (:maybe r)))))
+      (let [r (ig-check {"resources/config.edn"
+                         (str "{:duct.migrator/ragtime {}\n :duct.server.http/jetty {}\n"
+                              " :app/fixtures {:migrator #ig/ref :duct/migrator :daemon #ig/ref :duct/daemon}}\n")})]
+        (check "integrant: what duct's libraries derive their keys from, through their chains"
+               (empty? (:refs r))))
+      (let [r (ig-check {"resources/config.edn"
+                         "{:app.module/greet {:name \"Alice\"}\n :app/server {:handler #ig/ref :app.handler/greet}}\n"
+                         "src/app/module.clj"
+                         (str "(ns app.module (:require [integrant.core :as ig]))\n"
+                              "(defmethod ig/expand-key :app.module/greet [_ {:keys [name]}]\n"
+                              "  {:app.handler/greet {:name name}})\n")})]
+        (check "integrant: the keys an expand-key writes are in the system"
+               (and (empty? (:refs r)) (empty? (:maybe r)))))
+      (let [r (ig-check {"resources/config.edn"
+                         (str "{:app/handler {:middleware ^:replace [#ig/ref :app/mw]\n"
+                              "               :db ^:displace #ig/ref :app/db}\n"
+                              " :app/mw {}\n :app/db {}}\n")})]
+        (check "integrant: duct's merge metadata on a tag (^:replace #ig/ref) reads"
+               (and (zero? (or (:not-read r) 0)) (empty? (:refs r))))))
+
     ;; ---- re-frame: a project's own registration and dispatch fns
     (let [dir (str (fs/create-temp-dir))]
       (fs/create-dirs (str dir "/src/app"))
