@@ -372,7 +372,10 @@ Each config key becomes a component, in the pack's own vocabulary:
   entity defined in a fn it calls is provided by the component (`reach`, and
   `:reaches` in rules), and depends on what the call is handed: the
   components behind the config keys the method's destructuring passes it,
-  read through clj-kondo's locals.
+  read through clj-kondo's locals. That is exact on the pattern
+  ([pattern.md](pattern.md), I5 and R4); off it, the route's reach is said
+  not exact, never guessed. A ref resolves as integrant resolves it, a
+  refset on a key others derive from included.
 - `integrant/hierarchy.edn` and `duct_hierarchy.edn` under `src/` or
   `resources/` (or the files `:hierarchies` names) are read as derive calls,
   as `ig/load-hierarchy` reads them; so is what duct's own libraries derive

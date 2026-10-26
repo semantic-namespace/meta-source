@@ -51,6 +51,7 @@ problem):
 | an effect nothing registers; with `:report-unused`, a re-frame event never dispatched, a subscription never subscribed to | info |
 | a form a pack couldn't read, and why | info |
 | one of your own rules, broken (`:rule-violated`), at the rule's severity; a rule not understood | yours; error |
+| one of your own rules that can't be checked on an entity, because what it follows through code is off the pattern there (`:rule-unverifiable`) | warning |
 
 Findings are reported, never guessed around: an option written as code is
 reported as not read, rather than read wrongly. Your own invariants are
@@ -170,15 +171,29 @@ warning src/app/home.clj:3   No route under /public reaches the database: :home/
 
 The code links come from the packs, with nothing to annotate: an integrant
 `init-key` method is its component's code, and a route defined inside a fn
-is provided by the component whose `init-key` calls that fn. What the route
-reaches through it is what that call is handed: with
-`(defmethod ig/init-key ::routes [_ {:keys [user-service]}] (->auth-routes user-service))`,
-the component `:user-service` refers to, not everything `::routes` holds.
-Which parameters reach the call is clj-kondo's to say; a value bound in the
-body (`as->`, `let`), or the whole config map, isn't followed, and the route
-then reaches the component and all it holds. A var with the
-meta key is linked to its entity, and its calls count too. `meta-source
-reach <id>` lists what an entity reaches, with the path to each.
+(or written in the `init-key` itself) is provided by the component whose
+`init-key` calls that fn. What the route reaches through it is exact when
+the system follows the pattern ([pattern.md](pattern.md), I5 and R4): what
+the route fn's call is handed, as the method's destructuring names it.
+With `(defmethod ig/init-key ::routes [_ {:keys [user-service]}] (->auth-routes user-service))`,
+the route reaches the component `:user-service` refers to, not everything
+`::routes` holds.
+
+Off the pattern, nothing is guessed. A route fn handed the whole config or a
+value bound in the body, an `init-key` using its config outside the route fns'
+calls (a middleware, an option), or a component that takes the routes and
+holds others (which may wrap them): the route's reach isn't exact, `reach`
+says so (`:not-exact`, with the rule broken and where), and a rule that
+follows it is `:rule-unverifiable`, a warning, instead of passing:
+
+```
+warning src/app/home.clj:3  No route under /public reaches the database: :home/get can't be checked: off the pattern at :infra.router/core (:pattern/reitit-router-holds-routes)  [:rule/public-routes-stay-off-the-db]
+```
+
+Which parameters reach a call is clj-kondo's to say (its locals); meta-source
+follows no value through code. A var with the meta key is linked to its
+entity, and its calls count too. `meta-source reach <id>` lists what an
+entity reaches, with the path to each.
 
 Rules see every source at once: a fact from EDN (`:data/privacy`), a pack's
 (`:integrant/init-key`), and the relations between them. A violation is a

@@ -255,6 +255,11 @@
                                                                (pr-str o))))
                                       ")"))
                                "  [" (pr-str (:rule p)) "]")
+           :rule-unverifiable (str (or (:doc p) (pr-str (:rule p))) ": " id
+                                   (if (= :unknown (:applies p)) ", whether it applies" "")
+                                   " can't be checked: off the pattern at "
+                                   (str/join ", " (for [b (:because p)] (str (pr-str (:at b)) " (" (pr-str (:pattern b)) ")")))
+                                   "  [" (pr-str (:rule p)) "]")
            :rule-not-understood (str "rule " (pr-str (:rule p)) " not understood: " (str/join "; " (:reasons p)))
            :unreadable-rules-file (str "rules file not readable: " (:message p))
            :event-not-registered (str "no reg-event registers " id)

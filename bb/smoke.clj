@@ -239,7 +239,8 @@
              (= [:shop/db :shop/mailer :shop/metrics] (:integrant/refs (ig :shop/handler))))
       (check "variant files configuring one key: one entity, every file listed, :varies"
              (= #:integrant{:config-in ["resources/system.edn:2" "resources/system.test.edn:2"]
-                            :env ["DATABASE_URL"] :varies true :init-key true :halt-key! true}
+                            :env ["DATABASE_URL"] :varies true :init-key true :halt-key! true
+                            :uses [[:url []]]}
                 (ig-part :shop/db)))
       (check "a composite key, named by the keyword no other key uses, deriving from the rest"
              (= [:shop/http-server] (:integrant/derives (ig :shop.http/main))))
@@ -1065,30 +1066,33 @@
                       (doseq [[p text] files] (fs/create-dirs (fs/parent (str dir "/" p))) (spit (str dir "/" p) text))
                       (try (let [idx (index/build {:root dir :src ["src"] :registry [] :packs {:integrant {:configs ["resources"]} :reitit {}}})]
                              {:login (set (map :dev-id (:reaches (index/reach idx :auth/login))))
-                              :home (set (map :dev-id (:reaches (index/reach idx :home/get))))})
-                           (finally (fs/delete-tree dir)))))]
+                              :home (set (map :dev-id (:reaches (index/reach idx :home/get))))
+                              :login-not-exact (set (map :pattern (:not-exact (index/reach idx :auth/login))))})
+                           (finally (fs/delete-tree dir)))))
+          ;; what a route is claimed to reach, and why it isn't exact
+          claimed #(select-keys % [:login :login-not-exact])]
       (let [r (reached (str "(defmethod ig/init-key :app.routes/drivers [_ {:keys [user-service article-service]}]\n"
                             "  (ring/router [(auth/->auth-routes user-service) (home/->home-routes)]))\n"))]
         (check "reach: a route reaches what its builder is handed, not all the component holds"
                (= #{:svc/user} (:login r)))
         (check "reach: a builder handed nothing gives its routes nothing"
                (= #{} (:home r))))
-      (check "reach: the whole config used in a call, even as (:user-service config): everything the component holds"
-             (= #{:app.routes/drivers :svc/user :svc/article}
-                (:login (reached (str "(defmethod ig/init-key :app.routes/drivers [_ config]\n"
+      (check "reach: the whole config used in a call, even as (:user-service config): nothing claimed, and said not exact (I5)"
+             (= {:login #{} :login-not-exact #{:pattern/integrant-destructure}}
+                (claimed (reached (str "(defmethod ig/init-key :app.routes/drivers [_ config]\n"
                                       "  (ring/router [(auth/->auth-routes (:user-service config))]))\n")))))
-      (check "reach: a value an as-> binds isn't followed: everything the component holds, never nothing"
-             (= #{:app.routes/drivers :svc/user :svc/article}
-                (:login (reached (str "(defmethod ig/init-key :app.routes/drivers [_ {:keys [user-service]}]\n"
+      (check "reach: a value an as-> binds isn't followed: nothing claimed, and said not exact, never a silent nothing"
+             (= {:login #{} :login-not-exact #{:pattern/integrant-destructure}}
+                (claimed (reached (str "(defmethod ig/init-key :app.routes/drivers [_ {:keys [user-service]}]\n"
                                       "  (as-> user-service svc (ring/router [(auth/->auth-routes svc)])))\n")))))
       (check "reach: {svc :user-service} destructuring names the key"
              (= #{:svc/user} (:login (reached (str "(defmethod ig/init-key :app.routes/drivers [_ {svc :user-service}]\n"
                                                     "  (ring/router [(auth/->auth-routes svc)]))\n")))))
-      (check "reach: the whole config handed on: everything the component holds"
-             (= #{:app.routes/drivers :svc/user :svc/article} (:login (reached (str "(defmethod ig/init-key :app.routes/drivers [_ config]\n"
+      (check "reach: the whole config handed on: nothing claimed, and said not exact"
+             (= {:login #{} :login-not-exact #{:pattern/integrant-destructure}} (claimed (reached (str "(defmethod ig/init-key :app.routes/drivers [_ config]\n"
                                                                  "  (ring/router [(auth/->auth-routes config)]))\n")))))
-      (check "reach: a value rebound inside isn't followed: everything the component holds"
-             (= #{:app.routes/drivers :svc/user :svc/article} (:login (reached (str "(defmethod ig/init-key :app.routes/drivers [_ {:keys [user-service]}]\n"
+      (check "reach: a value rebound inside isn't followed: nothing claimed, and said not exact"
+             (= {:login #{} :login-not-exact #{:pattern/integrant-destructure}} (claimed (reached (str "(defmethod ig/init-key :app.routes/drivers [_ {:keys [user-service]}]\n"
                                                                  "  (let [svc user-service] (ring/router [(auth/->auth-routes svc)])))\n"))))))
 
     ;; ---- runtime snapshots of an integrant system and a reitit router, read
@@ -1209,6 +1213,97 @@
                     (= '[app.users/list-users] (get-in idx [:entities :app.routes/b :entry :reitit/handler-built-by]))
                     (not (get-in idx [:entities :app.routes/a :entry :reitit/handler-code])))))
       (fs/delete-tree dir))
+
+    ;; ---- the pattern, R4: components reach routes only through route fns; what
+    ;; wraps them otherwise is off the pattern, said, never guessed nor passed
+    (let [reach-of (fn [files]
+                     (let [dir (str (fs/create-temp-dir))]
+                       (doseq [[p text] files] (fs/create-dirs (fs/parent (str dir "/" p))) (spit (str dir "/" p) text))
+                       (try (let [idx (index/build {:root dir :src ["src"] :registry [] :rules ["rules"]
+                                                    :packs {:integrant {:configs ["resources"] :pattern true} :reitit {}}})]
+                              {:reach (fn [id] (let [r (index/reach idx id)]
+                                                 {:claimed (set (map :dev-id (:reaches r)))
+                                                  :not-exact (set (map (juxt :pattern :at) (:not-exact r)))}))
+                               :off (set (map (juxt :pattern :dev-id) (problems idx :off-pattern)))
+                               :unverifiable (set (map (juxt :rule :dev-id) (problems idx :rule-unverifiable)))
+                               :violated (set (map (juxt :rule :dev-id) (problems idx :rule-violated)))})
+                            (finally (fs/delete-tree dir)))))
+          ;; a policy over the routes: never passed for a route it can't check
+          off-db {"rules/policy.edn" "{:rule/off-db {:when {:kind :reitit} :require [{:reaches {:none {:id :svc/db}}}]}}\n"}
+          builders {"src/app/auth.clj" "(ns app.auth)\n(defn ->auth-routes [svc]\n  [[\"/login\" {:name :auth/login :get {:handler (fn [_] (svc))}}]])\n"
+                    "src/app/home.clj" "(ns app.home)\n(defn ->home-routes []\n  [[\"/\" {:name :home/get :get {:handler (fn [_] 1)}}]])\n"
+                    "src/app/art.clj" "(ns app.art)\n(defn ->art-routes [svc]\n  [[\"/articles\" {:name :art/list :get {:handler (fn [_] (svc))}}]])\n"}]
+      ;; conduit: a router component takes every route (a refset on a key the
+      ;; route component derives from) and wraps them with middleware built
+      ;; from its own deps
+      (let [{:keys [reach off unverifiable]} (reach-of (merge builders off-db
+                                   {"resources/system.edn"
+                                    (str "{:app.routes/drivers {:user-service #ig/ref :svc/user :article-service #ig/ref :svc/article}\n"
+                                         " :infra.router/core {:routes #ig/refset :app/routes :session-store #ig/ref :svc/session}\n"
+                                         " :svc/user {} :svc/article {} :svc/session {}}\n")
+                                    "src/app/routes.clj"
+                                    (str "(ns app.routes (:require [integrant.core :as ig] [app.auth :as auth] [app.home :as home] [app.art :as art]))\n"
+                                         "(defmethod ig/init-key :app.routes/drivers [_ {:keys [user-service article-service]}]\n"
+                                         "  [(home/->home-routes) (auth/->auth-routes user-service) (art/->art-routes article-service)])\n"
+                                         "(derive :app.routes/drivers :app/routes)\n")
+                                    "src/app/router.clj"
+                                    (str "(ns app.router (:require [integrant.core :as ig] [reitit.ring :as ring]))\n"
+                                         "(defn wrap-session [store] (fn [h] h))\n"
+                                         "(defmethod ig/init-key :infra.router/core [_ {:keys [routes session-store]}]\n"
+                                         "  (ring/router routes {:data {:middleware [(wrap-session session-store)]}}))\n")}))]
+        (check "pattern R4b: a component taking routes and holding another (a middleware's) is off the pattern"
+               (contains? off [:pattern/reitit-router-holds-routes :infra.router/core]))
+        (check "pattern R4b: its routes claim what their route fn is handed, and say what isn't exact"
+               (and (= {:claimed #{} :not-exact #{[:pattern/reitit-router-holds-routes :infra.router/core]}} (reach :home/get))
+                    (= #{:svc/user} (:claimed (reach :auth/login)))))
+        (check "pattern R4b: a policy over those routes is unverifiable, not passed"
+               (= #{[:rule/off-db :home/get] [:rule/off-db :auth/login] [:rule/off-db :art/list]} unverifiable)))
+      ;; tubo: the builder's own init-key uses its config outside the
+      ;; builder's call, in a middleware: every route it builds may get it
+      (let [{:keys [reach off unverifiable]} (reach-of (merge builders off-db
+                                   {"resources/system.edn"
+                                    "{:app.routes/handler {:datasource #ig/ref :svc/db :user-service #ig/ref :svc/user}\n :svc/db {} :svc/user {}}\n"
+                                    "src/app/routes.clj"
+                                    (str "(ns app.routes (:require [integrant.core :as ig] [reitit.ring :as ring] [app.auth :as auth] [app.home :as home]))\n"
+                                         "(defn wrap-datasource [h ds] h)\n"
+                                         "(defmethod ig/init-key :app.routes/handler [_ {:keys [datasource user-service]}]\n"
+                                         "  (ring/ring-handler (ring/router [(home/->home-routes) (auth/->auth-routes user-service)])\n"
+                                         "                     {:middleware [[wrap-datasource datasource]]}))\n")}))]
+        (check "pattern R4a: a builder using its config outside the route fns' calls (a middleware) is off the pattern"
+               (contains? off [:pattern/reitit-hands-route-fns :app.routes/handler]))
+        (check "pattern R4a: its routes say they aren't exact, and a policy over them is unverifiable"
+               (and (= #{[:pattern/reitit-hands-route-fns :app.routes/handler]} (:not-exact (reach :home/get)))
+                    (= #{[:rule/off-db :home/get] [:rule/off-db :auth/login]} unverifiable))))
+      ;; routes written in the init-key itself, in a router call: exact when
+      ;; it uses no config, off the pattern when an inline handler could
+      ;; close over some
+      (let [inline (fn [params uses]
+                     (reach-of (merge off-db
+                                      {"resources/system.edn" "{:app/router {:db #ig/ref :svc/db}\n :svc/db {}}\n"
+                                       "src/app/router.clj"
+                                       (str "(ns app.router (:require [integrant.core :as ig] [reitit.ring :as ring]))\n"
+                                            "(defmethod ig/init-key :app/router [_ " params "]\n"
+                                            "  (ring/router [[\"/ping\" {:name :app/ping :get {:handler (fn [_] " uses ")}}]]))\n")})))
+            quiet (inline "_" "1")
+            uses (inline "{:keys [db]}" "db")]
+        (check "pattern R4: routes written in an init-key that uses no config: provided by it, and exact"
+               (and (= {:claimed #{} :not-exact #{}} ((:reach quiet) :app/ping)) (empty? (:unverifiable quiet))))
+        (check "pattern R4: written in one that uses its config: off the pattern, and a policy over them unverifiable"
+               (and (contains? (:off uses) [:pattern/reitit-routes-in-route-fns :app/router])
+                    (= #{[:rule/off-db :app/ping]} (:unverifiable uses)))))
+      ;; on the pattern: the same policy is checked, and holds or breaks
+      (let [{:keys [reach off unverifiable violated]}
+            (reach-of (merge builders off-db
+                             {"resources/system.edn"
+                              "{:app.routes/drivers {:user-service #ig/ref :svc/user :article-service #ig/ref :svc/article}\n :svc/user {:db #ig/ref :svc/db} :svc/article {} :svc/db {}}\n"
+                              "src/app/routes.clj"
+                              (str "(ns app.routes (:require [integrant.core :as ig] [reitit.ring :as ring] [app.auth :as auth] [app.home :as home] [app.art :as art]))\n"
+                                   "(defmethod ig/init-key :app.routes/drivers [_ {:keys [user-service article-service]}]\n"
+                                   "  (ring/router [(home/->home-routes) (auth/->auth-routes user-service) (art/->art-routes article-service)]))\n")}))]
+        (check "pattern: on it, nothing is off, every answer exact, and the policy breaks only where a route reaches the db"
+               (and (empty? off) (empty? unverifiable)
+                    (= #{[:rule/off-db :auth/login]} violated)
+                    (= {:claimed #{} :not-exact #{}} (reach :home/get))))))
 
     ;; ---- re-frame: a project's own registration and dispatch fns
     (let [dir (str (fs/create-temp-dir))]

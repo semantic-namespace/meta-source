@@ -278,10 +278,27 @@
                 (nil? (breakers view k v id))))
             c)))
 
+(defn- unsure
+  "Why `c`, on `id`, can't be told: the #{{:pattern :at ...}} that make what
+   it follows through code not exact (docs/pattern.md), or nil. :handed
+   needs `id`'s own hand-off; :reaches every hand-off on the way; :reached-by
+   every entity's, since any of them might reach `id`."
+  [view c id]
+  (let [inexact (or (:inexact view) (constantly nil))
+        rs (concat
+            (when (contains? c :handed) (inexact id))
+            (when (contains? c :reaches)
+              (mapcat inexact (cons id (keys (reachable view (or (:via (:reaches c)) depends-on) id)))))
+            (when (contains? c :reached-by) (when-let [f (:inexact-all view)] (f)))
+            (when (contains? c :not) (unsure view (:not c) id))
+            (when (contains? c :or) (mapcat #(unsure view % id) (:or c))))]
+    (when (seq rs) (set rs))))
+
 (defn- failures
   "The :require clauses of `rule` that fail on `id`: [{:clause c :offenders [...]}]."
   [view rule id]
   (for [c (:require rule)
+        :when (not (unsure view c id))
         :let [own (apply dissoc c :resolves :reaches :reached-by (concat relations property-relations))
               own-fails? (and (seq own) (not (holds? view own id)))
               ;; each related clause: nil when it holds, else who breaks it
@@ -321,9 +338,26 @@
           p (if-let [ps (seq (rule-problems rule))]
               [{:severity :error :problem :rule-not-understood :rule id :reasons (vec ps) :file file :line line}]
               (for [e-id ids
-                    :when (holds? view (:when rule) e-id)
-                    :let [fs (vec (failures view rule e-id))]
-                    :when (seq fs)]
+                    ;; whether the rule applies, or a clause holds, can't be
+                    ;; told through code off the pattern: said, never passed
+                    :let [when-unsure (unsure view (:when rule) e-id)]
+                    :when (or when-unsure (holds? view (:when rule) e-id))
+                    :let [unsure-clauses (when-not when-unsure (filterv #(unsure view % e-id) (:require rule)))
+                          because (or when-unsure (some->> (seq unsure-clauses) (mapcat #(unsure view % e-id)) set))
+                          fs (when-not when-unsure (vec (failures view rule e-id)))]
+                    p (concat
+                       (when because
+                         [(cond-> {:severity :warning :problem :rule-unverifiable :rule id :dev-id e-id
+                                   :because (vec (sort-by pr-str because))
+                                   :rule-at {:file file :line line}
+                                   :definition ((:loc view) (get (:entities view) e-id))}
+                            (:doc rule) (assoc :doc (:doc rule))
+                            when-unsure (assoc :applies :unknown)
+                            (seq unsure-clauses) (assoc :clauses unsure-clauses))])
+                       (when (seq fs) [fs]))
+                    :let [fs (when (vector? p) p)]]
+                (if-not fs
+                  p
                 (cond-> {:severity (:severity rule :warning) :problem :rule-violated :rule id :dev-id e-id
                          :failed (mapv :clause fs) :rule-at {:file file :line line}
                          :definition ((:loc view) (get (:entities view) e-id))}
@@ -333,5 +367,5 @@
                   (assoc :offenders (vec (distinct (mapcat :offenders fs)))
                          ;; where each is defined: an editor marks them too
                          :definitions (vec (keep #(some-> (get (:entities view) %) ((:loc view)))
-                                                 (distinct (mapcat :offenders fs))))))))]
+                                                 (distinct (mapcat :offenders fs)))))))))]
       p)))
