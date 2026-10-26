@@ -226,6 +226,12 @@
            :ref-ambiguous (str "a ref to " ks " matches " (str/join ", " (map pr-str (:candidates p)))
                                ", configured together: integrant can't choose")
            :ref-cycle (str "the refs go round in a circle: " (str/join " → " (map pr-str (:cycle p))))
+           :ref-invalid (str id ": integrant refuses these refs, not a qualified keyword or a vector of them: "
+                             (str/join " " (map pr-str (:refs p))))
+           :var-unbound (str id ": #ig/var " (str/join " " (:vars p)) " is not in the file's :vars: ig/init refuses it")
+           :no-init-key (str "nothing builds " id ": no init-key on it or what it derives from, and no fn named like it")
+           :removed-method (str (:method p) " for " id ": integrant removed it in " (:removed-in p)
+                                (if (:integrant-version p) (str ", and the project uses " (:integrant-version p)) ""))
            :ref-maybe-from-module (str "no config defines " ks ", which the project's module " (pr-str (:module p)) " may add")
            :data-key-without-schema (str "no schema shapes " ks)
            :schema-key-without-shape (str ks " has no spec of its own")

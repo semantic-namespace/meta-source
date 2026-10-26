@@ -174,6 +174,25 @@
                              :when (or (symbol? n) (string? n))]
                          (str n))))))
 
+(defn- invalid-refs
+  "What `v`'s #ig/ref and #ig/refset tags hold that integrant refuses: not a
+   qualified keyword nor a vector of them (#ig/ref :db). ig/ref throws on
+   it when the config is read."
+  [v]
+  (vec (distinct (for [x (nodes v)
+                       :when (and (tagged-literal? x) (#{'ig/ref 'ig/refset} (:tag x)))
+                       :let [t (:form x)]
+                       :when (not (or (qualified-keyword? t) (composite? t)))]
+                   t))))
+
+(defn- ig-vars
+  "The names of the #ig/var tags in `v`, which ig/init refuses unless
+   something binds them (ig/bind, Duct's :vars)."
+  [v]
+  (vec (sort (distinct (for [x (nodes v)
+                             :when (and (tagged-literal? x) (= 'ig/var (:tag x)) (symbol? (:form x)))]
+                         (str (:form x)))))))
+
 (defn- component-id
   "A config key's id. `shared` is how many composite keys each keyword is in."
   ([k] (component-id k {}))
@@ -204,6 +223,12 @@
                    (some (comp vector? :key) ds)
                    (assoc :integrant/derives (vec (distinct (for [d ds :when (vector? (:key d)) x (:key d) :when (not= id x)] x))))
                    (seq (env-vars (map :value ds))) (assoc :integrant/env (env-vars (map :value ds)))
+                   (seq (invalid-refs (map :value ds))) (assoc :integrant/invalid-refs (invalid-refs (map :value ds)))
+                   (seq (ig-vars (map :value ds))) (assoc :integrant/vars (ig-vars (map :value ds)))
+                   ;; a file declaring Duct's :vars binds those; what else it uses isn't bound
+                   (seq (for [d ds :when (:bound d) v (ig-vars [(:value d)]) :when (not ((:bound d) v))] v))
+                   (assoc :integrant/unbound-vars
+                          (vec (sort (distinct (for [d ds :when (:bound d) v (ig-vars [(:value d)]) :when (not ((:bound d) v))] v)))))
                    ;; which refs each key of its config holds, for what its init-key hands on
                    (seq (ref-keys (map :value ds))) (assoc :integrant/ref-keys (ref-keys (map :value ds)))
                    (> (count values) 1) (assoc :integrant/varies true)
@@ -225,13 +250,14 @@
 (defn- config-defs
   "Each component a config's [k v line]s configure, duct profiles opened,
    a key a tag chooses read as each of its branches."
-  [kvs file path]
+  [kvs file path bound]
   (for [[k v line] kvs
         [k v profile] (if (profile? k v) (for [[ik iv] v] [ik iv k]) [[k v nil]])
         :let [choices (key-choices k)]
         k choices
         :when (component-id k)]
     (cond-> {:key k :value v :file file :path path :line line}
+      bound (assoc :bound bound)
       profile (assoc :profile profile)
       ;; one of a tag's branches: the others are its alternatives
       (next choices) (assoc :alternatives (vec (sort-by pr-str (remove #{k} choices)))))))
@@ -249,6 +275,8 @@
     (set (for [[k v _ inner] kvs
                :when (and inner (map? v) (not (profile? k v))
                           (or (named k)
+                              ;; Duct's {:vars {...} :system {...}}
+                              (and (= :system k) (seq v) (every? #(component-id %) (keys v)))
                               (some #(and (map? (get v %)) (not (top %))) (refs [v]))))]
            k))))
 
@@ -282,9 +310,11 @@
                    (instance? Exception kvs) {:skipped {:file file :row 1 :kind kind :skipped (str "not readable: " (ex-message kvs))}}
                    (nil? kvs) {:skipped {:file file :row 1 :kind kind :skipped "not a map of config keys"}}
                    (re-find hierarchy-file (str path)) {:isa (hierarchy-results kvs file)}
-                   :else (let [held (system-holders kvs top opts)]
+                   :else (let [held (system-holders kvs top opts)
+                               ;; Duct's :vars, the #ig/var names the file binds
+                               vars (some (fn [[k v]] (when (and (= :vars k) (map? v)) v)) kvs)]
                            {:defs (config-defs (if (seq held) (mapcat #(nth % 3) (filter (comp held first) kvs)) kvs)
-                                               file path)})))]
+                                               file path (when vars (set (map str (keys vars)))))})))]
     (-> (combine (mapcat :defs read))
         (into (mapcat :isa read))
         (into (keep :skipped read)))))
@@ -315,9 +345,12 @@
            ;; reading what it hands on fails for this method alone: not followed
            (= 'init-key (ig-rows [(:filename u) (:row u)]))
            (assoc :hand-calls (try (hand-calls analysis site) (catch Exception _ :unknown))))))
+     ;; a derive outside a file using integrant may build another hierarchy
+     ;; (exceptions): read as a place that refers, never a definition
      (for [u (:var-usages analysis)
-           :when (and (= 'clojure.core (:to u)) (= 'derive (:name u)) (= 2 (:arity u)) (ig-files (:filename u)))]
-       (assoc (select-keys u [:filename :row :name-row :name-col]) :derive true))
+           :when (and (= 'clojure.core (:to u)) (= 'derive (:name u)) (= 2 (:arity u)))]
+       (cond-> (assoc (select-keys u [:filename :row :name-row :name-col]) :derive true)
+         (not (ig-files (:filename u))) (assoc :outside true)))
      (for [d (:var-definitions analysis)
            :when (contains? vars (symbol (str (:ns d)) (str (:name d))))]
        {:filename (:filename d) :row (:row d) :name-row (:row d) :name-col (inc (:col d)) :config-var (:name d)}))))
@@ -338,13 +371,14 @@
         (group-by #(cond (:method %) :method (:derive %) :derive :else :var) sites)]
     (vec (concat
           ;; one result per derived key in this file, its parents together
-          (for [[child ds] (group-by :child
-                                     (for [{:keys [row name-row name-col]} derive-sites
-                                           :let [[_ child parent] (form-at name-row name-col)]
-                                           :when (and (qualified-keyword? child) (qualified-keyword? parent))]
-                                       {:row row :child child :parent parent}))]
-            {:row (:row (first ds)) :kind kind :dev-id child
-             :entry {:integrant/isa (vec (sort (distinct (map :parent ds))))}})
+          (for [[[child outside] ds] (group-by (juxt :child :outside)
+                                               (for [{:keys [row name-row name-col outside]} derive-sites
+                                                     :let [[_ child parent] (form-at name-row name-col)]
+                                                     :when (and (qualified-keyword? child) (qualified-keyword? parent))]
+                                                 {:row row :child child :parent parent :outside outside}))]
+            (cond-> {:row (:row (first ds)) :kind kind :dev-id child
+                     :entry {:integrant/isa (vec (sort (distinct (map :parent ds))))}}
+              outside (assoc :refers true)))
           (for [{:keys [row end-row name-row name-col hand-calls]} methods-sites
                 :let [form (form-at name-row name-col)
                       [_ mm dispatch & body] (when (seq? form) form)
@@ -461,6 +495,17 @@
                     (let [fresh (remove seen nexts)]
                       (recur (concat more (for [n fresh] (conj path n))) (into seen fresh)))))))))))
 
+(defn- integrant-version
+  "[major minor] of the integrant the project at `root` depends on, read
+   from its deps.edn or project.clj, or nil."
+  [root]
+  (let [text (fn [f] (let [f (java.io.File. (str root) f)] (when (.isFile f) (slurp f))))
+        ;; integrant/integrant, or the older integrant
+        v (or (some->> (text "deps.edn") (re-find #"(?<![\w./-])(?:integrant/)?integrant\s*\{[^}]*:mvn/version\s*\"([^\"]+)\"") second)
+              (some->> (text "project.clj") (re-find #"\[(?:integrant/)?integrant\s+\"([^\"]+)\"") second))]
+    (when-let [[_ major minor] (and v (re-find #"^(\d+)\.(\d+)" v))]
+      [(parse-long major) (parse-long minor)])))
+
 (defn- checks
   "- :ref-to-undefined (warning): a component refers to a key no config
      read defines, directly or as a composite key's parent, that no
@@ -483,34 +528,34 @@
      calls by its id (:calls-by-id): unused, or configured somewhere not
      read. A key some configured component
      derives from, by a composite key or a derive call, counts as configured."
-  [{:keys [of-kinds loc opts]}]
+  [{:keys [of-kinds loc opts var-defined?] :as view}]
   (let [components (sort-by key (of-kinds #{kind}))
         configured (filter #(get-in (val %) [:entry :integrant/config-in]) components)
         parents #(concat (get-in (val %) [:entry :integrant/derives]) (get-in (val %) [:entry :integrant/isa]))
         ;; a key some code calls by its id (:calls-by-id): a workflow engine
         ;; running (ig/init-key k deps) itself
         called (for [[id e] components :when (get-in e [:entry :meta-source/called-by-id])] id)
+        ;; what each key derives from: derive calls, hierarchy files, duct's jars
+        isa (merge-with into duct-isa (into {} (for [[id e] components :let [ps (get-in e [:entry :integrant/isa])] :when ps] [id ps])))
         ;; keys that expand into others: an expand-key (or the deprecated
         ;; prep-key), or a duct module (deriving :duct/module) whose init-key
         ;; merges a config
+        module? (fn [c] (some #{:duct/module} (concat (parents c) (ancestors-in isa (parents c)))))
         modules (for [c configured
                       :let [entry (:entry (val c))]
-                      :when (or (:integrant/expand-key entry) (:integrant/prep-key entry)
-                                (some #{:duct/module} (parents c)))]
+                      :when (or (:integrant/expand-key entry) (:integrant/prep-key entry) (module? c))]
                   c)
         written (mapcat (fn [c] (let [entry (:entry (val c))]
                                   (concat (:integrant/expands-to entry)
-                                          (when (some #{:duct/module} (parents c)) (:integrant/init-writes entry)))))
+                                          (when (module? c) (:integrant/init-writes entry)))))
                         modules)
         added (set (concat (map key configured) called written (mapcat duct-modules (map key configured))))
+        ;; and a composite key's other keywords
+        isa+ (merge-with into isa (into {} (for [c configured :let [ds (get-in (val c) [:entry :integrant/derives])] :when ds] [(key c) ds])))
+        ;; a key is defined when something added derives from it, at any depth
         defined (-> added
-                    (into (mapcat parents) configured)
-                    ;; what duct's own keys derive from, as their jars say
-                    (into (ancestors-in duct-isa added))
+                    (into (ancestors-in isa+ added))
                     (into (get-in opts [:integrant :provided])))
-        ;; what each configured key is, or derives from: integrant matches a
-        ;; ref to every key whose lineage holds it
-        isa (merge-with into duct-isa (into {} (for [[id e] components :let [ps (get-in e [:entry :integrant/isa])] :when ps] [id ps])))
         lineage (into {} (for [[id e] configured
                                :let [own (into #{id} (get-in e [:entry :integrant/derives]))]]
                            [id (into own (ancestors-in isa own))]))
@@ -575,7 +620,48 @@
          p))
      (for [[id e] components
            :when (and (get-in e [:entry :integrant/init-key]) (not (contains? defined id)))]
-       {:severity :info :problem :init-key-without-config :dev-id id :definition (loc e)}))))
+       {:severity :info :problem :init-key-without-config :dev-id id :definition (loc e)})
+     ;; what ig/ref refuses as it reads the config
+     (for [[id e] configured
+           :let [bad (get-in e [:entry :integrant/invalid-refs])]
+           :when (seq bad)]
+       {:severity :warning :problem :ref-invalid :dev-id id :refs bad :definition (loc e)})
+     ;; what ig/init refuses: an #ig/var the file's Duct :vars doesn't bind
+     (for [[id e] configured
+           :let [vs (get-in e [:entry :integrant/unbound-vars])]
+           :when (seq vs)]
+       {:severity :warning :problem :var-unbound :dev-id id :vars vs :definition (loc e)})
+     ;; what ig/init throws ::missing-init-key on: nothing in the key's lineage
+     ;; has an init-key, and no fn is named like it or a part of it. Only for
+     ;; keys whose every keyword is in the project's own namespaces: a
+     ;; library's key is built by the library
+     (let [builders (set (for [[id e] components :when (get-in e [:entry :integrant/init-key])] id))
+           roots (set (for [n (:namespaces view)] (first (str/split n #"\."))))
+           own? (fn [k] (contains? roots (first (str/split (namespace k) #"\."))))
+           fn-named? (fn [k] (true? (var-defined? (symbol (namespace k) (name k)))))]
+       (for [[id e] configured
+             :let [entry (:entry e)
+                   parts (into [id] (:integrant/derives entry))
+                   ls (get lineage id)]
+             :when (and (every? own? ls)
+                        (not-any? builders ls)
+                        (not-any? fn-named? parts)
+                        ;; expanded away before ig/init, or added by something else
+                        (not (some #{id} (map key modules)))
+                        (not (contains? (set (get-in opts [:integrant :provided])) id)))]
+         {:severity :warning :problem :no-init-key :dev-id id :definition (loc e)}))
+     ;; methods integrant removed: pre-init-spec in 0.9, prep-key in 1.0
+     (let [v (integrant-version (:meta-source/root opts))]
+       (for [[id e] components
+             [method since] [["pre-init-spec" [0 9]] ["prep-key" [1 0]]]
+             :when (get-in e [:entry (keyword "integrant" method)])
+             ;; a version that still has it: nothing to say
+             :when (not (and v (neg? (compare v since))))]
+         {:severity (if v :warning :info)
+          :problem :removed-method :dev-id id :method method
+          :removed-in (str/join "." since) :integrant-version (some->> v (str/join "."))
+          ;; at the defmethod, the place to change
+          :definition (loc (or (first (filter #(some #{(keyword "integrant" method)} (:keys %)) (:definitions e))) e))})))))
 
 (defn- describe [entry]
   (when (some #(= "integrant" (namespace %)) (keys entry))

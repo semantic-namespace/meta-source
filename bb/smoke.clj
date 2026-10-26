@@ -812,6 +812,9 @@
                        (try (let [idx (index/build {:root dir :src ["src"] :registry [] :packs {:integrant {:configs ["resources"]}}})]
                               {:refs (problems idx :ref-to-undefined) :maybe (problems idx :ref-maybe-from-module)
                                :amb (problems idx :ref-ambiguous) :cycles (problems idx :ref-cycle)
+                               :invalid (problems idx :ref-invalid) :unbound (problems idx :var-unbound)
+                               :no-init (problems idx :no-init-key) :removed (problems idx :removed-method)
+                               :unused (problems idx :init-key-without-config)
                                :ids (set (keys (:entities idx)))
                                :not-read (:not-read (:integrant (:packs (index/summary idx))))})
                             (finally (fs/delete-tree dir)))))
@@ -883,6 +886,39 @@
                (= 1 (count (cycles {"resources/config.edn" "{[:s/a :a/x] {:r #ig/refset :a/y}\n :a/y {:r #ig/ref :s/a}}\n"}))))
         (check "integrant: a chain is no cycle"
                (empty? (cycles {"resources/config.edn" "{:a/x {:r #ig/ref :a/y}\n :a/y {:r #ig/ref :a/z}\n :a/z {}}\n"}))))
+      ;; ---- integrant 1.0: what ig/ref, ig/init and the removed methods refuse
+      (let [r (ig-check {"resources/config.edn" "{:app/pg {}\n :app/h {:db #ig/ref :app/db}}\n"
+                         "src/app/db.clj" (str ig-ns "(derive :app/pg :app/sql)\n(derive :app/sql :app/db)\n"
+                                               "(defmethod ig/init-key :app/db [_ v] v)\n")})]
+        (check "integrant: a ref matched through two derives is defined, and the grandparent's init-key used"
+               (and (empty? (:refs r)) (empty? (:unused r)) (empty? (:no-init r)))))
+      (check "integrant: a derive in a namespace that doesn't use integrant counts, without defining the key"
+             (let [r (ig-check {"resources/config.edn" "{:app/pg {}\n :app/h {:db #ig/ref :app/db}}\n"
+                                "src/app/h.clj" "(ns app.h)\n(derive :app/pg :app/db)\n(derive :app.err/x :app.err/base)\n"})]
+               (and (empty? (:refs r)) (contains? (:ids r) :app.err/x))))
+      (check "integrant: a ref integrant refuses, unqualified or a vector with an unqualified keyword"
+             (= [[:app/h [:db [:app/a :b]]]]
+                (map (juxt :dev-id :refs) (:invalid (ig-check {"resources/config.edn" "{:app/h {:db #ig/ref :db :x #ig/ref [:app/a :b]}}\n"})))))
+      (let [r (ig-check {"resources/duct.edn" "{:vars {port {:env PORT}}\n :system {:app/server {:port #ig/var port :host #ig/var host}}}\n"
+                         "src/app/server.clj" (str ig-ns "(defmethod ig/init-key :app/server [_ v] v)\n")})]
+        (check "integrant: Duct's :system is read, and an #ig/var its :vars doesn't bind is unbound"
+               (and (contains? (:ids r) :app/server) (= [[:app/server ["host"]]] (map (juxt :dev-id :vars) (:unbound r))))))
+      (let [r (ig-check {"resources/config.edn" "{:app/a {}\n :app/b {}\n :app/c {}\n :lib.x/y {}\n [:app/d :app/dd] {}}\n"
+                         "src/app/core.clj" (str ig-ns "(defmethod ig/init-key :app/b [_ v] v)\n(derive :app/c :app/b)\n")
+                         "src/app.clj" "(ns app)\n(defn dd [x] x)\n"})]
+        (check "integrant: a key nothing builds; not one whose parent has an init-key, a fn named like a part, or a library's"
+               (= [:app/a] (map :dev-id (:no-init r)))))
+      (let [files {"resources/config.edn" "{:app/a {}}\n"
+                   "src/app/core.clj" (str ig-ns "(defmethod ig/init-key :app/a [_ v] v)\n"
+                                           "(defmethod ig/prep-key :app/a [_ v] v)\n(defmethod ig/pre-init-spec :app/a [_] nil)\n")}
+            sev (fn [r] (sort (map (juxt :method :severity) (:removed r))))]
+        (check "integrant: prep-key and pre-init-spec are removed methods: info, a warning on a version without them, nothing on one with them"
+               (and (= [["pre-init-spec" :info] ["prep-key" :info]] (sev (ig-check files)))
+                    (= [["pre-init-spec" :warning]]
+                       (sev (ig-check (assoc files "deps.edn" "{:deps {integrant/integrant {:mvn/version \"0.13.1\"}}}"))))
+                    (empty? (sev (ig-check (assoc files "deps.edn" "{:deps {integrant {:mvn/version \"0.8.0\"} integrant/repl {:mvn/version \"0.3.2\"}}}"))))
+                    (= [["pre-init-spec" :warning] ["prep-key" :warning]]
+                       (sev (ig-check (assoc files "deps.edn" "{:deps {integrant/integrant {:mvn/version \"1.0.1\"}}}")))))))
       (let [r (ig-check {"resources/config.edn"
                          (str "{:app/handler {:email #ig/ref :app.email/service}\n"
                               " #profile{:dev :app.email/logging :prod :app.email/sendgrid} {:key \"k\"}}\n")

@@ -375,9 +375,13 @@ Each config key becomes a component, in the pack's own vocabulary:
   (`:duct.migrator/ragtime` from `:duct/migrator`, `:duct.server.http/jetty`
   from `:duct.server/http`...), as their jars say, and the keys the sql,
   logging and web modules add.
-- `(derive child parent)` calls are read in files that use integrant
-  (`:integrant/isa`): there they build component hierarchies, while elsewhere
-  `derive` also builds hierarchies of exceptions and the like.
+- `(derive child parent)` calls are read wherever they are
+  (`:integrant/isa`), and followed at any depth. In a file that doesn't use
+  integrant, where `derive` may build a hierarchy of exceptions, the call
+  only refers to the key and is never its definition.
+- `#ig/var` names (`:integrant/vars`), and those a file declaring Duct's
+  `:vars` doesn't bind (`:integrant/unbound-vars`). Duct's
+  `{:vars {...} :system {...}}` is read from `:system`.
 - `defmethod`s of integrant's multimethods (`init-key`, `halt-key!`,
   `pre-init-spec`…) are read from the form, so `::keywords` get the file's
   namespace. clj-kondo's own dispatch string gives them the wrong one.
@@ -403,7 +407,24 @@ Each config key becomes a component, in the pack's own vocabulary:
   circle, shown as the shortest path back to the first: `ig/init` can't
   order them;
 - `:init-key-without-config` (info): an `init-key` for a key nothing configures
-  or derives from: unused, or configured somewhere not read.
+  or derives from: unused, or configured somewhere not read;
+- `:ref-invalid` (warning): an `#ig/ref` or `#ig/refset` to something other
+  than a qualified keyword or a vector of them (`#ig/ref :db`): `ig/ref`
+  throws reading the config;
+- `:var-unbound` (warning): an `#ig/var` the file's Duct `:vars` doesn't
+  bind: `ig/init` throws `::unbound-vars`. A config with no `:vars` may be
+  bound by `ig/bind` in code, and isn't checked;
+- `:no-init-key` (warning): a configured key with no `init-key` on itself or
+  anything it derives from, and no fn named like it or a part of its
+  composite (integrant 0.10's default `init-key`): `ig/init` throws
+  `::missing-init-key`. Only keys whose every keyword is under the project's
+  own namespaces count, since a library's key is built by the library; nor
+  do keys that expand, or that `:provided` names;
+- `:removed-method`: a `pre-init-spec` (removed in 0.9, replaced by
+  `assert-key`) or `prep-key` (removed in 1.0, replaced by `expand-key`). A
+  warning when the project's `deps.edn` or `project.clj` asks for a version
+  without it, nothing when it asks for one with it, an info when it doesn't
+  say.
 
 On real systems:
 

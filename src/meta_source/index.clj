@@ -151,9 +151,11 @@
 ;;                          the id, as the meta key does (an s/fdef's)
 ;;   :pack/checks           (fn [view]) → problems; view is {:entities
 ;;                          :of-kinds :data-key? :loc :flow :opts
-;;                          :var-defined? :not-read :impl :linked-by}: var-defined? true or
+;;                          :var-defined? :namespaces :not-read :impl :linked-by}:
+;;                          var-defined? true or
 ;;                          false for a qualified symbol in a namespace the
-;;                          analysis read, nil for one it didn't; not-read,
+;;                          analysis read, nil for one it didn't; namespaces,
+;;                          the names (strings) of those it read; not-read,
 ;;                          how many forms of a kind couldn't be read; impl,
 ;;                          where the var implementing an id is, or nil;
 ;;                          linked-by, the pack whose :pack/id-key linked it
@@ -1154,6 +1156,8 @@
               :flow #(contract-keys idx %)
               ;; true or false for a var in a namespace the analysis read, nil otherwise
               :var-defined? #(when (nses (namespace %)) (contains? vars %))
+              ;; the namespaces the analysis read: the project's own
+              :namespaces nses
               ;; where the var implementing an id is, or nil
               :impl #(some->> (impl-of idx %) (loc idx))
               ;; the pack whose :pack/id-key linked that var, or nil
