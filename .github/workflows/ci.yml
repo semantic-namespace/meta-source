@@ -18,6 +18,7 @@ jobs:
           bb: 1.12.212
       - run: bb smoke
       - run: bb conformance
+      - run: bb meta-source check --brief --root examples/billing --fail-on info
 
   js:
     runs-on: ubuntu-latest

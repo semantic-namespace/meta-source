@@ -1,0 +1,10 @@
+;; An app written in the pattern (docs/pattern.md): an integrant system and
+;; reitit routes meta-source reads whole, with facts about their meaning in
+;; EDN and the team's rules over both.
+;;
+;;   meta-source check --brief --root examples/billing
+{:src ["src"]
+ :registry ["registry"]
+ :rules ["rules"]
+ :packs {:integrant {:configs ["resources"] :pattern true}
+         :reitit {:pattern true}}}

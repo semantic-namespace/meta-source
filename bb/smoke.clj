@@ -1091,6 +1091,43 @@
              (= #{:app.routes/drivers :svc/user :svc/article} (:login (reached (str "(defmethod ig/init-key :app.routes/drivers [_ {:keys [user-service]}]\n"
                                                                  "  (let [svc user-service] (ring/router [(auth/->auth-routes svc)])))\n"))))))
 
+    ;; ---- examples/billing: the pattern, the facts and the rules; clean, and
+    ;; each rule catching the defect planted for it
+    (let [planted (fn [edits]
+                    (let [dir (str (fs/create-temp-dir))]
+                      (fs/copy-tree "examples/billing" dir {:replace-existing true})
+                      (doseq [[f from to] edits]
+                        (let [p (str dir "/" f) text (slurp p)]
+                          (when-not (str/includes? text from) (throw (ex-info "edit not found" {:f f :from from})))
+                          (spit p (str/replace text from to))))
+                      (try (let [idx (index/build {:root dir :src ["src"] :registry ["registry"] :rules ["rules"]
+                                                   :packs {:integrant {:configs ["resources"] :pattern true} :reitit {:pattern true}}})]
+                             (set (for [p (index/check idx)] [(:problem p) (or (:rule p) (:pattern p)) (:dev-id p)])))
+                           (finally (fs/delete-tree dir)))))]
+      (check "example: the billing app follows the pattern and its rules: nothing to report"
+             (empty? (planted [])))
+      (check "example: users routes handed billing: a route outside billing reaches Stripe"
+             (let [r (planted [["src/app/system.clj" "(users/routes users)" "(users/routes users billing)"]
+                               ["src/app/users.clj" "(defn routes [users]" "(defn routes [users billing]"]
+                               ["src/app/users.clj" "(get-user users)" "(get-user [users billing])"]])]
+               (and (contains? r [:rule-violated :rule/billing-boundary :api.users/get])
+                    (contains? r [:rule-violated :rule/stripe-reached-only-from-billing :app/stripe]))))
+      (check "example: a route reaching payment data with no roles"
+             (contains? (planted [["src/app/billing.clj" ":auth/roles #{:billing-admin}" ""]])
+                        [:rule-violated :rule/pci-guarded :api.billing/charge]))
+      (check "example: public routes handed the database: off the db rule, and an API route handed a foundation component"
+             (let [r (planted [["resources/system.edn" ":app/router  {" ":app/router  {:db #ig/ref :app/db "]
+                               ["src/app/system.clj" "{:keys [users billing]}" "{:keys [users billing db]}"]
+                               ["src/app/system.clj" "(public/routes)" "(public/routes db)"]
+                               ["src/app/public.clj" "(defn routes []" "(defn routes [db]"]
+                               ["src/app/public.clj" ":handler health" ":handler (partial health db)"]])]
+               (and (contains? r [:rule-violated :rule/public-off-db :public/health])
+                    (contains? r [:rule-violated :rule/api-through-services :public/health]))))
+      (check "example: the router handing on its whole config leaves the pattern"
+             (contains? (planted [["src/app/system.clj" "[_ {:keys [users billing]}]\n  (ring/router [(public/routes) (users/routes users) (billing/routes billing)])"
+                                   "[_ config]\n  (ring/router [(public/routes) (users/routes (:users config)) (billing/routes (:billing config))])"]])
+                        [:off-pattern :pattern/integrant-destructure :app/router])))
+
     ;; ---- :pack/derive: facts a pack derives from what the others read
     (let [dir (str (fs/create-temp-dir))]
       (fs/create-dirs (str dir "/resources")) (fs/create-dirs (str dir "/registry"))

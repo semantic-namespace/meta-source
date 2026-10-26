@@ -1,0 +1,6 @@
+;; The system: each component refers to what it needs.
+{:app/db      {:url "jdbc:postgresql://localhost/billing"}
+ :app/stripe  {:api-key "sk_test"}
+ :app/users   {:db #ig/ref :app/db}
+ :app/billing {:db #ig/ref :app/db :stripe #ig/ref :app/stripe}
+ :app/router  {:users #ig/ref :app/users :billing #ig/ref :app/billing}}

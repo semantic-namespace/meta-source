@@ -1,0 +1,13 @@
+;; What the code can't say: each route's and component's domain and tier,
+;; and what holds payment data. Facts on the ids integrant and reitit
+;; already have.
+{:public/health      {:atlas/aspects #{:tier/api :domain/ops}}
+ :api.users/get      {:atlas/aspects #{:tier/api :domain/users}}
+ :api.billing/charge {:atlas/aspects #{:tier/api :domain/billing}}
+
+ :app/router  {:atlas/aspects #{:tier/api}}
+ :app/users   {:atlas/aspects #{:tier/service :domain/users}}
+ :app/billing {:atlas/aspects #{:tier/service :domain/billing}}
+ :app/db      {:atlas/aspects #{:tier/foundation}}
+ :app/stripe  {:atlas/aspects #{:tier/foundation :domain/billing}
+               :data/privacy :pci}}

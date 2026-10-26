@@ -75,7 +75,7 @@ that every answer meta-source gives about that part is exact.
 | R1 literal trees | route trees are literal vectors in a def, a defn's body, or a router call; children are literals or symbols naming route defs | every route and its inherited data | read; `:off-pattern` for code |
 | R2 named routes | every route with a handler has a qualified `:name`, which is its id | links (`rfe/href`, `match-by-name`) checked; the route is an entity facts can attach to | read; `:off-pattern` when unnamed |
 | R3 handlers by var | `:handler` is a var, or a call building one (`(users/get-user db)`), not an inline `fn` | route → code | read; `:off-pattern` for an inline fn |
-| R4 built in a component | the routes fn is called from one `init-key`, handed components by I5 | route → component → everything it refers to | read (`:provided-by`) |
+| R4 built in a component | a routes fn per set of components its routes need, each called from one `init-key` and handed those components by I5: `(ring/router [(users/routes users) (billing/routes billing)])` | route → exactly the components its fn is handed, not all the router holds | read (`:provided-by`, `:handed`); a router composed of a project's route fns is read where each writes its routes |
 | R5 contracts | `:parameters` and `:responses` name qualified keys (spec or malli) | what each route consumes and produces | read (`:reitit/parameter-keys`, `:reitit/response-keys`) |
 | R6 middleware by name | middleware and interceptors are vars or registered keywords, not inline fns | what guards each route, inherited | read |
 | R7 policy as data | access rules are route data with qualified keys: `:auth/roles #{:admin}` | rules over who may call what | read (`:reitit/data`) |
@@ -129,15 +129,22 @@ name, no copy of the route table:
  :app/db             {:atlas/aspects #{:tier/foundation}}}
 ```
 
-**New:** under the pattern, the packs could give each entity its atlas
-type themselves: a named route is an `:atlas/interface-endpoint`, a
-configured key an `:atlas/structure-component`, a handler var an
-`:atlas/execution-function`. The `:deps` would be the edges above. Then
-`find-by-aspect`, atlas's invariants and its visual explorer work over a
-real system with no entries beyond aspects. That is the step that makes the
-join interesting: atlas stops being a registry written by hand next to
-the code, and becomes a description of the code plus the meaning the code
-can't express.
+atlas's pack gives each entity it describes an atlas type from the library
+declaring it, when no source gives one (meta-source's `:pack/derive`): a
+named route is an `:atlas/interface-endpoint`, so atlas's invariants apply
+to it (an endpoint carries `:tier/api`). A configured key gets
+`:atlas/structure-component` only when the project asks
+(`atlas.meta-source/pack {:types {:integrant :atlas/structure-component}}`):
+atlas's structure components carry `:tier/foundation`, and a service-tier
+component like `:app/billing` isn't one. A derived type never overrides one
+a source gives, so `:app/db` can still say `:atlas/data-store`. That is the
+step that makes the join interesting: atlas stops being a registry written
+by hand next to the code, and becomes a description of the code plus the
+meaning the code can't express.
+
+[`examples/billing`](../examples/billing) is this system: both patterns, the
+aspects above, and the rules below. CI checks it clean, and `bb smoke`
+plants a defect for each rule and sees it caught.
 
 ## Checks and queries this gives
 
@@ -238,11 +245,11 @@ Level 4 closes the gap static reading leaves. A project that runs
 
 ## Next steps
 
-1. Integrant fixes found in review: transitive `derive` in
-   `:ref-to-undefined`; invalid refs and keys (I2); `#ig/var` (I7); the
-   missing builder (I4); removed methods (I6).
-2. `:off-pattern` for I5, R1, R2, R3: the cases that make reach inexact.
-3. Reverse reach (`reached-by`) as a command and a rule condition.
-4. Pack kinds mapped to atlas types in the atlas pack, and one example app
-   with both patterns, atlas aspects and the four rules above in CI.
-5. Router and system snapshots.
+Done: the integrant checks (I2, I4, I6, I7, `derive` at any depth),
+`:off-pattern` for I5 and R1–R3, `reached-by` and the `:reached-by`,
+`:handed` and `:has-in` conditions, `:pack/derive` with atlas's types, and
+`examples/billing`. Next:
+
+1. Router and system snapshots.
+2. `:reachable-producers`, a route table joined with facts, `unreached`.
+3. Reach diffs on sdiff's review page.

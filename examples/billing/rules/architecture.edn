@@ -1,0 +1,26 @@
+;; The team's rules, over the routes, the system and the facts at once.
+{:rule/public-off-db
+ {:doc "No route under /public reaches the database"
+  :when {:kind :reitit :matches {:reitit/path "^/public"}}
+  :require [{:reaches {:none {:id :app/db}}}]}
+
+ :rule/pci-guarded
+ {:doc "A route reaching payment data runs wrap-auth and names its roles"
+  :when {:kind :reitit :reaches {:some {:= {:data/privacy :pci}}}}
+  :require [{:= {:reitit/middleware app.mw/wrap-auth}}
+            {:has-in [:reitit/data :auth/roles]}]}
+
+ :rule/api-through-services
+ {:doc "An API route is handed services, never foundation components"
+  :when {:kind :reitit := {:atlas/aspects :tier/api}}
+  :require [{:handed {:none {:= {:atlas/aspects :tier/foundation}}}}]}
+
+ :rule/billing-boundary
+ {:doc "Only billing routes reach Stripe"
+  :when {:kind :reitit :reaches {:some {:id :app/stripe}}}
+  :require [{:= {:atlas/aspects :domain/billing}}]}
+
+ :rule/stripe-reached-only-from-billing
+ {:doc "What reaches Stripe is in the billing domain, or the router holding it"
+  :when {:id :app/stripe}
+  :require [{:reached-by {:all {:or [{:= {:atlas/aspects :domain/billing}} {:id :app/router}]}}}]}}

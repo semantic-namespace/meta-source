@@ -108,6 +108,19 @@
 
 (defn- route? [x] (and (vector? x) (string? (first x))))
 
+(def ^:private core-names (set (map name (keys (ns-publics 'clojure.core)))))
+
+(defn- composed?
+  "A call to a project's own fn, (users/routes db): routes it returns are
+   read where that fn writes them. A call to clojure.core's (into, when,
+   concat) or a fn written here is code."
+  [x]
+  (and (seq? x) (symbol? (first x))
+       (let [h (first x)]
+         (if (namespace h)
+           (not (#{"clojure.core" "cljs.core"} (namespace h)))
+           (not (core-names (name h)))))))
+
 (defn- routes?
   "True for a route, or a vector of routes some of whose children may be
    written as code ((when dev? [...])), which is skipped."
@@ -115,6 +128,12 @@
   (or (route? x)
       (and (vector? x) (seq x) (some #(or (route? %) (routes? %)) x)
            (every? #(or (route? %) (routes? %) (symbol? %) (nil? %) (seq? %)) x))))
+
+(defn- composition?
+  "A tree made only of calls to a project's own route fns:
+   [(users/routes users) (billing/routes billing)], or one such call."
+  [x]
+  (or (composed? x) (and (vector? x) (seq x) (every? composed? x))))
 
 (defn- qualify [sym own-ns aliases]
   (when (symbol? sym)
@@ -192,6 +211,8 @@
   (cond
     (and (symbol? x) (not (seen x)) (local x))
     (walk (:value (local x)) prefix inherited local (conj seen x) (:row (local x)))
+    ;; a project's route fn: its routes are read where it writes them
+    (composed? x) []
     (seq? x) [[:code]]
     (route? x)
     (let [[path & more] x
@@ -279,6 +300,8 @@
                     (= :link site) (when (keyword? x) [{:row row :kind kind :dev-id x :refers true :entry {:reitit/linked true}}])
                     (symbol? x) (when-not (local x) [{:row row :kind kind :skipped (str "the routes are " x ", not written here")}])
                     (routes? x) (tree-results x f local nil row)
+                    ;; composed of route fns, each read where it writes its routes
+                    (composition? x) nil
                     :else [{:row row :kind kind :skipped "the routes are written as code" :pattern :pattern/reitit-literal-tree}])]
             r)
           (for [d defs
