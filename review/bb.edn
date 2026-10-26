@@ -1,0 +1,13 @@
+;; meta-source's findings on sdiff's review page. EXPERIMENTAL.
+{:paths ["src"]
+ :deps {io.github.semantic-namespace/meta-source {:local/root ".."}
+        io.github.semantic-namespace/diff {:git/url "https://github.com/semantic-namespace/diff"
+                                           :git/sha "ab65d86aec43691142d89d8fc3b89678f931679a"}}
+ :tasks {review {:doc "text <repo> <base> <head> | serve [port] [--host addr]"
+                 :requires ([meta-source.review.main])
+                 :task (apply meta-source.review.main/-main *command-line-args*)}
+         test {:doc "the delta, and a local range end to end"
+               :extra-paths ["test"]
+               :requires ([clojure.test :as t] [meta-source.review-test])
+               :task (let [{:keys [fail error]} (t/run-tests 'meta-source.review-test)]
+                       (when (pos? (+ fail error)) (System/exit 1)))}}}
