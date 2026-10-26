@@ -57,6 +57,8 @@ depends on, and the risk order count them:
   produce it (resolver on resolver, atlas function on atlas function), when
   five or fewer do.
 
+![atlas#52: each invariant now depends on the entity types its rule names](../docs/images/meta-source-review-bridge.gif)
+
 On atlas, `calculate-cart-tax`, called by its dev-id, had no callers in
 sdiff's graph; it now has its registration, `calculate-cart-total` (which
 consumes `:cart/tax`) and three tests. On atlas#52, each invariant that
