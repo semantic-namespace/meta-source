@@ -113,26 +113,77 @@
 (defn- profile? [k v]
   (and (qualified-keyword? k) (= "duct.profile" (namespace k)) (map? v)))
 
+(defn- key-choices
+  "The config keys `k` stands for: itself, or each branch of a tag that
+   chooses one (#profile{:dev ::a :prod ::b}, #or [::a ::b])."
+  [k]
+  (if (tagged-literal? k)
+    (let [f (:form k)] (filter component-id (cond (map? f) (vals f) (sequential? f) f :else [f])))
+    [k]))
+
 (defn- config-defs
-  "Each component a config's top-level [k v line]s configure, duct
-   profiles opened."
+  "Each component a config's [k v line]s configure, duct profiles opened,
+   a key a tag chooses read as each of its branches."
   [kvs file path]
   (for [[k v line] kvs
         [k v profile] (if (profile? k v) (for [[ik iv] v] [ik iv k]) [[k v nil]])
+        k (key-choices k)
         :when (component-id k)]
     (cond-> {:key k :value v :file file :path path :line line}
       profile (assoc :profile profile))))
 
+(defn- system-holders
+  "The top-level keys of a config holding the system itself, as an aero
+   config does under one of its keys ({:port 3000 :app/system {...}}): those
+   `:system-keys` names, and any whose map refers to a key of its own that
+   is configured there (its value a map) and at the top level of no config
+   read (`top`): a component's option named like the key it refers to
+   ({:app/datasets #ig/ref :app/datasets}) is no system. A duct profile is
+   opened, not held."
+  [kvs top opts]
+  (let [named (set (get-in opts [:integrant :system-keys]))]
+    (set (for [[k v _ inner] kvs
+               :when (and inner (map? v) (not (profile? k v))
+                          (or (named k)
+                              (some #(and (map? (get v %)) (not (top %))) (refs [v]))))]
+           k))))
+
+(def ^:private hierarchy-file #"(^|/)(duct_hierarchy|integrant/hierarchy)\.edn$")
+
+(defn- hierarchy-results
+  "A duct_hierarchy.edn (or integrant/hierarchy.edn): {child [parent ...]},
+   derive calls written as data."
+  [kvs file]
+  (for [[child parents line] kvs
+        :when (and (qualified-keyword? child) (sequential? parents))]
+    {:file file :row line :kind kind :dev-id child
+     :entry {:integrant/isa (vec (sort (filter qualified-keyword? parents)))}}))
+
 (defn- read-configs
-  "Every config file at once: [{:file :path :text}]."
-  [files _opts]
-  (let [read (for [{:keys [file path text]} files]
-               (let [kvs (try (read/keyed-lines text {:tags :keep}) (catch Exception ex ex))]
+  "Every config file at once: [{:file :path :text}]. A hierarchy file says
+   what derives from what; a config whose system sits under some of its
+   keys is read from there."
+  [files opts]
+  (let [parsed (for [{:keys [file path text]} files]
+                 {:file file :path path
+                  :kvs (try (read/keyed-lines text {:tags :keep :inner true}) (catch Exception ex ex))})
+        ;; every key some config defines at its top level, profiles opened
+        top (set (for [{:keys [kvs path]} parsed
+                       :when (and (sequential? kvs) (not (re-find hierarchy-file (str path))))
+                       [k v] kvs
+                       k (if (profile? k v) (keys v) [k])]
+                   k))
+        read (for [{:keys [file path kvs]} parsed]
                  (cond
                    (instance? Exception kvs) {:skipped {:file file :row 1 :kind kind :skipped (str "not readable: " (ex-message kvs))}}
                    (nil? kvs) {:skipped {:file file :row 1 :kind kind :skipped "not a map of config keys"}}
-                   :else {:defs (config-defs kvs file path)})))]
-    (into (combine (mapcat :defs read)) (keep :skipped read))))
+                   (re-find hierarchy-file (str path)) {:isa (hierarchy-results kvs file)}
+                   :else (let [held (system-holders kvs top opts)]
+                           {:defs (config-defs (if (seq held) (mapcat #(nth % 3) (filter (comp held first) kvs)) kvs)
+                                               file path)})))]
+    (-> (combine (mapcat :defs read))
+        (into (mapcat :isa read))
+        (into (keep :skipped read)))))
 
 ;; =============================================================================
 ;; Reading the code
@@ -162,6 +213,17 @@
            :when (contains? vars (symbol (str (:ns d)) (str (:name d))))]
        {:filename (:filename d) :row (:row d) :name-row (:row d) :name-col (inc (:col d)) :config-var (:name d)}))))
 
+(defn- written-keys
+  "The config keys a method's body writes as keys of map literals, sorted:
+   what an expand-key returns, or what a duct module's init-key merges."
+  [body]
+  (vec (sort (distinct (for [m (tree-seq coll? seq body)
+                             :when (map? m)
+                             k (keys m)
+                             :let [id (component-id k)]
+                             :when id]
+                         id)))))
+
 (defn- read-forms [sites {:keys [form-at own-ns]} _opts]
   (let [{methods-sites :method derive-sites :derive var-sites :var}
         (group-by #(cond (:method %) :method (:derive %) :derive :else :var) sites)]
@@ -176,10 +238,16 @@
              :entry {:integrant/isa (vec (sort (distinct (map :parent ds))))}})
           (for [{:keys [row name-row name-col]} methods-sites
                 :let [form (form-at name-row name-col)
-                      [_ mm dispatch] (when (seq? form) form)
-                      id (component-id dispatch)]]
-            (if (and id (symbol? mm) (ig-methods (symbol (name mm))))
-              {:row row :kind kind :dev-id id :entry {(keyword "integrant" (name mm)) true}}
+                      [_ mm dispatch & body] (when (seq? form) form)
+                      id (component-id dispatch)
+                      method (when (symbol? mm) (name mm))
+                      adds (when id (written-keys body))]]
+            (if (and id method (ig-methods (symbol method)))
+              {:row row :kind kind :dev-id id
+               :entry (cond-> {(keyword "integrant" method) true}
+                        ;; what a key that expands writes, its keys or a duct module's
+                        (and (seq adds) (#{"expand-key" "prep-key"} method)) (assoc :integrant/expands-to adds)
+                        (and (seq adds) (= "init-key" method)) (assoc :integrant/init-writes adds))}
               {:row row :kind kind :skipped (str "dispatch value " (pr-str dispatch) " is not a config key")}))
           (for [{:keys [row name-row name-col config-var]} var-sites
                 :let [form (form-at name-row name-col)
@@ -194,9 +262,54 @@
 ;; =============================================================================
 
 ;; the keys a duct module adds to the system at prep time, when configured
+(def ^:private duct-web
+  #{:duct/router :duct.router/cascading :duct.router/reitit :duct.handler/root :duct.handler/file
+    :duct.handler/resource :duct.handler.reitit/default :duct.server/http :duct.server.http/jetty
+    :duct.session-store/cookie
+    :duct.handler.static/bad-request :duct.handler.static/not-found :duct.handler.static/method-not-allowed
+    :duct.handler.static/not-acceptable :duct.handler.static/internal-server-error
+    :duct.middleware.web/defaults :duct.middleware.web/format :duct.middleware.web/hiccup
+    :duct.middleware.web/hide-errors :duct.middleware.web/log-errors :duct.middleware.web/log-requests
+    :duct.middleware.web/not-found :duct.middleware.web/stacktrace :duct.middleware.web/webjars})
+
+(def ^:private duct-isa
+  "What duct's libraries derive their keys from, in their own
+   duct_hierarchy.edn or integrant/hierarchy.edn, which ship in their jars:
+   migrator.ragtime, database.sql(.hikaricp), logger.timbre, server.http.jetty,
+   handler.sql, module.ataraxy, scheduler.simple."
+  {:duct.migrator/ragtime [:duct/migrator]
+   :duct.database.sql/hikaricp [:duct.database/sql]
+   :duct.database/sql [:duct/database]
+   :duct.logger/timbre [:duct/logger]
+   :duct.logger/simple [:duct/logger]
+   :duct.server.http/jetty [:duct.server/http]
+   :duct.server/http [:duct/server]
+   :duct/server [:duct/daemon]
+   :duct.handler/sql [:duct/handler]
+   :duct.handler.sql/query [:duct.handler/sql]
+   :duct.handler.sql/query-one [:duct.handler/sql]
+   :duct.handler.sql/insert [:duct.handler/sql]
+   :duct.handler.sql/execute [:duct.handler/sql]
+   :duct.router/ataraxy [:duct/router]
+   :duct.module/ataraxy [:duct/module]
+   :duct.scheduler/simple [:duct/daemon]})
+
+(defn- ancestors-in
+  "Every key `ks` derive from through `isa` ({child [parent ...]})."
+  [isa ks]
+  (loop [todo (vec ks) seen #{}]
+    (if-let [k (peek todo)]
+      (let [ps (remove seen (isa k))]
+        (recur (into (pop todo) ps) (into seen ps)))
+      seen)))
+
 (def ^:private duct-modules
-  {:duct.module/logging #{:duct/logger}
-   :duct.module/sql #{:duct.database/sql}})
+  "Read from the modules' sources, old (0.7, duct.core) and new (expand-key)."
+  {:duct.module/logging #{:duct/logger :duct.logger/timbre :duct.logger/simple}
+   :duct.module/sql #{:duct.database/sql :duct.database.sql/hikaricp :duct.migrator/ragtime}
+   :duct.module/web duct-web
+   :duct.module.web/api duct-web
+   :duct.module.web/site duct-web})
 
 (defn- checks
   "- :ref-to-undefined (warning): a component refers to a key no config
@@ -204,6 +317,10 @@
      configured duct module adds (:duct.module/logging adds :duct/logger,
      :duct.module/sql :duct.database/sql), and that :provided doesn't list.
      Integrant can't init the system unless something adds it;
+   - :ref-maybe-from-module (info): such a ref in the namespace of a key
+     that expands into others (an expand-key or prep-key method, or a duct
+     module), which may add it: what it adds is read where its code writes
+     the keys as data, and not otherwise;
    - :init-key-without-config (info): the code has an init-key method for
      a key no config defines, no composite key derives from, and no code
      calls by its id (:calls-by-id): unused, or configured somewhere not
@@ -216,16 +333,39 @@
         ;; a key some code calls by its id (:calls-by-id): a workflow engine
         ;; running (ig/init-key k deps) itself
         called (for [[id e] components :when (get-in e [:entry :meta-source/called-by-id])] id)
-        defined (-> (set (map key configured))
-                    (into called)
+        ;; keys that expand into others: an expand-key (or the deprecated
+        ;; prep-key), or a duct module (deriving :duct/module) whose init-key
+        ;; merges a config
+        modules (for [c configured
+                      :let [entry (:entry (val c))]
+                      :when (or (:integrant/expand-key entry) (:integrant/prep-key entry)
+                                (some #{:duct/module} (parents c)))]
+                  c)
+        written (mapcat (fn [c] (let [entry (:entry (val c))]
+                                  (concat (:integrant/expands-to entry)
+                                          (when (some #{:duct/module} (parents c)) (:integrant/init-writes entry)))))
+                        modules)
+        added (set (concat (map key configured) called written (mapcat duct-modules (map key configured))))
+        defined (-> added
                     (into (mapcat parents) configured)
-                    (into (mapcat duct-modules) (map key configured))
+                    ;; what duct's own keys derive from, as their jars say
+                    (into (ancestors-in duct-isa added))
                     (into (get-in opts [:integrant :provided])))]
     (concat
-     (for [[id e] configured
-           :let [missing (vec (remove defined (get-in e [:entry :integrant/refs])))]
-           :when (seq missing)]
-       {:severity :warning :problem :ref-to-undefined :dev-id id :keys missing :definition (loc e)})
+     ;; what a module adds that its code doesn't write as data (a key it
+     ;; builds) isn't read: a missing ref in its namespace it may well add
+     (let [own-modules (map key modules)
+           module-for (fn [k] (some #(when (= (namespace %) (namespace k)) %) own-modules))]
+       (for [[id e] configured
+             :let [missing (remove defined (get-in e [:entry :integrant/refs]))
+                   {maybe true missing false} (group-by #(boolean (module-for %)) missing)]
+             p [(when (seq missing)
+                  {:severity :warning :problem :ref-to-undefined :dev-id id :keys (vec missing) :definition (loc e)})
+                (when (seq maybe)
+                  {:severity :info :problem :ref-maybe-from-module :dev-id id :keys (vec maybe)
+                   :module (module-for (first maybe)) :definition (loc e)})]
+             :when p]
+         p))
      (for [[id e] components
            :when (and (get-in e [:entry :integrant/init-key]) (not (contains? defined id)))]
        {:severity :info :problem :init-key-without-config :dev-id id :definition (loc e)}))))
@@ -248,7 +388,11 @@
    :pack/data-keys? false
    :pack/find find-forms
    :pack/read read-forms
-   :pack/data-files (fn [opts] (get-in opts [:integrant :configs]))
+   ;; the configs, and where duct keeps derive calls written as data
+   :pack/data-files (fn [opts] (concat (get-in opts [:integrant :configs])
+                                       (get-in opts [:integrant :hierarchies])
+                                       ["src/duct_hierarchy.edn" "resources/duct_hierarchy.edn"
+                                        "src/integrant/hierarchy.edn" "resources/integrant/hierarchy.edn"]))
    :pack/read-data read-configs
    :pack/checks checks
    :pack/describe describe})
