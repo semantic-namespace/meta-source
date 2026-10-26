@@ -366,7 +366,9 @@ Each config key becomes a component, in the pack's own vocabulary:
 - An `init-key` (or `expand-key`, `prep-key`) method is its component's
   code: what it calls is what the component calls, and a route or other
   entity defined in a fn it calls is provided by the component (`reach`, and
-  `:reaches` in rules).
+  `:reaches` in rules), and depends on what the call is handed: the
+  components behind the config keys the method's destructuring passes it,
+  read through clj-kondo's locals.
 - `integrant/hierarchy.edn` and `duct_hierarchy.edn` under `src/` or
   `resources/` (or the files `:hierarchies` names) are read as derive calls,
   as `ig/load-hierarchy` reads them; so is what duct's own libraries derive

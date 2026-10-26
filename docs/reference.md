@@ -166,7 +166,13 @@ warning src/app/home.clj:3   No route under /public reaches the database: :home/
 
 The code links come from the packs, with nothing to annotate: an integrant
 `init-key` method is its component's code, and a route defined inside a fn
-is provided by the component whose `init-key` calls that fn. A var with the
+is provided by the component whose `init-key` calls that fn. What the route
+reaches through it is what that call is handed: with
+`(defmethod ig/init-key ::routes [_ {:keys [user-service]}] (->auth-routes user-service))`,
+the component `:user-service` refers to, not everything `::routes` holds.
+Which parameters reach the call is clj-kondo's to say; a value bound in the
+body (`as->`, `let`), or the whole config map, isn't followed, and the route
+then reaches the component and all it holds. A var with the
 meta key is linked to its entity, and its calls count too. `meta-source
 reach <id>` lists what an entity reaches, with the path to each.
 
