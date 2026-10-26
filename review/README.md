@@ -5,6 +5,14 @@
 
 > **Experimental.** Built on meta-source's and sdiff's experimental interfaces.
 
+![The findings an atlas branch introduces and fixes, commit by commit](../docs/images/meta-source-review.gif)
+
+On [atlas](https://github.com/semantic-namespace/atlas)'s own example app:
+the first commit adds `:item/price` to the subtotal's contract in EDN, which
+the `register!` in `cart.clj` also gives, so the two sources now disagree;
+the second commit names it in both, and the finding it was meant to fix is
+fixed. The tax change reads a key its contract doesn't name.
+
 sdiff shows a change form by form. This module reads the project at the
 change's merge base and at its head, runs `meta-source check` on both with
 the head's `meta-source.edn`, and compares the findings by what they say, not
