@@ -378,6 +378,61 @@
                                      (when-let [v (:reitit/view entry)] (str "view " v))
                                      (when-let [m (seq (:reitit/middleware entry))] (str "middleware " (count m)))]))))
 
+;; =============================================================================
+;; The runtime half
+;; =============================================================================
+
+(defn runtime-entities
+  "{route-name entry} for the named routes the running `router` has, as
+   reitit compiled them: what code built (an :expand fn, a tree assembled
+   at runtime) included. reitit.core/routes is resolved here: the process
+   has reitit. Handlers and middleware given as #'vars or keywords are
+   named; fns are not."
+  [router]
+  (let [routes ((requiring-resolve 'reitit.core/routes) router)
+        named (fn [x] (cond (var? x) (symbol x) (keyword? x) x (and (vector? x) (seq x)) (recur (first x))))]
+    (into (sorted-map)
+          (for [[path data] routes
+                :let [n (:name data)]
+                :when (keyword? n)
+                :let [ms (filterv #(contains? data %) http-methods)
+                      hs (vec (distinct (keep named (cons (:handler data) (for [m ms :let [v (get data m)]] (if (map? v) (:handler v) v))))))
+                      mw (vec (distinct (keep named (mapcat #(get data %) stacked))))]]
+            [n (cond-> {:reitit/path path}
+                 (seq ms) (assoc :reitit/methods ms)
+                 (seq hs) (assoc :reitit/handlers hs)
+                 (seq mw) (assoc :reitit/middleware mw))]))))
+
+(defn snapshot!
+  "Writes the named routes of the running `router` to `file` (default
+   .meta-source/packs/reitit.edn), for meta-source.index to read beside the
+   route trees in the code:
+
+     (meta-source.pack.reitit/snapshot! router)"
+  ([router] (snapshot! router {}))
+  ([router {:keys [file] :or {file ".meta-source/packs/reitit.edn"}}]
+   (let [f (java.io.File. ^String file)]
+     (some-> (.getParentFile f) .mkdirs)
+     (spit f (with-out-str (prn {:pack :reitit :written (System/currentTimeMillis)
+                                 :entities (runtime-entities router)})))
+     file)))
+
+(defn- runtime-fill
+  "`entry` with what the running router has and the code doesn't say."
+  [entry runtime]
+  (merge runtime entry))
+
+(defn- runtime-diff
+  "Where a route's path or methods in the code and in the running router
+   differ; nil when they agree."
+  [entry runtime]
+  (not-empty
+   (into (sorted-map)
+         (for [k [:reitit/path :reitit/methods]
+               :let [code (get entry k) live (get runtime k)]
+               :when (and (some? live) (not= (if (vector? code) (set code) code) (if (vector? live) (set live) live)))]
+           [k {:code code :runtime live}]))))
+
 (def pack
   {:pack/id :reitit
    :pack/config-keys #{:reitit}
@@ -388,4 +443,7 @@
    :pack/find find-forms
    :pack/read read-forms
    :pack/checks checks
-   :pack/describe describe})
+   :pack/describe describe
+   ;; its runtime half: the router the process has (snapshot!)
+   :pack/runtime-fill runtime-fill
+   :pack/runtime-diff runtime-diff})

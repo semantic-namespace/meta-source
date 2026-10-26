@@ -552,7 +552,9 @@
                                   (concat (:integrant/expands-to entry)
                                           (when (module? c) (:integrant/init-writes entry)))))
                         modules)
-        added (set (concat (map key configured) called written (mapcat duct-modules (map key configured))))
+        ;; what the running system has (snapshot!): the keys modules add, read
+        in-system (for [[id e] components :when (some :runtime (:definitions e))] id)
+        added (set (concat (map key configured) called written in-system (mapcat duct-modules (map key configured))))
         ;; and a composite key's other keywords
         isa+ (merge-with into isa (into {} (for [c configured :let [ds (get-in (val c) [:entry :integrant/derives])] :when ds] [(key c) ds])))
         ;; a key is defined when something added derives from it, at any depth
@@ -688,6 +690,64 @@
                                                            (when (:integrant/varies entry) ", varies")))
                                        (when (seq (:integrant/env entry)) (str "env " (str/join " " (:integrant/env entry))))])))))
 
+;; =============================================================================
+;; The runtime half
+;; =============================================================================
+
+(defn runtime-entities
+  "{id entry} for the system `config` a running process has, in the pack's
+   vocabulary: the config as ig/init gets it, after ig/expand, Duct's modules
+   and profiles, so with the keys static reading can't see. Refs are read
+   with integrant's own reflike?, resolved here: the process has integrant."
+  [config]
+  (let [reflike? (requiring-resolve 'integrant.core/reflike?)
+        refset? (requiring-resolve 'integrant.core/refset?)
+        ref-key (requiring-resolve 'integrant.core/ref-key)
+        shared (frequencies (apply concat (filter composite? (keys config))))]
+    (into (sorted-map)
+          (for [[k v] config
+                :let [id (component-id k shared)]
+                :when id
+                :let [uses (distinct (for [x (tree-seq #(and (coll? %) (not (reflike? %))) seq v)
+                                           :when (reflike? x)]
+                                       [(if (refset? x) :refset :ref) (ref-key x)]))
+                      lasts (fn [ts] (vec (sort (distinct (for [t ts :let [t (if (vector? t) (last t) t)] :when (qualified-keyword? t)] t)))))
+                      plain (set (for [[kind t] uses :when (= :ref kind)] t))]]
+            [id (cond-> {:integrant/in-system true}
+                  (seq uses) (assoc :integrant/refs (lasts (map second uses)))
+                  (seq (for [[kind t] uses :when (and (= :refset kind) (keyword? t) (not (plain t)))] t))
+                  (assoc :integrant/refsets (vec (sort (distinct (for [[kind t] uses :when (and (= :refset kind) (keyword? t) (not (plain t)))] t)))))
+                  (vector? k) (assoc :integrant/derives (vec (remove #{id} k))))]))))
+
+(defn snapshot!
+  "Writes the system `config` the running process has (what it hands
+   ig/init) to `file` (default .meta-source/packs/integrant.edn), for
+   meta-source.index to read beside the config files:
+
+     (meta-source.pack.integrant/snapshot! (ig/expand config))"
+  ([config] (snapshot! config {}))
+  ([config {:keys [file] :or {file ".meta-source/packs/integrant.edn"}}]
+   (let [f (java.io.File. ^String file)]
+     (some-> (.getParentFile f) .mkdirs)
+     (spit f (with-out-str (prn {:pack :integrant :written (System/currentTimeMillis)
+                                 :entities (runtime-entities config)})))
+     file)))
+
+(defn- runtime-fill
+  "`entry` with what the running system has and the files don't say."
+  [entry runtime]
+  (merge (dissoc runtime :integrant/in-system) entry))
+
+(defn- runtime-diff
+  "Where the refs a config file gives a component and those it has in the
+   running system differ; nil when they agree."
+  [entry runtime]
+  (let [code (set (:integrant/refs entry)) live (set (:integrant/refs runtime))]
+    (when (not= code live)
+      {:integrant/refs (cond-> {}
+                         (seq (remove live code)) (assoc :only-in-code (vec (sort (remove live code))))
+                         (seq (remove code live)) (assoc :only-at-runtime (vec (sort (remove code live)))))})))
+
 (def pack
   {:pack/id :integrant
    :pack/config-keys #{:integrant}
@@ -706,6 +766,9 @@
    :pack/read-data read-configs
    :pack/checks checks
    :pack/describe describe
+   ;; its runtime half: the system the process has (snapshot!)
+   :pack/runtime-fill runtime-fill
+   :pack/runtime-diff runtime-diff
    ;; what a component's init-key hands each fn it calls, as the components
    ;; its config refers to under the keys passed; :unknown when not followed
    :pack/not-references #{:integrant/ref-keys}

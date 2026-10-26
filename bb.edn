@@ -17,6 +17,9 @@
          corpus {:doc "Precision and recall of the checks over pinned real apps: fetch | run [app ...] | report | unlabeled [n] | plant | ci (corpus/README.md)"
                  :requires ([meta-source.corpus])
                  :task (apply meta-source.corpus/-main *command-line-args*)}
+         system-snapshot-check {:doc "Runs the integrant and reitit packs' runtime-entities against real integrant and reitit and checks what they give. Needs the clojure CLI."
+                                :requires ([system-snapshot-check])
+                                :task (system-snapshot-check/-main)}
          pathom-snapshot-check {:doc "Rebuilds the shop fixture's Pathom snapshot from real Pathom 3 and 2 and checks it matches the committed one. Needs the clojure CLI."
                                 :requires ([pathom-snapshot-check])
                                 :task (pathom-snapshot-check/-main)}}}

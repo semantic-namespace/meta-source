@@ -452,6 +452,23 @@ Those systems shaped the pack. Each of these was found on one of them:
 - `derive` used to share an `init-key`;
 - a `:refer` of a pack's macro.
 
+### What the running system has: the integrant snapshot
+
+The config files aren't the whole system: Duct's modules and `expand-key`
+add keys, profiles choose others. The process can say what it hands
+`ig/init`:
+
+```clojure
+(meta-source.pack.integrant/snapshot! (ig/expand config))   ; .meta-source/packs/integrant.edn
+```
+
+Read beside the files, a key only the running system has counts as defined
+(no `:ref-to-undefined` for what a module adds), and `check` adds
+`:runtime-only`, `:not-in-runtime` (a configured key the system doesn't
+have: a test variant, or a key no profile keeps) and `:runtime-disagrees`
+(the refs differ). Refs are read with integrant's own `reflike?`, so the
+process needs nothing else.
+
 ## A config's environment and includes: the aero pack
 
 ```clojure
@@ -698,8 +715,19 @@ Each shaped the pack: fragments without reitit requires (lipas), scoped ids
 for relative paths and `#'var` handlers (sepal), keywords with no line in
 clj-kondo's analysis (blaze), unread trees making links uncertain (tubo).
 
-Not read: routes built by `:expand` or other fns, a route `:name` written as
-a symbol naming a def, and the compiled router, which a snapshot could give.
+Not read: routes built by `:expand` or other fns, and a route `:name`
+written as a symbol naming a def. The router's snapshot gives both.
+
+### What the running router has: the reitit snapshot
+
+```clojure
+(meta-source.pack.reitit/snapshot! router)   ; .meta-source/packs/reitit.edn
+```
+
+The named routes as reitit compiled them, those an `:expand` fn or code
+built included: a link to a route only the router has is defined, and
+`:runtime-disagrees` names a route whose path or methods differ. Handlers
+and middleware written as `#'vars` or keywords are named; fns aren't.
 
 ## A database's attributes: the Datascript pack
 

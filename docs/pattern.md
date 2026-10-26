@@ -216,7 +216,9 @@ Level 4 closes the gap static reading leaves. A project that runs
 - the rules themselves, run on the live graph, so a deploy refuses what CI
   would have refused.
 
-**New** for reitit and integrant: only Pathom and atlas write snapshots today.
+`meta-source.pack.integrant/snapshot!` and `meta-source.pack.reitit/snapshot!`
+write the system and the router the process has, as Pathom's and atlas's
+packs already did (see [packs.md](packs.md)).
 
 ## What it costs
 
@@ -247,9 +249,10 @@ Level 4 closes the gap static reading leaves. A project that runs
 
 Done: the integrant checks (I2, I4, I6, I7, `derive` at any depth),
 `:off-pattern` for I5 and R1–R3, `reached-by` and the `:reached-by`,
-`:handed` and `:has-in` conditions, `:pack/derive` with atlas's types, and
-`examples/billing`. Next:
+`:handed` and `:has-in` conditions, `:pack/derive` with atlas's types,
+`examples/billing`, and the system and router snapshots. Next:
 
-1. Router and system snapshots.
-2. `:reachable-producers`, a route table joined with facts, `unreached`.
-3. Reach diffs on sdiff's review page.
+1. `:reachable-producers`, a route table joined with facts, `unreached`.
+2. Reach diffs on sdiff's review page.
+3. Startup: the rules run on the live graph, so a deploy refuses what CI
+   would.

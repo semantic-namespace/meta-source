@@ -1091,6 +1091,41 @@
              (= #{:app.routes/drivers :svc/user :svc/article} (:login (reached (str "(defmethod ig/init-key :app.routes/drivers [_ {:keys [user-service]}]\n"
                                                                  "  (let [svc user-service] (ring/router [(auth/->auth-routes svc)])))\n"))))))
 
+    ;; ---- runtime snapshots of an integrant system and a reitit router, read
+    ;; beside the files (written here as the snapshot! fns write them)
+    (let [dir (str (fs/create-temp-dir))]
+      (doseq [[p text] {"resources/config.edn" "{:app/h {:log #ig/ref :app/logger :db #ig/ref :app/db}\n :app/db {}\n :app/old {}}\n"
+                        "src/app/routes.clj" (str "(ns app.routes (:require [reitit.ring :as ring]))\n"
+                                                  "(def routes [[\"/users\" {:name :api/users :get {:handler identity}}]])\n")
+                        "src/app/ui.cljs" "(ns app.ui (:require [reitit.frontend.easy :as rfe]))\n(defn a [] (rfe/href :page/about))\n"
+                        ".meta-source/packs/integrant.edn"
+                        (pr-str {:pack :integrant :written 1
+                                 :entities {:app/h {:integrant/in-system true :integrant/refs [:app/db :app/logger :app/metrics]}
+                                            :app/db {:integrant/in-system true}
+                                            ;; a module added it: no file configures it
+                                            :app/logger {:integrant/in-system true}
+                                            :app/metrics {:integrant/in-system true}}})
+                        ".meta-source/packs/reitit.edn"
+                        (pr-str {:pack :reitit :written 1
+                                 :entities {:api/users {:reitit/path "/api/users" :reitit/methods [:get]}
+                                            ;; built by code the pack couldn't read
+                                            :page/about {:reitit/path "/about"}}})}]
+        (fs/create-dirs (fs/parent (str dir "/" p))) (spit (str dir "/" p) text))
+      (let [idx (index/build {:root dir :src ["src"] :registry [] :packs {:integrant {:configs ["resources"]} :reitit {}}})
+            by (fn [problem] (set (map :dev-id (problems idx problem))))]
+        (check "snapshot: a key only the running system has is defined; a ref the system has and the file doesn't is a difference"
+               (and (empty? (by :ref-to-undefined))
+                    (contains? (by :runtime-only) :app/logger)
+                    (= {:integrant/refs {:only-at-runtime [:app/metrics]}}
+                       (:diff (first (filter #(= :app/h (:dev-id %)) (problems idx :runtime-disagrees)))))))
+        (check "snapshot: a configured key the running system doesn't have"
+               (contains? (by :not-in-runtime) :app/old))
+        (check "snapshot: a route only the running router has defines the name a link uses; a path that differs is a difference"
+               (and (empty? (by :route-not-defined))
+                    (= {:reitit/path {:code "/users" :runtime "/api/users"}}
+                       (:diff (first (filter #(= :api/users (:dev-id %)) (problems idx :runtime-disagrees))))))))
+      (fs/delete-tree dir))
+
     ;; ---- examples/billing: the pattern, the facts and the rules; clean, and
     ;; each rule catching the defect planted for it
     (let [planted (fn [edits]
