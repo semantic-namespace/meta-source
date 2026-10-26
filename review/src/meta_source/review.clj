@@ -47,14 +47,18 @@
 
 (def ^:private cache-root (io/file (System/getProperty "user.home") ".cache" "meta-source" "review"))
 
-(def ^:private fallback-file (io/file (System/getProperty "user.home") ".config" "meta-source" "review.edn"))
+(defn- fallback-file []
+  (io/file (or (System/getenv "META_SOURCE_REVIEW_CONFIG")
+               (str (io/file (System/getProperty "user.home") ".config" "meta-source" "review.edn")))))
 
 (defn- fallback
   "The meta-source.edn to use for `repo` when it has none of its own, from
-   ~/.config/meta-source/review.edn: `{\"owner/name\" {:packs {...}}}`."
+   ~/.config/meta-source/review.edn (or the file META_SOURCE_REVIEW_CONFIG
+   names): `{\"owner/name\" {:packs {...}}}`."
   [repo]
-  (when (and repo (.exists fallback-file))
-    (get (edn/read-string (slurp fallback-file)) repo)))
+  (let [f (fallback-file)]
+    (when (and repo (.exists f))
+      (get (edn/read-string (slurp f)) repo))))
 
 (defn- harmless?
   "Is `err` only tar saying a pattern matched no file? A repository with no
@@ -92,15 +96,27 @@
         (spit done "")))
     (.getCanonicalPath dir)))
 
-(defn- read-with
-  "check's findings at `dir`, read with `config`: written as the tree's
+(defn index-at
+  "meta-source's index of `dir` read with `config`, written as the tree's
    meta-source.edn, since the trees are this module's own copies (the one the
-   commit has is kept aside, see `tree!`)."
+   commit has is kept aside, see `tree!`). One build at a time per tree: the
+   review header and the dependency bridge may ask at once."
   [dir config]
-  (let [f (io/file dir "meta-source.edn")]
-    (when-not (and (.exists f) (= config (edn/read-string (slurp f))))
-      (spit f (pr-str config)))
-    (index/check (index/build (assoc (cli/config {:root dir}) :cache (str (io/file dir ".meta-source" "index.transit")))))))
+  (locking (.intern (str dir))
+    (let [f (io/file dir "meta-source.edn")]
+      (when-not (and (.exists f) (= config (edn/read-string (slurp f))))
+        (spit f (pr-str config)))
+      (index/build (assoc (cli/config {:root dir}) :cache (str (io/file dir ".meta-source" "index.transit")))))))
+
+(defn commit-index
+  "The index of `repo` (owner/name) at `sha`, read with the commit's own
+   meta-source.edn, else the repository's fallback; nil with neither."
+  [repo sha]
+  (let [dir (tree! {:gh repo} sha)]
+    (when-let [config (or (own-settings dir) (fallback repo))]
+      (index-at dir config))))
+
+(defn- read-with [dir config] (index/check (index-at dir config)))
 
 (defonce ^:private computed (atom {}))
 
@@ -207,4 +223,5 @@
   (let [prev @d/context-fn]
     (d/use-context! (fn [report] (merge (prev report) (context-for report)))))
   (d/add-header-decorator! ::findings header)
-  (d/add-form-decorator! ::findings form-line))
+  (d/add-form-decorator! ::findings form-line)
+  ((requiring-resolve 'meta-source.review.bridge/install!)))
