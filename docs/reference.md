@@ -12,6 +12,7 @@ Emacs package. Packs, and how to write one: [packs.md](packs.md).
 | `where <id>` | each file that declares it, its var, its merged entry |
 | `uses <id>` | entries that name it, and code that calls its var |
 | `deps <id>` | the entities its entry names |
+| `reach <id>` | what it depends on, transitively, through entries, calls and the component that builds it, with the path to each (`--via deps,calls,provided-by`) |
 | `data <key>` | a data key's shape, producers and consumers, and the schemas it is a key of |
 | `check` | where code and declarations disagree, most severe first |
 | `diagnostics <file>` | `check`'s findings in one file, with the line and columns to underline |
@@ -136,14 +137,44 @@ them. A condition is a map, and every key in it must hold:
 | `:id-ns "shop.admin"` | its id's namespace is that one or under it |
 | `:data-key true` | a schema shapes it |
 | `:not cond`, `:or [cond ...]` | |
+| `:id :k` (or a set) | it is one of these entities |
 | `:consumers`, `:producers` | a data key's consumers or producers... |
 | `:deps`, `:used-by` | ...what its entry names, or what names it... |
+| `:calls`, `:called-by` | ...whose linked var its code calls, or whose code calls its... |
+| `:provided-by`, `:provides` | ...the entity whose code calls the var it is defined in (a route's component: its `init-key` calls the fn building the route), or what it so builds... |
 | | ...with `{:all cond}`, `{:some cond}` or `{:none cond}` |
+| `:reaches {q cond}` | everything it depends on, transitively, through `:deps`, `:calls` and `:provided-by` (`:via #{:deps}` follows only those): `{:reaches {:none {:id :infra.db/xtdb}}}`. A violation shows the path to each offender |
 | `:refs {:k q}` | what its `:k` names (the qualified keywords in its value), `q` as above: `{:refs {:fn/deps {:none {:has :kind/component}}}}`. `:deps` follows every key; this, one |
 | `:referenced-by {:k q}` | the entities whose `:k` names it: `{:referenced-by {:vp/pattern {:some {:has :kind/vp}}}}` |
 | `:resolves :k` (or a vector) | everything its `:k` names is an entity some source defines; what doesn't is named |
 
 ![Rules about one property, :resolves and :refs, in Emacs](images/meta-source-rule-refs.gif)
+
+A rule over what an entity depends on, through code as well as entries:
+
+```clojure
+{:rule/public-routes-stay-off-the-db
+ {:doc "No route under /public reaches the database"
+  :when {:kind :reitit :matches {:reitit/path "^/public"}}
+  :require [{:reaches {:none {:id :infra.db/xtdb}}}]}}
+```
+
+```
+$ meta-source check --brief
+warning src/app/home.clj:3   No route under /public reaches the database: :home/get (:app.routes/drivers → :core.services/user → :app.repos/user → :infra.db/xtdb)  [:rule/public-routes-stay-off-the-db]
+```
+
+The code links come from the packs, with nothing to annotate: an integrant
+`init-key` method is its component's code, and a route defined inside a fn
+is provided by the component whose `init-key` calls that fn. What the route
+reaches through it is what that call is handed: with
+`(defmethod ig/init-key ::routes [_ {:keys [user-service]}] (->auth-routes user-service))`,
+the component `:user-service` refers to, not everything `::routes` holds.
+Which parameters reach the call is clj-kondo's to say; a value bound in the
+body (`as->`, `let`), or the whole config map, isn't followed, and the route
+then reaches the component and all it holds. A var with the
+meta key is linked to its entity, and its calls count too. `meta-source
+reach <id>` lists what an entity reaches, with the path to each.
 
 Rules see every source at once: a fact from EDN (`:data/privacy`), a pack's
 (`:integrant/init-key`), and the relations between them. A violation is a

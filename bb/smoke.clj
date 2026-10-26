@@ -935,6 +935,95 @@
         (check "integrant: duct's merge metadata on a tag (^:replace #ig/ref) reads"
                (and (zero? (or (:not-read r) 0)) (empty? (:refs r))))))
 
+;; ---- reach: routes built by a component, and what they depend on, transitively
+    (let [dir (str (fs/create-temp-dir))
+          files {"resources/system.edn"
+                 (str "{:app.routes/drivers {:user-service #ig/ref :core.services/user}\n"
+                      " :core.services/user {:repo #ig/ref :app.repos/user}\n"
+                      " :app.repos/user {:node #ig/ref :infra.db/xtdb}\n"
+                      " :infra.db/xtdb {}}\n")
+                 "src/app/auth.clj"
+                 (str "(ns app.auth)\n"
+                      "(defn ->auth-routes [svc]\n"
+                      "  [[\"/login\" {:name :auth/login :get {:handler (fn [_] (svc))}}]])\n")
+                 "src/app/routes.clj"
+                 (str "(ns app.routes (:require [integrant.core :as ig] [reitit.ring :as ring] [app.auth :as auth]))\n"
+                      "(defmethod ig/init-key :app.routes/drivers [_ {:keys [user-service]}]\n"
+                      "  (ring/router [(auth/->auth-routes user-service)]))\n")
+                 "src/app/fns.clj"
+                 (str "(ns app.fns)\n"
+                      "(defn ^{:meta-source/id :fn/b} b [] 1)\n"
+                      "(defn ^{:meta-source/id :fn/a} a [] (b))\n")
+                 "rules/reach.edn"
+                 (str "{:rule/routes-no-db {:doc \"No route reaches the database\"\n"
+                      "                     :when {:kind :reitit} :require [{:reaches {:none {:id :infra.db/xtdb}}}]}\n"
+                      " :rule/routes-no-db-by-entries {:when {:kind :reitit}\n"
+                      "                                :require [{:reaches {:via #{:deps} :none {:id :infra.db/xtdb}}}]}\n"
+                      " :rule/a-calls-b {:when {:id :fn/a} :require [{:calls {:some {:id :fn/b}}}]}\n"
+                      " :rule/b-calls-nothing {:when {:id :fn/b} :require [{:called-by {:none {:id :fn/a}}}]}\n"
+                      " :rule/bad-reach {:when {:id :fn/a} :require [{:reaches {:via #{:nope} :some {:id :fn/b}}}]}}\n")}]
+      (doseq [[p text] files] (fs/create-dirs (fs/parent (str dir "/" p))) (spit (str dir "/" p) text))
+      (let [idx (index/build {:root dir :src ["src"] :registry [] :rules ["rules"]
+                              :packs {:integrant {:configs ["resources"]} :reitit {}}})
+            e (index/edges idx)
+            violated (fn [rule] (filter #(= rule (:rule %)) (problems idx :rule-violated)))]
+        (check "reach: a route built in a fn a component's init-key calls is provided by that component"
+               (= #{:app.routes/drivers} (get-in e [:provided-by :auth/login])))
+        (check "reach: a linked var calling another's is a call between their entities"
+               (= #{:fn/b} (get-in e [:calls :fn/a])))
+        (check "reach: :reaches follows provided-by and refs, and names the path"
+               (= [[:auth/login [:core.services/user :app.repos/user :infra.db/xtdb]]]
+                  (for [f (violated :rule/routes-no-db)] [(:dev-id f) (get (:paths f) :infra.db/xtdb)])))
+        (check "reach: :via narrows what :reaches follows"
+               (empty? (violated :rule/routes-no-db-by-entries)))
+        (check "reach: :calls and :called-by as relations"
+               (and (empty? (violated :rule/a-calls-b)) (= [:fn/b] (map :dev-id (violated :rule/b-calls-nothing)))))
+        (check "reach: an unknown :via is a rule not understood"
+               (some #(= :rule/bad-reach (:rule %)) (problems idx :rule-not-understood)))
+        (check "reach: the brief line shows the path to what is reached"
+               (some #(re-find #"No route reaches the database: :auth/login \(:core.services/user → :app.repos/user → :infra.db/xtdb\)" %)
+                     (hover/brief idx))))
+      (fs/delete-tree dir))
+
+;; ---- reach: a route depends on what its builder hands it, not all the builder holds
+    (let [reached (fn [routes-clj]
+                    (let [dir (str (fs/create-temp-dir))
+                          files {"resources/system.edn"
+                                 (str "{:app.routes/drivers {:user-service #ig/ref :svc/user :article-service #ig/ref :svc/article}\n"
+                                      " :svc/user {} :svc/article {}}\n")
+                                 "src/app/auth.clj" "(ns app.auth)\n(defn ->auth-routes [svc]\n  [[\"/login\" {:name :auth/login :get {:handler (fn [_] (svc))}}]])\n"
+                                 "src/app/home.clj" "(ns app.home)\n(defn ->home-routes []\n  [[\"/\" {:name :home/get :get {:handler (fn [_] 1)}}]])\n"
+                                 "src/app/routes.clj" (str "(ns app.routes (:require [integrant.core :as ig] [reitit.ring :as ring] [app.auth :as auth] [app.home :as home]))\n"
+                                                           routes-clj)}]
+                      (doseq [[p text] files] (fs/create-dirs (fs/parent (str dir "/" p))) (spit (str dir "/" p) text))
+                      (try (let [idx (index/build {:root dir :src ["src"] :registry [] :packs {:integrant {:configs ["resources"]} :reitit {}}})]
+                             {:login (set (map :dev-id (:reaches (index/reach idx :auth/login))))
+                              :home (set (map :dev-id (:reaches (index/reach idx :home/get))))})
+                           (finally (fs/delete-tree dir)))))]
+      (let [r (reached (str "(defmethod ig/init-key :app.routes/drivers [_ {:keys [user-service article-service]}]\n"
+                            "  (ring/router [(auth/->auth-routes user-service) (home/->home-routes)]))\n"))]
+        (check "reach: a route reaches what its builder is handed, not all the component holds"
+               (= #{:svc/user} (:login r)))
+        (check "reach: a builder handed nothing gives its routes nothing"
+               (= #{} (:home r))))
+      (check "reach: the whole config used in a call, even as (:user-service config): everything the component holds"
+             (= #{:app.routes/drivers :svc/user :svc/article}
+                (:login (reached (str "(defmethod ig/init-key :app.routes/drivers [_ config]\n"
+                                      "  (ring/router [(auth/->auth-routes (:user-service config))]))\n")))))
+      (check "reach: a value an as-> binds isn't followed: everything the component holds, never nothing"
+             (= #{:app.routes/drivers :svc/user :svc/article}
+                (:login (reached (str "(defmethod ig/init-key :app.routes/drivers [_ {:keys [user-service]}]\n"
+                                      "  (as-> user-service svc (ring/router [(auth/->auth-routes svc)])))\n")))))
+      (check "reach: {svc :user-service} destructuring names the key"
+             (= #{:svc/user} (:login (reached (str "(defmethod ig/init-key :app.routes/drivers [_ {svc :user-service}]\n"
+                                                    "  (ring/router [(auth/->auth-routes svc)]))\n")))))
+      (check "reach: the whole config handed on: everything the component holds"
+             (= #{:app.routes/drivers :svc/user :svc/article} (:login (reached (str "(defmethod ig/init-key :app.routes/drivers [_ config]\n"
+                                                                 "  (ring/router [(auth/->auth-routes config)]))\n")))))
+      (check "reach: a value rebound inside isn't followed: everything the component holds"
+             (= #{:app.routes/drivers :svc/user :svc/article} (:login (reached (str "(defmethod ig/init-key :app.routes/drivers [_ {:keys [user-service]}]\n"
+                                                                 "  (let [svc user-service] (ring/router [(auth/->auth-routes svc)])))\n"))))))
+
     ;; ---- re-frame: a project's own registration and dispatch fns
     (let [dir (str (fs/create-temp-dir))]
       (fs/create-dirs (str dir "/src/app"))

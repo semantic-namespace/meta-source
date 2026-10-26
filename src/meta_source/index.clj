@@ -162,6 +162,12 @@
 ;;   :pack/shape            (fn [entry kind]) → a data key's shape, as text
 ;;   :pack/members          (fn [entry]) → the data keys a schema is made of
 ;;   :pack/describe         (fn [entry]) → one line for an editor, or nil
+;;   :pack/not-references   #{prop ...}: props of its entries that name ids
+;;                          only as a lookup (what another prop refers to)
+;;   :pack/hands            (fn [entry]) → {callee [id ...] or :unknown}:
+;;                          what the entity's code hands each fn it calls
+;;                          (callee "ns/name" or a bare name, "*" for any
+;;                          other), {} for nothing, nil when not known
 ;;   :pack/merge            {key :union}: keys whose values it unions across
 ;;                          sources (a set of tags); others conflict
 ;;   :pack/data-files       (fn [opts]) → paths under the root, files or
@@ -526,7 +532,7 @@
                     :lines (update-vals located :line) :entities (update-vals located :entry)})
                  ;; packs: one source per entry a pack reads, from code or data files
                  ;; :dropped, the props a pack read as code rather than data
-                 (for [{:keys [file row kind dev-id entry dropped refers var impl-range]}
+                 (for [{:keys [file row kind dev-id entry dropped refers var impl-range body-range]}
                        (concat (for [[f {:keys [pack-results]}] code
                                      [_ results] (sort-by key pack-results)
                                      r results]
@@ -534,7 +540,7 @@
                                data-results)
                        :when dev-id]
                    {:label (str file ":" row ":" dev-id) :file file :kind kind :dropped dropped :refers refers :var var
-                    :impl-range impl-range :lines {dev-id row} :entities {dev-id entry}})
+                    :impl-range impl-range :body-range body-range :lines {dev-id row} :entities {dev-id entry}})
                  ;; a call by id: the entity is called there, as a var call would
                  (for [[f {:keys [id-calls]}] code
                        {:keys [row id]} id-calls]
@@ -609,6 +615,11 @@
      ;; {dev-id {:filename :row :end-row}}
      :impl-ranges (into {} (for [{:keys [file impl-range entities]} sources :when impl-range]
                              [(key (first entities)) (assoc impl-range :filename file)]))
+     ;; code a pack says is an id's own, by its rows, for its calls only: an
+     ;; integrant init-key method. Unlike an implementation, it keeps no
+     ;; contract. {dev-id {:filename :row :end-row}}
+     :body-ranges (into {} (for [{:keys [file body-range entities]} sources :when body-range]
+                             [(key (first entities)) (assoc body-range :filename file)]))
      :code code
      :analysed (count stale)
      :pack-snapshots (mapv #(-> % (dissoc :entities) (assoc :ids (set (keys (:entities %))))) snapshots)
@@ -650,6 +661,67 @@
   (when row
     (some (fn [[id r]] (when (and (:row r) (:end-row r) (<= (:row r) row (:end-row r))) id)) (get by-file filename))))
 
+(defn edges
+  "What the entities' code says they depend on, beyond what their entries
+   name: {:calls {id #{id}} :provided-by {id #{id}}}.
+
+   - :calls: an entity's code (its linked var, or the rows a pack located:
+     an inline implementation, an init-key method) calls the var another
+     entity is linked to.
+   - :provided-by: an entity defined inside a var (a route in the fn that
+     builds a route tree) depends on the entity whose code calls that var
+     (the component whose init-key builds the routes, handing them what it
+     was given).
+   - :given: what such an entity is handed, when the builder's pack reads it
+     (:pack/hands): the components behind the config keys an init-key passes
+     to the call. :opaque: the builders of those it isn't known for, whose
+     whole holdings it may reach."
+  [idx]
+  (let [var->id (into {} (for [[id vs] (linked-vars idx) v vs] [[(symbol (str (:ns v))) (symbol (str (:name v)))] id]))
+        ranges (group-by (comp :filename second) (concat (:impl-ranges idx) (:body-ranges idx)))
+        owner (fn [c] (or (when (:from-var c) (var->id [(symbol (str (:from c))) (symbol (str (:from-var c)))]))
+                          (when-not (:from-var c) (range-owner ranges (:filename c) (:row c)))))
+        ;; {[ns name] #{id}}: the entities whose definition is written inside a var
+        defined-in (let [defs (for [[id e] (:entities idx) d (:definitions e)
+                                    :when (and (:file d) (:line d) (not (:refers d)))]
+                                [id d])
+                         by-file (group-by (comp :file second) defs)]
+                     (into {} (for [v (all-vars idx)
+                                    :let [k [(symbol (str (:ns v))) (symbol (str (:name v)))]
+                                          own (var->id k)
+                                          ids (set (for [[id d] (get by-file (:filename v))
+                                                         :when (and (not= id own) (:row v) (:end-row v)
+                                                                    (<= (:row v) (:line d) (:end-row v)))]
+                                                     id))]
+                                    :when (seq ids)]
+                                [k ids])))
+        add (fn [m k v] (if (and k v (not= k v)) (update m k (fnil conj #{}) v) m))
+        ;; what an entity's code hands each fn it calls, as its pack reads it
+        hands (memoize (fn [id] (let [entry (get-in idx [:entities id :entry])]
+                                  (some #(when-let [f (:pack/hands %)] (f entry)) (:packs idx)))))
+        handed (fn [from c] (when-let [h (hands from)]
+                              (let [v (some #(when (contains? h %) (get h %))
+                                            [(str (:to c) "/" (:name c)) (str (:name c)) "*"])]
+                                (or v []))))]
+    (reduce (fn [acc c]
+              (if-let [from (owner c)]
+                (let [k [(:to c) (:name c)]
+                      built (defined-in k)
+                      h (when (seq built) (handed from c))]
+                  (as-> acc a
+                    (update a :calls add from (var->id k))
+                    (reduce #(update %1 :provided-by add %2 from) a built)
+                    ;; what is built there depends on what it is handed, when
+                    ;; that is known; otherwise on all the builder holds
+                    (reduce (fn [a r] (cond (nil? h) (update a :opaque add r from)
+                                            (= :unknown h) (update a :opaque add r from)
+                                            :else (reduce #(update %1 :given add r %2) a h)))
+                            a built)))
+                acc))
+            {:calls {} :provided-by {} :given {} :opaque {}}
+            (for [c (mapcat :calls (vals (:code idx)))]
+              (update c :to #(symbol (str %)))))))
+
 (defn- impl-of
   "Where `id` is implemented: its var, or the rows a pack located."
   [idx id]
@@ -682,9 +754,12 @@
   "[[prop dev-id] ...] for every registry entity an entry names in its props.
    Data keys are not references: `data-key` answers for them."
   [idx entry]
-  (let [ids (:entities idx)]
+  (let [ids (:entities idx)
+        ;; a pack's lookup tables name ids its other keys already refer to
+        skip (set (mapcat :pack/not-references (:packs idx)))]
     (distinct
      (for [[k v] entry
+           :when (not (skip k))
            x (tree-seq coll? seq v)
            :when (and (qualified-keyword? x) (contains? ids x) (not (data-key? idx (get ids x))))]
        [k x]))))
@@ -1099,25 +1174,51 @@
      (identity-problems idx)
      (runtime-problems idx))))
 
-(defn- rule-findings
-  "The project's own rules (meta-source.rules) over the index, and the
-   rules files that couldn't be read."
+(defn- relations-view
+  "The relations rules and queries follow, each once for the whole index."
   [idx]
   (let [entities (sort-by key (:entities idx))
-        ;; each relation, once for the whole index: {id [related-id ...]}
         index-by (fn [f] (reduce (fn [m [id e]] (reduce #(update %1 %2 (fnil conj []) id) m (f e))) {} entities))
         used-by (index-by #(map second (references idx (:entry %))))
         consumers (index-by #(:consumes (contract-keys idx (:entry %))))
         producers (index-by #(:produces (contract-keys idx (:entry %))))
-        view {:entities (:entities idx)
-              :data-key? #(data-key? idx %)
-              :loc #(loc idx %)
-              :consumers #(get consumers %)
-              :producers #(get producers %)
-              :deps #(map second (references idx (get-in idx [:entities % :entry])))
-              :used-by #(distinct (get used-by %))}]
-    (concat (for [p (:rules-problems idx)] (assoc p :severity :error))
-            (rules/check view (:rules idx)))))
+        {:keys [calls provided-by given opaque]} (edges idx)
+        reverse-of (fn [m] (reduce (fn [r [from tos]] (reduce #(update %1 %2 (fnil conj #{}) from) r tos)) {} m))
+        called-by (reverse-of calls)
+        provides (reverse-of provided-by)]
+    {:entities (:entities idx)
+     :data-key? #(data-key? idx %)
+     :loc #(loc idx %)
+     :consumers #(get consumers %)
+     :producers #(get producers %)
+     :deps #(map second (references idx (get-in idx [:entities % :entry])))
+     :used-by #(distinct (get used-by %))
+     :calls #(sort (get calls %))
+     :called-by #(sort (get called-by %))
+     :provided-by #(sort (get provided-by %))
+     :provides #(sort (get provides %))
+     ;; what :reaches follows for :provided-by: what it is handed
+     :handed #(sort (into (get given % #{}) (get opaque % #{})))}))
+
+(defn- rule-findings
+  "The project's own rules (meta-source.rules) over the index, and the
+   rules files that couldn't be read."
+  [idx]
+  (concat (for [p (:rules-problems idx)] (assoc p :severity :error))
+          (rules/check (relations-view idx) (:rules idx))))
+
+(defn reach
+  "What `id` depends on, transitively, through `via` (default :deps, :calls
+   and :provided-by): each reached entity with the path to it and where it
+   is defined, nearest first."
+  ([idx id] (reach idx id [:deps :calls :provided-by]))
+  ([idx id via]
+   (when (contains? (:entities idx) id)
+     (let [view (relations-view idx)]
+       {:dev-id id
+        :via (vec via)
+        :reaches (vec (for [[r path] (sort-by (juxt (comp count val) key) (rules/reachable view via id))]
+                        {:dev-id r :path path :definition (loc idx (get-in idx [:entities r]))}))}))))
 
 (defn- in-lib?
   "Whether a finding is about a library's own code (:libs): it is located in
