@@ -38,6 +38,7 @@
    (:duct.profile/base {...}) holds components: each is read as one, at the
    profile's line."
   (:require [meta-source.read :as read]
+            [clojure.set]
             [clojure.string :as str]))
 
 (def kind :integrant)
@@ -63,12 +64,41 @@
     (and (seq? x) (symbol? (first x)) (namespace (first x)) (#{"ref" "refset"} (name (first x))))
     (second x)))
 
+(defn- composite? [k] (and (vector? k) (seq k) (every? qualified-keyword? k)))
+
+(defn- ref-uses
+  "Each [:ref target] or [:refset target] in `v`, a target being a keyword
+   or a composite (a vector of keywords)."
+  [v]
+  (distinct (for [x (nodes v)
+                  :let [t (ref-target x)]
+                  :when (or (qualified-keyword? t) (composite? t))]
+              [(if (or (and (tagged-literal? x) (= 'ig/refset (:tag x)))
+                       (and (seq? x) (= "refset" (name (first x)))))
+                 :refset :ref)
+               t])))
+
 (defn- refs [v]
   (vec (sort (distinct (for [x (nodes v)
                              :let [t (ref-target x)]
                              k (if (vector? t) [(last t)] [t])
                              :when (qualified-keyword? k)]
                          k)))))
+
+(defn- only-refsets
+  "The keys `v` names only through a refset."
+  [v]
+  (let [uses (ref-uses v)
+        plain (set (for [[k t] uses :when (= :ref k)] t))]
+    (vec (sort (distinct (for [[k t] uses :when (and (= :refset k) (keyword? t) (not (plain t)))] t))))))
+
+(defn- composite-refs
+  "The composite keys `v` refers to with a ref: [[:group/a :handler/greet]]."
+  [v]
+  (vec (sort-by pr-str (distinct (for [[k t] (ref-uses v)
+                                       ;; [:k] is :k, as integrant reads it
+                                       :when (and (= :ref k) (vector? t) (next t))]
+                                   t)))))
 
 (defn- env-vars [v]
   (vec (sort (distinct (for [x (nodes v)
@@ -77,8 +107,6 @@
                              n (if (sequential? f) [(first f)] [f])
                              :when (or (symbol? n) (string? n))]
                          (str n))))))
-
-(defn- composite? [k] (and (vector? k) (seq k) (every? qualified-keyword? k)))
 
 (defn- component-id
   "A config key's id. `shared` is how many composite keys each keyword is in."
@@ -102,13 +130,18 @@
          {:file (:file (first ds)) :row (:line (first ds)) :kind kind :dev-id id
           :entry (cond-> {:integrant/config-in (vec (for [d ds] (str (:path d) ":" (:line d))))}
                    (seq (refs (map :value ds))) (assoc :integrant/refs (refs (map :value ds)))
+                   ;; a refset may match nothing (an empty set), a ref may not
+                   (seq (only-refsets (map :value ds))) (assoc :integrant/refsets (only-refsets (map :value ds)))
+                   (seq (composite-refs (map :value ds))) (assoc :integrant/composite-refs (composite-refs (map :value ds)))
                    ;; every composite merged into this id, not only the first:
                    ;; [:a :done] and [:b :done] both make :done derive
                    (some (comp vector? :key) ds)
                    (assoc :integrant/derives (vec (distinct (for [d ds :when (vector? (:key d)) x (:key d) :when (not= id x)] x))))
                    (seq (env-vars (map :value ds))) (assoc :integrant/env (env-vars (map :value ds)))
                    (> (count values) 1) (assoc :integrant/varies true)
-                   (seq (keep :profile ds)) (assoc :integrant/profiles (vec (sort (distinct (keep :profile ds))))))}))))
+                   (seq (keep :profile ds)) (assoc :integrant/profiles (vec (sort (distinct (keep :profile ds)))))
+                   (seq (mapcat :alternatives ds))
+                   (assoc :integrant/alternatives (vec (sort (distinct (keep component-id (mapcat :alternatives ds)))))))}))))
 
 (defn- profile? [k v]
   (and (qualified-keyword? k) (= "duct.profile" (namespace k)) (map? v)))
@@ -127,10 +160,13 @@
   [kvs file path]
   (for [[k v line] kvs
         [k v profile] (if (profile? k v) (for [[ik iv] v] [ik iv k]) [[k v nil]])
-        k (key-choices k)
+        :let [choices (key-choices k)]
+        k choices
         :when (component-id k)]
     (cond-> {:key k :value v :file file :path path :line line}
-      profile (assoc :profile profile))))
+      profile (assoc :profile profile)
+      ;; one of a tag's branches: the others are its alternatives
+      (next choices) (assoc :alternatives (vec (sort-by pr-str (remove #{k} choices)))))))
 
 (defn- system-holders
   "The top-level keys of a config holding the system itself, as an aero
@@ -311,6 +347,36 @@
    :duct.module.web/api duct-web
    :duct.module.web/site duct-web})
 
+(defn- ref-cycles
+  "The cycles of `edges` ({id #{id}}): each strongly connected group of two
+   or more, or a key referring to itself, as a path starting at its least
+   id and back to it."
+  [edges]
+  (let [index (atom 0) stack (atom []) on (atom #{}) idx (atom {}) low (atom {}) out (atom [])]
+    (letfn [(visit [v]
+              (swap! idx assoc v @index) (swap! low assoc v @index) (swap! index inc)
+              (swap! stack conj v) (swap! on conj v)
+              (doseq [w (sort (edges v))]
+                (cond (not (contains? @idx w)) (do (visit w) (swap! low update v min (@low w)))
+                      (@on w) (swap! low update v min (@idx w))))
+              (when (= (@low v) (@idx v))
+                (let [group (loop [g #{}] (let [w (peek @stack)] (swap! stack pop) (swap! on disj w)
+                                            (if (= w v) (conj g w) (recur (conj g w)))))]
+                  (when (or (> (count group) 1) (contains? (edges v) v))
+                    (swap! out conj group)))))]
+      (doseq [v (sort (keys edges)) :when (not (contains? @idx v))] (visit v))
+      ;; the shortest cycle through the group's least id, along real edges
+      (sort (for [group @out
+                  :let [start (first (sort group))]]
+              (loop [frontier [[start]] seen #{}]
+                (let [[path & more] frontier
+                      at (peek path)
+                      nexts (sort (filter group (edges at)))]
+                  (if (some #{start} nexts)
+                    (conj path start)
+                    (let [fresh (remove seen nexts)]
+                      (recur (concat more (for [n fresh] (conj path n))) (into seen fresh)))))))))))
+
 (defn- checks
   "- :ref-to-undefined (warning): a component refers to a key no config
      read defines, directly or as a composite key's parent, that no
@@ -321,6 +387,13 @@
      that expands into others (an expand-key or prep-key method, or a duct
      module), which may add it: what it adds is read where its code writes
      the keys as data, and not otherwise;
+   - :ref-ambiguous (warning): a ref (not a refset) that more than one
+     key configured in one config file matches, by being it or deriving
+     from it (a composite key, a derive, a hierarchy file): integrant
+     can't choose, and init fails. Keys in different files, or in duct
+     profiles that aren't active together, are alternatives, not rivals;
+   - :ref-cycle (warning): components that refer to one another in a
+     circle, through refs and refsets: integrant can't order them;
    - :init-key-without-config (info): the code has an init-key method for
      a key no config defines, no composite key derives from, and no code
      calls by its id (:calls-by-id): unused, or configured somewhere not
@@ -350,14 +423,64 @@
                     (into (mapcat parents) configured)
                     ;; what duct's own keys derive from, as their jars say
                     (into (ancestors-in duct-isa added))
-                    (into (get-in opts [:integrant :provided])))]
+                    (into (get-in opts [:integrant :provided])))
+        ;; what each configured key is, or derives from: integrant matches a
+        ;; ref to every key whose lineage holds it
+        isa (merge-with into duct-isa (into {} (for [[id e] components :let [ps (get-in e [:entry :integrant/isa])] :when ps] [id ps])))
+        lineage (into {} (for [[id e] configured
+                               :let [own (into #{id} (get-in e [:entry :integrant/derives]))]]
+                           [id (into own (ancestors-in isa own))]))
+        candidates (fn [target] (let [ks (if (vector? target) target [target])]
+                                  (sort (for [[id ls] lineage :when (every? ls ks)] id))))
+        files (fn [id] (set (for [c (get-in (get (into {} configured) id) [:entry :integrant/config-in])]
+                              (str/replace c #":\d+$" ""))))
+        profiles (fn [id] (set (get-in (get (into {} configured) id) [:entry :integrant/profiles])))
+        ;; two keys of one file are rivals unless duct profiles keep them apart
+        alternatives (fn [id] (set (get-in (get (into {} configured) id) [:entry :integrant/alternatives])))
+        together? (fn [a b] (let [pa (profiles a) pb (profiles b)]
+                              (and (not ((alternatives a) b)) (not ((alternatives b) a))
+                                   (or (empty? pa) (empty? pb) (pa :duct.profile/base) (pb :duct.profile/base)
+                                       (seq (clojure.set/intersection pa pb))))))
+        rivals (fn [cs] (distinct (for [a cs b cs :when (and (neg? (compare a b)) (seq (clojure.set/intersection (files a) (files b)))
+                                                             (together? a b))]
+                                    [a b])))
+        ;; each component's refs, as the components they match
+        edges (into {} (for [[id e] configured
+                             :let [entry (:entry e)]]
+                         [id (set (mapcat candidates (concat (:integrant/refs entry) (:integrant/composite-refs entry))))]))]
     (concat
+     (for [[id e] configured
+           :let [entry (:entry e)
+                 refsets (set (:integrant/refsets entry))
+                 composite-lasts (set (map last (:integrant/composite-refs entry)))
+                 amb (for [t (concat (remove (into refsets composite-lasts) (:integrant/refs entry)) (:integrant/composite-refs entry))
+                           :let [cs (candidates t) rs (rivals cs)]
+                           :when (seq rs)]
+                       [t (vec (sort (distinct (flatten rs))))])]
+           [t cs] amb]
+       {:severity :warning :problem :ref-ambiguous :dev-id id :keys [t] :candidates cs :definition (loc e)})
+     ;; strongly connected components of the ref graph, one finding each
+     (for [cycle (ref-cycles edges)]
+       {:severity :warning :problem :ref-cycle :dev-id (first cycle) :cycle cycle
+        :definition (loc (get (into {} configured) (first cycle)))})
+     ;; a composite ref no configured key matches
+     (for [[id e] configured
+           ;; matched by no configured key, and not every keyword of it is
+           ;; one something else adds (a module, :provided)
+           :let [missing (vec (remove #(or (seq (candidates %)) (every? defined %))
+                                      (get-in e [:entry :integrant/composite-refs])))]
+           :when (seq missing)]
+       {:severity :warning :problem :ref-to-undefined :dev-id id :keys missing :definition (loc e)})
      ;; what a module adds that its code doesn't write as data (a key it
      ;; builds) isn't read: a missing ref in its namespace it may well add
      (let [own-modules (map key modules)
            module-for (fn [k] (some #(when (= (namespace %) (namespace k)) %) own-modules))]
        (for [[id e] configured
-             :let [missing (remove defined (get-in e [:entry :integrant/refs]))
+             :let [entry (:entry e)
+                   ;; a refset may match nothing; a composite is checked whole, above
+                   plain (remove (into (set (:integrant/refsets entry)) (map last (:integrant/composite-refs entry)))
+                                 (:integrant/refs entry))
+                   missing (remove defined plain)
                    {maybe true missing false} (group-by #(boolean (module-for %)) missing)]
              p [(when (seq missing)
                   {:severity :warning :problem :ref-to-undefined :dev-id id :keys (vec missing) :definition (loc e)})
