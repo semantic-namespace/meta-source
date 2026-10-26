@@ -13,6 +13,7 @@ Emacs package. Packs, and how to write one: [packs.md](packs.md).
 | `uses <id>` | entries that name it, and code that calls its var |
 | `deps <id>` | the entities its entry names |
 | `reach <id>` | what it depends on, transitively, through entries, calls and the component that builds it, with the path to each (`--via deps,calls,provided-by`) |
+| `reached-by <id>` | what depends on it, transitively: the reverse of `reach`, with the path from each to it (`--via` too). Which routes break if `:app/stripe` changes |
 | `data <key>` | a data key's shape, producers and consumers, and the schemas it is a key of |
 | `check` | where code and declarations disagree, most severe first |
 | `diagnostics <file>` | `check`'s findings in one file, with the line and columns to underline |
@@ -129,6 +130,7 @@ them. A condition is a map, and every key in it must hold:
 |---|---|
 | `:kind :integrant` (or a set) | a source of that kind gives the entity: `:integrant`, `:spec`, `:pathom`, `:re-frame`, `:edn`... |
 | `:has :k` (or a vector) | its merged entry has the keys |
+| `:has-in [:k ...]` | its merged entry has a value at this path: `{:has-in [:reitit/data :auth/roles]}` |
 | `:missing :k` (or a vector) | it has none of them |
 | `:= {:k v}` | its `:k` is `v`, or contains it |
 | `:in {:k #{v ...}}` | its `:k` is one of them |
@@ -142,8 +144,10 @@ them. A condition is a map, and every key in it must hold:
 | `:deps`, `:used-by` | ...what its entry names, or what names it... |
 | `:calls`, `:called-by` | ...whose linked var its code calls, or whose code calls its... |
 | `:provided-by`, `:provides` | ...the entity whose code calls the var it is defined in (a route's component: its `init-key` calls the fn building the route), or what it so builds... |
+| `:handed` | ...what that component hands it: the components behind the config keys its `init-key` passes to the call, or all it holds when that isn't known... |
 | | ...with `{:all cond}`, `{:some cond}` or `{:none cond}` |
 | `:reaches {q cond}` | everything it depends on, transitively, through `:deps`, `:calls` and `:provided-by` (`:via #{:deps}` follows only those): `{:reaches {:none {:id :infra.db/xtdb}}}`. A violation shows the path to each offender |
+| `:reached-by {q cond}` | everything that depends on it, transitively, `:via` as for `:reaches`: `{:reached-by {:none {:kind :reitit}}}` on the database. A violation shows the path from each offender |
 | `:refs {:k q}` | what its `:k` names (the qualified keywords in its value), `q` as above: `{:refs {:fn/deps {:none {:has :kind/component}}}}`. `:deps` follows every key; this, one |
 | `:referenced-by {:k q}` | the entities whose `:k` names it: `{:referenced-by {:vp/pattern {:some {:has :kind/vp}}}}` |
 | `:resolves :k` (or a vector) | everything its `:k` names is an entity some source defines; what doesn't is named |

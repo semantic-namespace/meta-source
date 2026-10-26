@@ -159,12 +159,12 @@ What reaches payment data is authenticated and role-guarded:
  {:doc "A route reaching PCI data runs wrap-auth and names its roles"
   :when {:kind :reitit :reaches {:some {:= {:data/privacy :pci}}}}
   :require [{:= {:reitit/middleware app.mw/wrap-auth}}
-            {:has [:reitit/data :auth/roles]}]}}   ; new: :has over a path
+            {:has-in [:reitit/data :auth/roles]}]}}
 ```
 
-Tiers: a route reaches infrastructure only through a service (**new**
-condition, `:handed`: the components its handler is handed, one hop, where
-`:reaches` is transitive and `:deps` is only what the entry names):
+Tiers: a route reaches infrastructure only through a service (`:handed`:
+the components its builder hands it, one hop, where `:reaches` is
+transitive and `:deps` is only what the entry names):
 
 ```clojure
 {:rule/api-through-services
@@ -193,7 +193,7 @@ Queries:
 | Question | Command | |
 |---|---|---|
 | What does this route touch? | `meta-source reach :api.billing/charge` | exists |
-| Which routes break if `:app/stripe` changes? | `meta-source reached-by :app/stripe` | **new**: reverse reach |
+| Which routes break if `:app/stripe` changes? | `meta-source reached-by :app/stripe` | exists; `:reached-by` in rules too |
 | Which endpoints return PII, and who may call them? | `meta-source routes --produces-privacy :pii` | **new**: a route table joined with facts |
 | Which components does no route or job reach? | `meta-source unreached --from reitit` | **new** |
 | What does this PR change about who reaches what? | `review/` over the reach graph | **new**: reach diffs on sdiff's page |

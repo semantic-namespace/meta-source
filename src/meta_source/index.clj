@@ -1234,6 +1234,20 @@
         :reaches (vec (for [[r path] (sort-by (juxt (comp count val) key) (rules/reachable view via id))]
                         {:dev-id r :path path :definition (loc idx (get-in idx [:entities r]))}))}))))
 
+(defn reached-by
+  "What depends on `id`, transitively, through `via` (default :deps, :calls
+   and :provided-by): the reverse of `reach`. Each with the path from it to
+   `id` and where it is defined, nearest first: which routes break when a
+   component changes."
+  ([idx id] (reached-by idx id [:deps :calls :provided-by]))
+  ([idx id via]
+   (when (contains? (:entities idx) id)
+     (let [view (relations-view idx)]
+       {:dev-id id
+        :via (vec via)
+        :reached-by (vec (for [[r path] (sort-by (juxt (comp count val) key) (rules/reachers view via id))]
+                           {:dev-id r :path path :definition (loc idx (get-in idx [:entities r]))}))}))))
+
 (defn- in-lib?
   "Whether a finding is about a library's own code (:libs): it is located in
    a library's sources, or names an entity only a library defines."

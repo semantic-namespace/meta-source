@@ -997,7 +997,13 @@
                       "                                :require [{:reaches {:via #{:deps} :none {:id :infra.db/xtdb}}}]}\n"
                       " :rule/a-calls-b {:when {:id :fn/a} :require [{:calls {:some {:id :fn/b}}}]}\n"
                       " :rule/b-calls-nothing {:when {:id :fn/b} :require [{:called-by {:none {:id :fn/a}}}]}\n"
-                      " :rule/bad-reach {:when {:id :fn/a} :require [{:reaches {:via #{:nope} :some {:id :fn/b}}}]}}\n")}]
+                      " :rule/bad-reach {:when {:id :fn/a} :require [{:reaches {:via #{:nope} :some {:id :fn/b}}}]}\n"
+                      " :rule/db-reached-by-no-route {:doc \"No route reaches the database\"\n"
+                      "                               :when {:id :infra.db/xtdb} :require [{:reached-by {:none {:kind :reitit}}}]}\n"
+                      " :rule/routes-handed-services {:when {:kind :reitit} :require [{:handed {:all {:id-ns \"core\"}}}]}\n"
+                      " :rule/routes-handed-no-db {:when {:kind :reitit} :require [{:handed {:some {:id :infra.db/xtdb}}}]}\n"
+                      " :rule/routes-have-roles {:when {:kind :reitit} :require [{:has-in [:reitit/data :auth/roles]}]}\n"
+                      " :rule/bad-has-in {:when {:kind :reitit} :require [{:has-in :auth/roles}]}}\n")}]
       (doseq [[p text] files] (fs/create-dirs (fs/parent (str dir "/" p))) (spit (str dir "/" p) text))
       (let [idx (index/build {:root dir :src ["src"] :registry [] :rules ["rules"]
                               :packs {:integrant {:configs ["resources"]} :reitit {}}})
@@ -1016,6 +1022,21 @@
                (and (empty? (violated :rule/a-calls-b)) (= [:fn/b] (map :dev-id (violated :rule/b-calls-nothing)))))
         (check "reach: an unknown :via is a rule not understood"
                (some #(= :rule/bad-reach (:rule %)) (problems idx :rule-not-understood)))
+        (check "reached-by: what depends on an entity, transitively, with the path from each to it"
+               (let [r (index/reached-by idx :infra.db/xtdb)]
+                 ;; through what its builder hands it, not through the builder
+                 (and (= [:auth/login :core.services/user :app.repos/user :infra.db/xtdb]
+                         (:path (first (filter #(= :auth/login (:dev-id %)) (:reached-by r)))))
+                      (= [:app.repos/user] (map :dev-id (take 1 (:reached-by r)))))))
+        (check "reached-by: as a rule, the offenders and the path from each"
+               (= [[:infra.db/xtdb [:auth/login] [:auth/login :core.services/user :app.repos/user :infra.db/xtdb]]]
+                  (for [f (violated :rule/db-reached-by-no-route)] [(:dev-id f) (:offenders f) (get (:paths f) :auth/login)])))
+        (check "handed: one hop, what the builder hands a route"
+               (and (empty? (violated :rule/routes-handed-services))
+                    (= [:auth/login] (map :dev-id (violated :rule/routes-handed-no-db)))))
+        (check "has-in: a value at a path; a path that isn't a vector is a rule not understood"
+               (and (= [:auth/login] (map :dev-id (violated :rule/routes-have-roles)))
+                    (some #(= :rule/bad-has-in (:rule %)) (problems idx :rule-not-understood))))
         (check "reach: the brief line shows the path to what is reached"
                (some #(re-find #"No route reaches the database: :auth/login \(:core.services/user → :app.repos/user → :infra.db/xtdb\)" %)
                      (hover/brief idx))))
