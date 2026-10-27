@@ -1320,6 +1320,45 @@
                (= [:app.model/user] (get-in idx [:entities :app.spec/owner :entry :spec/req]))))
       (fs/delete-tree dir))
 
+    ;; ---- rules: a violation through a unioned key is located where the value was given
+    (let [dir (str (fs/create-temp-dir))]
+      (fs/create-dirs (str dir "/registry"))
+      (fs/create-dirs (str dir "/rules"))
+      (spit (str dir "/registry/app.edn")
+            (str "{:app/domain {:app/layer :domain :app/deps [:app/util]}\n"
+                 " :app/util {:app/layer :domain}\n"
+                 " :app/adapter {:app/layer :adapter}}\n"))
+      ;; another file draws what the domain depends on
+      (spit (str dir "/registry/wiring.edn")
+            (str "{:app/other {:app/layer :domain}\n"
+                 " :app/domain {:app/deps [:app/adapter]}}\n"))
+      (spit (str dir "/rules/layers.edn")
+            (str "{:rule/refs {:when {:id :app/domain} :require [{:refs {:app/deps {:none {:= {:app/layer :adapter}}}}}]}\n"
+                 " :rule/deps {:when {:id :app/domain} :require [{:deps {:none {:= {:app/layer :adapter}}}}]}\n"
+                 " :rule/reaches {:when {:id :app/domain} :require [{:reaches {:none {:= {:app/layer :adapter}}}}]}}\n"))
+      (let [build (fn [merge] (index/build {:root dir :src [] :registry ["registry"] :rules ["rules"] :cache nil :merge merge}))
+            at (fn [idx] (into {} (for [p (problems idx :rule-violated)]
+                                    [(:rule p) (set (map (juxt :file :line :offender) (:given-at p)))])))
+            unioned (build {:app/deps :union})]
+        (check "rules: through a unioned key, :refs, :deps and :reaches each say where the offending value was given"
+               (= {:rule/refs #{["registry/wiring.edn" 2 :app/adapter]}
+                   :rule/deps #{["registry/wiring.edn" 2 :app/adapter]}
+                   :rule/reaches #{["registry/wiring.edn" 2 :app/adapter]}}
+                  (at unioned)))
+        (check "rules: the editor marks that place too, as well as the entity's own definition"
+               (let [ls (set (map :line (hover/diagnostics unioned "registry/wiring.edn")))]
+                 (contains? ls 2)))
+        ;; one file, the key not unioned: the value is in the entity's own definition
+        (fs/create-dirs (str dir "/single"))
+        (spit (str dir "/single/app.edn")
+              (str "{:app/domain {:app/layer :domain :app/deps [:app/adapter]}\n"
+                   " :app/adapter {:app/layer :adapter}}\n"))
+        (let [single (index/build {:root dir :src [] :registry ["single"] :rules ["rules"] :cache nil})]
+          (check "rules: a key not unioned gives no such place: its value is in the entity's own definition"
+                 (and (= #{:rule/refs :rule/deps :rule/reaches} (set (keys (at single))))
+                      (every? empty? (vals (at single)))))))
+      (fs/delete-tree dir))
+
     ;; ---- re-frame: a project's own registration and dispatch fns
     (let [dir (str (fs/create-temp-dir))]
       (fs/create-dirs (str dir "/src/app"))

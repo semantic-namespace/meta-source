@@ -177,6 +177,7 @@
    (for [k [:definition :impl] :let [l (get p k)] :when (:file l)] l)
    (filter :file (:vars p))
    (filter :file (:definitions p))
+   (filter :file (:given-at p))
    (for [v (:values p) s (:sources v) :when (:file s)] s)))
 
 (defn- token-at
@@ -254,6 +255,8 @@
                                                                (str/join " → " (map pr-str path))
                                                                (pr-str o))))
                                       ")"))
+                               (when (seq (:given-at p))
+                                 (str ", given at " (str/join ", " (distinct (for [g (:given-at p)] (str (:file g) ":" (:line g)))))))
                                "  [" (pr-str (:rule p)) "]")
            :rule-unverifiable (str (or (:doc p) (pr-str (:rule p))) ": " id
                                    (if (= :unknown (:applies p)) ", whether it applies" "")

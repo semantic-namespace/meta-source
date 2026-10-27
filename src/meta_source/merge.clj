@@ -25,6 +25,8 @@
   "Merges `sources`, each {:source label :entities {id entry}}, into
    {:entities   {id entry}
     :provenance {id {key #{label ...}}}
+    :value-provenance {id {key {value #{label ...}}}}, for a unioned key: who
+                 gave each of its values
     :conflicts  [{:problem :conflicting-values :dev-id :key :values [{:value :sources}]}]}.
    `policy` is {key :union}, the keys whose values are unioned. A
    conflicting key is left out of its entity; the rest of the entity is kept."
@@ -55,6 +57,12 @@
       :provenance (reduce (fn [acc [[id k] gs]] (assoc-in acc [id k] (labels (map :source gs))))
                           {}
                           by-key)
+      :value-provenance (reduce (fn [acc {:keys [id k v source]}]
+                                  (if (and (= :union (get policy k)) (coll? v))
+                                    (reduce #(update-in %1 [id k %2] (fnil conj (labels [])) source) acc v)
+                                    acc))
+                                {}
+                                given)
       :conflicts conflicts})))
 
 (defn sources-of
