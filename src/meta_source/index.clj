@@ -29,7 +29,8 @@
             [meta-source.pack.tilakone :as tilakone]
             [meta-source.pack.schema :as schema]
             [meta-source.read :as read]
-            [meta-source.rules :as rules]))
+            [meta-source.rules :as rules])
+  (:import (java.io File)))
 
 (def ^:private bb? (some? (System/getProperty "babashka.version")))
 
