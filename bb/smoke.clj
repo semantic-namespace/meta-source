@@ -1305,6 +1305,21 @@
                     (= #{[:rule/off-db :auth/login]} violated)
                     (= {:claimed #{} :not-exact #{}} (reach :home/get))))))
 
+    ;; ---- reading forms: ::keywords resolved by the reader, strings untouched
+    (let [dir (str (fs/create-temp-dir))]
+      (fs/create-dirs (str dir "/src/app"))
+      (spit (str dir "/src/app/spec.clj")
+            (str "(ns app.spec (:require [clojure.spec.alpha :as s] [app.model :as m]))\n"
+                 ";; ::note in a comment\n"
+                 "(s/def ::status (s/and string? #(not= % \"::draft\")))\n"
+                 "(s/def ::owner (s/keys :req [::m/user]))\n"))
+      (let [idx (index/build {:root dir :src ["src"] :registry [] :cache nil :packs {:spec {}}})]
+        (check "reading: a string holding ::name is left as written"
+               (str/includes? (get-in idx [:entities :app.spec/status :entry :spec/form]) "\"::draft\""))
+        (check "reading: ::name and ::alias/name resolve to the file's namespace and its aliases"
+               (= [:app.model/user] (get-in idx [:entities :app.spec/owner :entry :spec/req]))))
+      (fs/delete-tree dir))
+
     ;; ---- re-frame: a project's own registration and dispatch fns
     (let [dir (str (fs/create-temp-dir))]
       (fs/create-dirs (str dir "/src/app"))
