@@ -140,7 +140,9 @@
 ;;                          after the form's opening paren
 ;;   :pack/read             (fn [sites file opts]) → [{:row :kind :dev-id
 ;;                          :entry} or {:row :kind :skipped reason}] for one
-;;                          file's sites; file is {:form-at (fn [row col])
+;;                          file's sites (a skipped one with :pattern rule-id
+;;                          breaks that rule of the pack's pattern, reported
+;;                          as :off-pattern when the project asks); file is {:form-at (fn [row col])
 ;;                          :read (fn [text]) :find-row (fn [text row])
 ;;                          :own-ns :aliases}, form-at reading
 ;;                          the form at a position as data, read reading text
@@ -151,9 +153,11 @@
 ;;                          the id, as the meta key does (an s/fdef's)
 ;;   :pack/checks           (fn [view]) → problems; view is {:entities
 ;;                          :of-kinds :data-key? :loc :flow :opts
-;;                          :var-defined? :not-read :impl :linked-by}: var-defined? true or
+;;                          :var-defined? :namespaces :not-read :impl :linked-by}:
+;;                          var-defined? true or
 ;;                          false for a qualified symbol in a namespace the
-;;                          analysis read, nil for one it didn't; not-read,
+;;                          analysis read, nil for one it didn't; namespaces,
+;;                          the names (strings) of those it read; not-read,
 ;;                          how many forms of a kind couldn't be read; impl,
 ;;                          where the var implementing an id is, or nil;
 ;;                          linked-by, the pack whose :pack/id-key linked it
@@ -177,6 +181,12 @@
 ;;                          all of them at once, so a key several files define
 ;;                          can be one result (meta-source.read/keyed-lines
 ;;                          reads them with each key's line)
+;;   :pack/derive           (fn [entities opts]) → {id {key value}}: facts it
+;;                          derives from what every pack read, entities being
+;;                          {id {:entry merged-entry :kinds #{source-kind}}}
+;;                          (atlas's: a route is an :atlas/interface-endpoint).
+;;                          A fact fills a key the entry lacks, never one a
+;;                          source gave; `where` lists it with :derived-by
 ;;   :pack/runtime-fill     (fn [entry runtime]) → entry with what static reading
 ;;                          couldn't read taken from the running process's entry
 ;;   :pack/id-key           its library's meta key linking a var to an id
@@ -571,6 +581,23 @@
                                                 (first (remove :refers defs))
                                                 (first defs))]]
                           [id (assoc primary :entry entry :definitions defs)]))
+        ;; what packs derive from what was read (atlas's types for routes and
+        ;; components): facts that fill a key no source gave, never one one did
+        static (reduce (fn [st p]
+                         (if-let [f (:pack/derive p)]
+                           (let [seen (into {} (for [[id e] st] [id {:entry (:entry e) :kinds (set (map :kind (:definitions e)))}]))]
+                             (reduce (fn [st [id facts]]
+                                       (let [e (get st id)
+                                             new (into {} (remove #(contains? (:entry e) (key %))) facts)]
+                                         (if (and e (seq new))
+                                           (-> st
+                                               (update-in [id :entry] merge new)
+                                               (update-in [id :definitions] conj {:kind (first (sort (:pack/kinds p))) :derived (:pack/id p)
+                                                                                  :keys (vec (sort (keys new)))}))
+                                           st)))
+                                     st (try (f seen (pack-opts config)) (catch Exception _ nil))))
+                           st))
+                       static packs)
         rules-read (read-rules root rule-files)
         ;; packs' runtime snapshots: fill what static reading couldn't read,
         ;; add what only the running process has
@@ -803,6 +830,7 @@
      :definition (loc idx e)
      :impl (some->> (impl-of idx id) (loc idx))
      :sources (mapv (fn [d] (cond-> (assoc (loc idx d) :keys (:keys d))
+                              (:derived d) (assoc :derived-by (:derived d))
                               (:dropped d) (assoc :dropped (:dropped d))
                               (:refers d) (assoc :refers true)))
                     (:definitions e))
@@ -1099,7 +1127,7 @@
   [idx]
   (let [kind->pack (into {} (for [p (:packs idx) k (:pack/kinds p)] [k p]))]
     (for [[id e] (sort-by key (:entities idx))
-          :let [packs (distinct (keep #(kind->pack (:kind %)) (remove #(or (:runtime %) (:refers %)) (:definitions e))))]
+          :let [packs (distinct (keep #(kind->pack (:kind %)) (remove #(or (:runtime %) (:refers %) (:derived %)) (:definitions e))))]
           :when (> (count (remove #(or (:pack/data-keys? %) (:pack/describes? %)) packs)) 1)]
       {:severity :warning :problem :id-in-several-packs :dev-id id
        :packs (vec (sort (map :pack/id packs)))
@@ -1122,7 +1150,7 @@
               snapshot (relative (:root idx) (:file snap))]
         :let [compared (or (:pack/runtime-kinds pack) #{kind})]
         [id e] (sort-by key (:entities idx))
-        :let [code-defs (filter #(and (compared (:kind %)) (not (:runtime %))) (:definitions e))
+        :let [code-defs (filter #(and (compared (:kind %)) (not (:runtime %)) (not (:derived %))) (:definitions e))
               runtime (:runtime e)]
         p (cond
             (and (seq code-defs) (not (contains? ids id)))
@@ -1154,6 +1182,8 @@
               :flow #(contract-keys idx %)
               ;; true or false for a var in a namespace the analysis read, nil otherwise
               :var-defined? #(when (nses (namespace %)) (contains? vars %))
+              ;; the namespaces the analysis read: the project's own
+              :namespaces nses
               ;; where the var implementing an id is, or nil
               :impl #(some->> (impl-of idx %) (loc idx))
               ;; the pack whose :pack/id-key linked that var, or nil
@@ -1163,14 +1193,22 @@
                           #(get n % 0))}]
     (concat
      (mapcat #(when-let [c (:pack/checks %)] (c view)) (:packs idx))
-     (for [{:keys [file row kind skipped]} (concat (for [[f {:keys [pack-results]}] (sort-by key (:code idx))
-                                                         [_ results] (sort-by key pack-results)
-                                                         r results]
-                                                     (assoc r :file f))
-                                                   (:pack-data-results idx))
-           :when skipped]
-       {:severity :info :problem :pack-form-not-read :pack kind :reason skipped
-        :file (relative (:root idx) file) :line row})
+     ;; a form not read; one a pack says breaks its pattern (docs/pattern.md),
+     ;; when the project asks for it (:pattern true in the pack's options), is
+     ;; :off-pattern instead
+     (for [{:keys [file row kind skipped pattern]} (concat (for [[f {:keys [pack-results]}] (sort-by key (:code idx))
+                                                                 [_ results] (sort-by key pack-results)
+                                                                 r results]
+                                                             (assoc r :file f))
+                                                           (:pack-data-results idx))
+           :when skipped
+           :let [p (pack-of idx kind)
+                 on? (and pattern (some #(get-in (:config idx) [:packs % :pattern]) (:pack/config-keys p)))]]
+       (if on?
+         {:severity :info :problem :off-pattern :pattern pattern :pack kind :lost skipped
+          :file (relative (:root idx) file) :line row}
+         {:severity :info :problem :pack-form-not-read :pack kind :reason skipped
+          :file (relative (:root idx) file) :line row}))
      (identity-problems idx)
      (runtime-problems idx))))
 
@@ -1219,6 +1257,20 @@
         :via (vec via)
         :reaches (vec (for [[r path] (sort-by (juxt (comp count val) key) (rules/reachable view via id))]
                         {:dev-id r :path path :definition (loc idx (get-in idx [:entities r]))}))}))))
+
+(defn reached-by
+  "What depends on `id`, transitively, through `via` (default :deps, :calls
+   and :provided-by): the reverse of `reach`. Each with the path from it to
+   `id` and where it is defined, nearest first: which routes break when a
+   component changes."
+  ([idx id] (reached-by idx id [:deps :calls :provided-by]))
+  ([idx id via]
+   (when (contains? (:entities idx) id)
+     (let [view (relations-view idx)]
+       {:dev-id id
+        :via (vec via)
+        :reached-by (vec (for [[r path] (sort-by (juxt (comp count val) key) (rules/reachers view via id))]
+                           {:dev-id r :path path :definition (loc idx (get-in idx [:entities r]))}))}))))
 
 (defn- in-lib?
   "Whether a finding is about a library's own code (:libs): it is located in

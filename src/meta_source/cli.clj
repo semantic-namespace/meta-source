@@ -36,6 +36,7 @@
   deps <id>           entities its entry names
   reach <id>          what it depends on, transitively (entries, calls, the component
                       that builds it), with the path to each (--via deps,calls,provided-by)
+  reached-by <id>     what depends on it, transitively: the reverse of reach (--via too)
   data <data-key>     entities producing and consuming the key
   check               where code and registry files disagree (--brief: one line each;
                       --fail-on error: exit 1 when a problem is that severe or more, as CI wants)
@@ -180,6 +181,8 @@
               "deps" (or (index/dependencies @idx (kw arg)) {:not-found (kw arg)})
               "reach" (or (if (:via opts) (index/reach @idx (kw arg) (:via opts)) (index/reach @idx (kw arg)))
                           {:not-found (kw arg)})
+              "reached-by" (or (if (:via opts) (index/reached-by @idx (kw arg) (:via opts)) (index/reached-by @idx (kw arg)))
+                               {:not-found (kw arg)})
               "data" (index/data-key @idx (kw arg))
               "check" (if (:brief opts) (hover/brief @idx) (index/check @idx))
               "diagnostics" (hover/diagnostics @idx arg)

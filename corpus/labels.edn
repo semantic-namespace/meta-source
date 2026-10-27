@@ -9158,4 +9158,95 @@
   :confirmed false,
   :by "claude, first pass",
   :why
-  "subscribed in edit-derivation-path; only :wallet/derivation-path-state is registered"}]
+  "subscribed in edit-derivation-path; only :wallet/derivation-path-state is registered"}
+ {:finding
+  [:datahost-graphql
+   :removed-method
+   :tpximpact.catql.schema/default-catalog-id
+   "src/tpximpact/catql/schema.clj"
+   {:integrant-version nil, :method "pre-init-spec", :removed-in "0.9"}],
+  :label :useless,
+  :confirmed false,
+  :by "claude, first pass",
+  :why
+  "true that pre-init-spec is gone since 0.9, but the app gets integrant 0.8 through integrant/repl 0.3.2, where it works: only an upgrade hazard"}
+ {:finding
+  [:datahost-graphql
+   :removed-method
+   :tpximpact.catql.schema/drafter-base-uri
+   "src/tpximpact/catql/schema.clj"
+   {:integrant-version nil, :method "pre-init-spec", :removed-in "0.9"}],
+  :label :useless,
+  :confirmed false,
+  :by "claude, first pass",
+  :why
+  "true that pre-init-spec is gone since 0.9, but the app gets integrant 0.8 through integrant/repl 0.3.2, where it works: only an upgrade hazard"}
+ {:finding
+  [:datahost-ld-openapi
+   :removed-method
+   :tpximpact.datahost.ldapi/default-catalog-id
+   "src/tpximpact/datahost/ldapi.clj"
+   {:integrant-version nil, :method "pre-init-spec", :removed-in "0.9"}],
+  :label :useless,
+  :confirmed false,
+  :by "claude, first pass",
+  :why
+  "true that pre-init-spec is gone since 0.9, but the app gets integrant 0.8 through integrant/repl 0.3.2, where it works: only an upgrade hazard"}
+ {:finding
+  [:datahost-ld-openapi
+   :removed-method
+   :tpximpact.datahost.ldapi/drafter-base-uri
+   "src/tpximpact/datahost/ldapi.clj"
+   {:integrant-version nil, :method "pre-init-spec", :removed-in "0.9"}],
+  :label :useless,
+  :confirmed false,
+  :by "claude, first pass",
+  :why
+  "true that pre-init-spec is gone since 0.9, but the app gets integrant 0.8 through integrant/repl 0.3.2, where it works: only an upgrade hazard"}
+ {:finding
+  [:datahost-ld-openapi
+   :removed-method
+   :tpximpact.datahost.ldapi/schema
+   "src/tpximpact/datahost/ldapi.clj"
+   {:integrant-version nil, :method "pre-init-spec", :removed-in "0.9"}],
+  :label :useless,
+  :confirmed false,
+  :by "claude, first pass",
+  :why
+  "true that pre-init-spec is gone since 0.9, but the app gets integrant 0.8 through integrant/repl 0.3.2, where it works: only an upgrade hazard"}
+ {:finding
+  [:datahost-ld-openapi
+   :removed-method
+   :tpximpact.datahost.ldapi.router/handler
+   "src/tpximpact/datahost/ldapi/router.clj"
+   {:integrant-version nil, :method "pre-init-spec", :removed-in "0.9"}],
+  :label :useless,
+  :confirmed false,
+  :by "claude, first pass",
+  :why
+  "true that pre-init-spec is gone since 0.9, but the app gets integrant 0.8 through integrant/repl 0.3.2, where it works: only an upgrade hazard"}
+ {:finding
+  [:datahost-ld-openapi
+   :removed-method
+   :tpximpact.datahost.ldapi.secrets/basic-auth-hash
+   "src/tpximpact/datahost/ldapi/secrets.clj"
+   {:integrant-version nil, :method "pre-init-spec", :removed-in "0.9"}],
+  :label :useless,
+  :confirmed false,
+  :by "claude, first pass",
+  :why
+  "true that pre-init-spec is gone since 0.9, but the app gets integrant 0.8 through integrant/repl 0.3.2, where it works: only an upgrade hazard"}
+ {:finding
+  [:saas-boilerplate :no-init-key :saas/telegram "resources/config.edn" {}],
+  :label :real,
+  :confirmed false,
+  :by "claude, first pass",
+  :why
+  "configured, and no init-key or derive anywhere builds it; the code has an init-key for :telegram/webhook, not in any config. integrant 0.8 has no default init-key, so ig/init throws"}
+ {:finding
+  [:saas-boilerplate :no-init-key :saas/telegram-webhook "resources/config.edn" {}],
+  :label :real,
+  :confirmed false,
+  :by "claude, first pass",
+  :why
+  "configured, and no init-key or derive anywhere builds it; the code has an init-key for :telegram/webhook, not in any config. integrant 0.8 has no default init-key, so ig/init throws"}]

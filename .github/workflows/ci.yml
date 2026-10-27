@@ -18,6 +18,7 @@ jobs:
           bb: 1.12.212
       - run: bb smoke
       - run: bb conformance
+      - run: bb meta-source check --brief --root examples/billing --fail-on info
 
   js:
     runs-on: ubuntu-latest
@@ -52,3 +53,4 @@ jobs:
           bb: 1.12.212
           cli: 1.12.0.1530
       - run: bb pathom-snapshot-check
+      - run: bb system-snapshot-check

@@ -63,13 +63,14 @@ The optional keys:
 | `:pack/config-keys` | for a built-in pack, the `:packs` keys that enable it |
 | `:pack/data-keys?` | true when its entities are data keys, as a schema's are |
 | `:pack/describes?` | true when it describes what other packs declare, as atlas's registry describes an integrant component under its key: sharing their ids is no `:id-in-several-packs`, and their source stays the id's primary definition |
-| `:pack/checks` | `(fn [view])` → problems; `view` has `:entities`, `:of-kinds`, `:data-key?`, `:loc`, `:flow`, `:opts`, `:var-defined?` (a qualified symbol: true, false, or nil when its namespace wasn't read), `:not-read` (a kind: how many forms couldn't be read), `:impl` (an id: where its var is, or nil) and `:linked-by` (an id: the pack whose `:pack/id-key` linked its var, or nil) |
+| `:pack/checks` | `(fn [view])` → problems; `view` has `:entities`, `:of-kinds`, `:data-key?`, `:loc`, `:flow`, `:opts`, `:var-defined?` (a qualified symbol: true, false, or nil when its namespace wasn't read), `:not-read` (a kind: how many forms couldn't be read), `:impl` (an id: where its var is, or nil) and `:linked-by` (an id: the pack whose `:pack/id-key` linked its var, or nil) and `:namespaces` (the names of the namespaces the analysis read) |
 | `:pack/inline-data-keys` | `(fn [entities])` → data keys its entities define with no entity of their own |
 | `:pack/shape`, `:pack/members` | a data key's shape as text, and the keys a schema is made of |
 | `:pack/describe` | one line for the hover |
 | `:pack/merge` | `{key :union}`: keys whose values it unions across sources, rather than reporting different values as a conflict |
 | `:pack/dataflow` | `{:consumes [k ...] :produces [k ...]}`: entry keys listing the data keys its entities read and give |
 | `:pack/dataflow-of` | `(fn [entries])` → the same, derived from what was read (`{id entry}`): atlas's pack takes a project's ontologies' context and response keys, so a project's own entity types need no `:dataflow` line |
+| `:pack/derive` | `(fn [entities opts])` → `{id {key value}}`: facts derived from what every pack read, `entities` being `{id {:entry merged-entry :kinds #{source-kind}}}`. atlas's pack gives a route described in EDN its `:atlas/type`. A derived fact fills a key the entry lacks, never one a source gave, so it can't conflict; `where` lists it with `:derived-by` |
 | `:pack/rules-of` | `(fn [entries])` → `{rule-id rule}`, rules as a rules file holds them, derived from what was read: atlas's pack takes the rules a project's invariants carry. They are checked with the project's own, and a rule whose id is an entity's is located at that entity |
 | `:pack/id-key` | its library's meta key linking a var to an id (atlas's `:atlas.source/id`), read as `:id-key` is, with no configuration. A var it links that no source describes is the pack's to report, so meta-source's `:binding-only` is left out for it |
 | `:pack/var-meta` | meta keys whose values clj-kondo's analysis gives on each var definition, for `:pack/find` (the function-contracts pack reads `:malli/schema`) |
@@ -83,7 +84,9 @@ The optional keys:
 `find-row` gives the first line from a row on where some text is written,
 to place what a form holds at its own line. A result is
 `{:row :kind :dev-id :entry}`, or `{:row :kind :skipped reason}` when the
-form can't be read. With `:refers true`, it is a place that refers to the
+form can't be read; a skipped result with `:pattern rule-id` breaks that
+rule of the pack's pattern ([pattern.md](pattern.md)), reported as
+`:off-pattern` when the pack's options say `:pattern true`. With `:refers true`, it is a place that refers to the
 id (a dispatch, a link), never its primary definition; with `:var ns/name`,
 that var implements the id, as the meta key does. Failures are reported,
 never thrown: the index reports those as `:pack-form-not-read` and
@@ -327,7 +330,8 @@ rebuilds it from real Pathom and fails if the operations change.
 ```clojure
 :integrant {:configs ["resources/config"]   ; config files, or directories of .edn
             :vars [app.system/config]       ; configs written in code
-            :provided [:duct/logger]}       ; keys something else adds, like a duct module
+            :provided [:duct/logger]        ; keys something else adds, like a duct module
+            :pattern true}                  ; report where the system leaves the pattern
 ```
 
 Each config key becomes a component, in the pack's own vocabulary:
@@ -375,9 +379,13 @@ Each config key becomes a component, in the pack's own vocabulary:
   (`:duct.migrator/ragtime` from `:duct/migrator`, `:duct.server.http/jetty`
   from `:duct.server/http`...), as their jars say, and the keys the sql,
   logging and web modules add.
-- `(derive child parent)` calls are read in files that use integrant
-  (`:integrant/isa`): there they build component hierarchies, while elsewhere
-  `derive` also builds hierarchies of exceptions and the like.
+- `(derive child parent)` calls are read wherever they are
+  (`:integrant/isa`), and followed at any depth. In a file that doesn't use
+  integrant, where `derive` may build a hierarchy of exceptions, the call
+  only refers to the key and is never its definition.
+- `#ig/var` names (`:integrant/vars`), and those a file declaring Duct's
+  `:vars` doesn't bind (`:integrant/unbound-vars`). Duct's
+  `{:vars {...} :system {...}}` is read from `:system`.
 - `defmethod`s of integrant's multimethods (`init-key`, `halt-key!`,
   `pre-init-spec`…) are read from the form, so `::keywords` get the file's
   namespace. clj-kondo's own dispatch string gives them the wrong one.
@@ -403,7 +411,30 @@ Each config key becomes a component, in the pack's own vocabulary:
   circle, shown as the shortest path back to the first: `ig/init` can't
   order them;
 - `:init-key-without-config` (info): an `init-key` for a key nothing configures
-  or derives from: unused, or configured somewhere not read.
+  or derives from: unused, or configured somewhere not read;
+- `:ref-invalid` (warning): an `#ig/ref` or `#ig/refset` to something other
+  than a qualified keyword or a vector of them (`#ig/ref :db`): `ig/ref`
+  throws reading the config;
+- `:var-unbound` (warning): an `#ig/var` the file's Duct `:vars` doesn't
+  bind: `ig/init` throws `::unbound-vars`. A config with no `:vars` may be
+  bound by `ig/bind` in code, and isn't checked;
+- `:no-init-key` (warning): a configured key with no `init-key` on itself or
+  anything it derives from, and no fn named like it or a part of its
+  composite (integrant 0.10's default `init-key`): `ig/init` throws
+  `::missing-init-key`. Only keys whose every keyword is under the project's
+  own namespaces count, since a library's key is built by the library; nor
+  do keys that expand, or that `:provided` names;
+- `:removed-method`: a `pre-init-spec` (removed in 0.9, replaced by
+  `assert-key`) or `prep-key` (removed in 1.0, replaced by `expand-key`). A
+  warning when the project's `deps.edn` or `project.clj` asks for a version
+  without it, nothing when it asks for one with it, an info when it doesn't
+  say.
+
+With `:pattern true`, `:off-pattern` (info, `:pattern/integrant-destructure`):
+an `init-key` whose config parameter isn't destructured with literal
+`:keys`, or that hands a call the whole config or a value bound in its body.
+What that call builds (a router, its routes) then reaches everything the
+component refers to, not what it was handed. See [the pattern](pattern.md).
 
 On real systems:
 
@@ -420,6 +451,23 @@ Those systems shaped the pack. Each of these was found on one of them:
 - duct profiles;
 - `derive` used to share an `init-key`;
 - a `:refer` of a pack's macro.
+
+### What the running system has: the integrant snapshot
+
+The config files aren't the whole system: Duct's modules and `expand-key`
+add keys, profiles choose others. The process can say what it hands
+`ig/init`:
+
+```clojure
+(meta-source.pack.integrant/snapshot! (ig/expand config))   ; .meta-source/packs/integrant.edn
+```
+
+Read beside the files, a key only the running system has counts as defined
+(no `:ref-to-undefined` for what a module adds), and `check` adds
+`:runtime-only`, `:not-in-runtime` (a configured key the system doesn't
+have: a test variant, or a key no profile keeps) and `:runtime-disagrees`
+(the refs differ). Refs are read with integrant's own `reflike?`, so the
+process needs nothing else.
 
 ## A config's environment and includes: the aero pack
 
@@ -621,6 +669,8 @@ rest is the child's when it gives it.
 
 - `:reitit/handlers`: handler vars, written as symbols or `#'vars`;
   `:reitit/handler-code` when a handler is a fn written there.
+  `:reitit/handler-built-by` names the fn a call builds a handler with:
+  `(users/get-user db)` or `(partial users/get-user db)`.
 - `:reitit/parameter-keys` and `:reitit/response-keys`: the qualified keys its
   `:parameters` and `:responses` name, spec or malli. They are the pack's
   dataflow: `meta-source data :user/id` lists the routes taking it.
@@ -642,6 +692,16 @@ literal route name are references to it. `check` adds:
   (`api/login`) that the namespace, read by the analysis, doesn't define. A
   bare symbol may be a local, and isn't reported.
 
+With `:reitit {:pattern true}`, `check` reports `:off-pattern` (info) where
+routes leave [the pattern](pattern.md), saying what is no longer exact there:
+
+- `:pattern/reitit-literal-tree`: a tree, or a child, written as code. Its
+  routes aren't read; this replaces the `:pack-form-not-read` for it;
+- `:pattern/reitit-named-route`: a route with a handler and no `:name`,
+  keyed by its path, so links can't name it;
+- `:pattern/reitit-handler-var`: a handler written as a fn there. A handler
+  built by a call, `(users/get-user db)`, follows the pattern.
+
 On open-source apps (read, never run):
 
 | | Routes read | Notes |
@@ -655,8 +715,19 @@ Each shaped the pack: fragments without reitit requires (lipas), scoped ids
 for relative paths and `#'var` handlers (sepal), keywords with no line in
 clj-kondo's analysis (blaze), unread trees making links uncertain (tubo).
 
-Not read: routes built by `:expand` or other fns, a route `:name` written as
-a symbol naming a def, and the compiled router, which a snapshot could give.
+Not read: routes built by `:expand` or other fns, and a route `:name`
+written as a symbol naming a def. The router's snapshot gives both.
+
+### What the running router has: the reitit snapshot
+
+```clojure
+(meta-source.pack.reitit/snapshot! router)   ; .meta-source/packs/reitit.edn
+```
+
+The named routes as reitit compiled them, those an `:expand` fn or code
+built included: a link to a route only the router has is defined, and
+`:runtime-disagrees` names a route whose path or methods differ. Handlers
+and middleware written as `#'vars` or keywords are named; fns aren't.
 
 ## A database's attributes: the Datascript pack
 

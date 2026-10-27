@@ -42,6 +42,16 @@
                                 :impl-range {:row row :end-row end-row}}
                          (seq code) (assoc :dropped code)))))})
 
+(def derive-pack
+  "A pack deriving a fact from what other packs read: each integrant
+   component a :tier, unless a source says one."
+  {:pack/id :tiers
+   :pack/kinds #{:tiers}
+   :pack/find (fn [_ _] [])
+   :pack/read (fn [_ _ _] [])
+   :pack/derive (fn [entities _opts]
+                  (into {} (for [[id {:keys [kinds]}] entities :when (kinds :integrant)] [id {:app/tier :foundation}])))})
+
 (def job-pack
   "A project's own pack: the shop's defjob registry. Enabled by its
    qualified symbol under :packs; a job reads the data keys :job/reads lists."
@@ -812,6 +822,9 @@
                        (try (let [idx (index/build {:root dir :src ["src"] :registry [] :packs {:integrant {:configs ["resources"]}}})]
                               {:refs (problems idx :ref-to-undefined) :maybe (problems idx :ref-maybe-from-module)
                                :amb (problems idx :ref-ambiguous) :cycles (problems idx :ref-cycle)
+                               :invalid (problems idx :ref-invalid) :unbound (problems idx :var-unbound)
+                               :no-init (problems idx :no-init-key) :removed (problems idx :removed-method)
+                               :unused (problems idx :init-key-without-config)
                                :ids (set (keys (:entities idx)))
                                :not-read (:not-read (:integrant (:packs (index/summary idx))))})
                             (finally (fs/delete-tree dir)))))
@@ -883,6 +896,39 @@
                (= 1 (count (cycles {"resources/config.edn" "{[:s/a :a/x] {:r #ig/refset :a/y}\n :a/y {:r #ig/ref :s/a}}\n"}))))
         (check "integrant: a chain is no cycle"
                (empty? (cycles {"resources/config.edn" "{:a/x {:r #ig/ref :a/y}\n :a/y {:r #ig/ref :a/z}\n :a/z {}}\n"}))))
+      ;; ---- integrant 1.0: what ig/ref, ig/init and the removed methods refuse
+      (let [r (ig-check {"resources/config.edn" "{:app/pg {}\n :app/h {:db #ig/ref :app/db}}\n"
+                         "src/app/db.clj" (str ig-ns "(derive :app/pg :app/sql)\n(derive :app/sql :app/db)\n"
+                                               "(defmethod ig/init-key :app/db [_ v] v)\n")})]
+        (check "integrant: a ref matched through two derives is defined, and the grandparent's init-key used"
+               (and (empty? (:refs r)) (empty? (:unused r)) (empty? (:no-init r)))))
+      (check "integrant: a derive in a namespace that doesn't use integrant counts, without defining the key"
+             (let [r (ig-check {"resources/config.edn" "{:app/pg {}\n :app/h {:db #ig/ref :app/db}}\n"
+                                "src/app/h.clj" "(ns app.h)\n(derive :app/pg :app/db)\n(derive :app.err/x :app.err/base)\n"})]
+               (and (empty? (:refs r)) (contains? (:ids r) :app.err/x))))
+      (check "integrant: a ref integrant refuses, unqualified or a vector with an unqualified keyword"
+             (= [[:app/h [:db [:app/a :b]]]]
+                (map (juxt :dev-id :refs) (:invalid (ig-check {"resources/config.edn" "{:app/h {:db #ig/ref :db :x #ig/ref [:app/a :b]}}\n"})))))
+      (let [r (ig-check {"resources/duct.edn" "{:vars {port {:env PORT}}\n :system {:app/server {:port #ig/var port :host #ig/var host}}}\n"
+                         "src/app/server.clj" (str ig-ns "(defmethod ig/init-key :app/server [_ v] v)\n")})]
+        (check "integrant: Duct's :system is read, and an #ig/var its :vars doesn't bind is unbound"
+               (and (contains? (:ids r) :app/server) (= [[:app/server ["host"]]] (map (juxt :dev-id :vars) (:unbound r))))))
+      (let [r (ig-check {"resources/config.edn" "{:app/a {}\n :app/b {}\n :app/c {}\n :lib.x/y {}\n [:app/d :app/dd] {}}\n"
+                         "src/app/core.clj" (str ig-ns "(defmethod ig/init-key :app/b [_ v] v)\n(derive :app/c :app/b)\n")
+                         "src/app.clj" "(ns app)\n(defn dd [x] x)\n"})]
+        (check "integrant: a key nothing builds; not one whose parent has an init-key, a fn named like a part, or a library's"
+               (= [:app/a] (map :dev-id (:no-init r)))))
+      (let [files {"resources/config.edn" "{:app/a {}}\n"
+                   "src/app/core.clj" (str ig-ns "(defmethod ig/init-key :app/a [_ v] v)\n"
+                                           "(defmethod ig/prep-key :app/a [_ v] v)\n(defmethod ig/pre-init-spec :app/a [_] nil)\n")}
+            sev (fn [r] (sort (map (juxt :method :severity) (:removed r))))]
+        (check "integrant: prep-key and pre-init-spec are removed methods: info, a warning on a version without them, nothing on one with them"
+               (and (= [["pre-init-spec" :info] ["prep-key" :info]] (sev (ig-check files)))
+                    (= [["pre-init-spec" :warning]]
+                       (sev (ig-check (assoc files "deps.edn" "{:deps {integrant/integrant {:mvn/version \"0.13.1\"}}}"))))
+                    (empty? (sev (ig-check (assoc files "deps.edn" "{:deps {integrant {:mvn/version \"0.8.0\"} integrant/repl {:mvn/version \"0.3.2\"}}}"))))
+                    (= [["pre-init-spec" :warning] ["prep-key" :warning]]
+                       (sev (ig-check (assoc files "deps.edn" "{:deps {integrant/integrant {:mvn/version \"1.0.1\"}}}")))))))
       (let [r (ig-check {"resources/config.edn"
                          (str "{:app/handler {:email #ig/ref :app.email/service}\n"
                               " #profile{:dev :app.email/logging :prod :app.email/sendgrid} {:key \"k\"}}\n")
@@ -961,7 +1007,13 @@
                       "                                :require [{:reaches {:via #{:deps} :none {:id :infra.db/xtdb}}}]}\n"
                       " :rule/a-calls-b {:when {:id :fn/a} :require [{:calls {:some {:id :fn/b}}}]}\n"
                       " :rule/b-calls-nothing {:when {:id :fn/b} :require [{:called-by {:none {:id :fn/a}}}]}\n"
-                      " :rule/bad-reach {:when {:id :fn/a} :require [{:reaches {:via #{:nope} :some {:id :fn/b}}}]}}\n")}]
+                      " :rule/bad-reach {:when {:id :fn/a} :require [{:reaches {:via #{:nope} :some {:id :fn/b}}}]}\n"
+                      " :rule/db-reached-by-no-route {:doc \"No route reaches the database\"\n"
+                      "                               :when {:id :infra.db/xtdb} :require [{:reached-by {:none {:kind :reitit}}}]}\n"
+                      " :rule/routes-handed-services {:when {:kind :reitit} :require [{:handed {:all {:id-ns \"core\"}}}]}\n"
+                      " :rule/routes-handed-no-db {:when {:kind :reitit} :require [{:handed {:some {:id :infra.db/xtdb}}}]}\n"
+                      " :rule/routes-have-roles {:when {:kind :reitit} :require [{:has-in [:reitit/data :auth/roles]}]}\n"
+                      " :rule/bad-has-in {:when {:kind :reitit} :require [{:has-in :auth/roles}]}}\n")}]
       (doseq [[p text] files] (fs/create-dirs (fs/parent (str dir "/" p))) (spit (str dir "/" p) text))
       (let [idx (index/build {:root dir :src ["src"] :registry [] :rules ["rules"]
                               :packs {:integrant {:configs ["resources"]} :reitit {}}})
@@ -980,6 +1032,21 @@
                (and (empty? (violated :rule/a-calls-b)) (= [:fn/b] (map :dev-id (violated :rule/b-calls-nothing)))))
         (check "reach: an unknown :via is a rule not understood"
                (some #(= :rule/bad-reach (:rule %)) (problems idx :rule-not-understood)))
+        (check "reached-by: what depends on an entity, transitively, with the path from each to it"
+               (let [r (index/reached-by idx :infra.db/xtdb)]
+                 ;; through what its builder hands it, not through the builder
+                 (and (= [:auth/login :core.services/user :app.repos/user :infra.db/xtdb]
+                         (:path (first (filter #(= :auth/login (:dev-id %)) (:reached-by r)))))
+                      (= [:app.repos/user] (map :dev-id (take 1 (:reached-by r)))))))
+        (check "reached-by: as a rule, the offenders and the path from each"
+               (= [[:infra.db/xtdb [:auth/login] [:auth/login :core.services/user :app.repos/user :infra.db/xtdb]]]
+                  (for [f (violated :rule/db-reached-by-no-route)] [(:dev-id f) (:offenders f) (get (:paths f) :auth/login)])))
+        (check "handed: one hop, what the builder hands a route"
+               (and (empty? (violated :rule/routes-handed-services))
+                    (= [:auth/login] (map :dev-id (violated :rule/routes-handed-no-db)))))
+        (check "has-in: a value at a path; a path that isn't a vector is a rule not understood"
+               (and (= [:auth/login] (map :dev-id (violated :rule/routes-have-roles)))
+                    (some #(= :rule/bad-has-in (:rule %)) (problems idx :rule-not-understood))))
         (check "reach: the brief line shows the path to what is reached"
                (some #(re-find #"No route reaches the database: :auth/login \(:core.services/user → :app.repos/user → :infra.db/xtdb\)" %)
                      (hover/brief idx))))
@@ -1023,6 +1090,125 @@
       (check "reach: a value rebound inside isn't followed: everything the component holds"
              (= #{:app.routes/drivers :svc/user :svc/article} (:login (reached (str "(defmethod ig/init-key :app.routes/drivers [_ {:keys [user-service]}]\n"
                                                                  "  (let [svc user-service] (ring/router [(auth/->auth-routes svc)])))\n"))))))
+
+    ;; ---- runtime snapshots of an integrant system and a reitit router, read
+    ;; beside the files (written here as the snapshot! fns write them)
+    (let [dir (str (fs/create-temp-dir))]
+      (doseq [[p text] {"resources/config.edn" "{:app/h {:log #ig/ref :app/logger :db #ig/ref :app/db}\n :app/db {}\n :app/old {}}\n"
+                        "src/app/routes.clj" (str "(ns app.routes (:require [reitit.ring :as ring]))\n"
+                                                  "(def routes [[\"/users\" {:name :api/users :get {:handler identity}}]])\n")
+                        "src/app/ui.cljs" "(ns app.ui (:require [reitit.frontend.easy :as rfe]))\n(defn a [] (rfe/href :page/about))\n"
+                        ".meta-source/packs/integrant.edn"
+                        (pr-str {:pack :integrant :written 1
+                                 :entities {:app/h {:integrant/in-system true :integrant/refs [:app/db :app/logger :app/metrics]}
+                                            :app/db {:integrant/in-system true}
+                                            ;; a module added it: no file configures it
+                                            :app/logger {:integrant/in-system true}
+                                            :app/metrics {:integrant/in-system true}}})
+                        ".meta-source/packs/reitit.edn"
+                        (pr-str {:pack :reitit :written 1
+                                 :entities {:api/users {:reitit/path "/api/users" :reitit/methods [:get]}
+                                            ;; built by code the pack couldn't read
+                                            :page/about {:reitit/path "/about"}}})}]
+        (fs/create-dirs (fs/parent (str dir "/" p))) (spit (str dir "/" p) text))
+      (let [idx (index/build {:root dir :src ["src"] :registry [] :packs {:integrant {:configs ["resources"]} :reitit {}}})
+            by (fn [problem] (set (map :dev-id (problems idx problem))))]
+        (check "snapshot: a key only the running system has is defined; a ref the system has and the file doesn't is a difference"
+               (and (empty? (by :ref-to-undefined))
+                    (contains? (by :runtime-only) :app/logger)
+                    (= {:integrant/refs {:only-at-runtime [:app/metrics]}}
+                       (:diff (first (filter #(= :app/h (:dev-id %)) (problems idx :runtime-disagrees)))))))
+        (check "snapshot: a configured key the running system doesn't have"
+               (contains? (by :not-in-runtime) :app/old))
+        (check "snapshot: a route only the running router has defines the name a link uses; a path that differs is a difference"
+               (and (empty? (by :route-not-defined))
+                    (= {:reitit/path {:code "/users" :runtime "/api/users"}}
+                       (:diff (first (filter #(= :api/users (:dev-id %)) (problems idx :runtime-disagrees))))))))
+      (fs/delete-tree dir))
+
+    ;; ---- examples/billing: the pattern, the facts and the rules; clean, and
+    ;; each rule catching the defect planted for it
+    (let [planted (fn [edits]
+                    (let [dir (str (fs/create-temp-dir))]
+                      (fs/copy-tree "examples/billing" dir {:replace-existing true})
+                      (doseq [[f from to] edits]
+                        (let [p (str dir "/" f) text (slurp p)]
+                          (when-not (str/includes? text from) (throw (ex-info "edit not found" {:f f :from from})))
+                          (spit p (str/replace text from to))))
+                      (try (let [idx (index/build {:root dir :src ["src"] :registry ["registry"] :rules ["rules"]
+                                                   :packs {:integrant {:configs ["resources"] :pattern true} :reitit {:pattern true}}})]
+                             (set (for [p (index/check idx)] [(:problem p) (or (:rule p) (:pattern p)) (:dev-id p)])))
+                           (finally (fs/delete-tree dir)))))]
+      (check "example: the billing app follows the pattern and its rules: nothing to report"
+             (empty? (planted [])))
+      (check "example: users routes handed billing: a route outside billing reaches Stripe"
+             (let [r (planted [["src/app/system.clj" "(users/routes users)" "(users/routes users billing)"]
+                               ["src/app/users.clj" "(defn routes [users]" "(defn routes [users billing]"]
+                               ["src/app/users.clj" "(get-user users)" "(get-user [users billing])"]])]
+               (and (contains? r [:rule-violated :rule/billing-boundary :api.users/get])
+                    (contains? r [:rule-violated :rule/stripe-reached-only-from-billing :app/stripe]))))
+      (check "example: a route reaching payment data with no roles"
+             (contains? (planted [["src/app/billing.clj" ":auth/roles #{:billing-admin}" ""]])
+                        [:rule-violated :rule/pci-guarded :api.billing/charge]))
+      (check "example: public routes handed the database: off the db rule, and an API route handed a foundation component"
+             (let [r (planted [["resources/system.edn" ":app/router  {" ":app/router  {:db #ig/ref :app/db "]
+                               ["src/app/system.clj" "{:keys [users billing]}" "{:keys [users billing db]}"]
+                               ["src/app/system.clj" "(public/routes)" "(public/routes db)"]
+                               ["src/app/public.clj" "(defn routes []" "(defn routes [db]"]
+                               ["src/app/public.clj" ":handler health" ":handler (partial health db)"]])]
+               (and (contains? r [:rule-violated :rule/public-off-db :public/health])
+                    (contains? r [:rule-violated :rule/api-through-services :public/health]))))
+      (check "example: the router handing on its whole config leaves the pattern"
+             (contains? (planted [["src/app/system.clj" "[_ {:keys [users billing]}]\n  (ring/router [(public/routes) (users/routes users) (billing/routes billing)])"
+                                   "[_ config]\n  (ring/router [(public/routes) (users/routes (:users config)) (billing/routes (:billing config))])"]])
+                        [:off-pattern :pattern/integrant-destructure :app/router])))
+
+    ;; ---- :pack/derive: facts a pack derives from what the others read
+    (let [dir (str (fs/create-temp-dir))]
+      (fs/create-dirs (str dir "/resources")) (fs/create-dirs (str dir "/registry"))
+      (spit (str dir "/resources/config.edn") "{:app/db {}\n :app/billing {:db #ig/ref :app/db}}\n")
+      (spit (str dir "/registry/facts.edn") "{:app/billing {:app/tier :service}}\n")
+      (let [idx (index/build {:root dir :src [] :registry ["registry"]
+                              :packs {:integrant {:configs ["resources"]} 'smoke/derive-pack {}}})]
+        (check "derive: a pack's derived fact fills a key no source gave, listed with :derived-by"
+               (and (= :foundation (get-in idx [:entities :app/db :entry :app/tier]))
+                    (some #(= :tiers (:derived-by %)) (:sources (index/where idx :app/db)))))
+        (check "derive: never over a source's, and no conflict"
+               (and (= :service (get-in idx [:entities :app/billing :entry :app/tier]))
+                    (empty? (problems idx :conflicting-values))
+                    (empty? (problems idx :id-in-several-packs)))))
+      (fs/delete-tree dir))
+
+    ;; ---- the pattern (docs/pattern.md): :off-pattern, when a pack's options ask
+    (let [pat (index/build (-> cfg (assoc-in [:packs :reitit] {:pattern true}) (assoc-in [:packs :integrant :pattern] true)))
+          off (fn [idx] (sort (map (juxt :pattern :dev-id :line) (map #(merge % (select-keys (:definition %) [:line])) (problems idx :off-pattern)))))]
+      (check "pattern: off by default, a child route written as code is a form not read"
+             (and (empty? (problems (index/build (assoc-in cfg [:packs :reitit] {})) :off-pattern))
+                  (seq (problems (index/build (assoc-in cfg [:packs :reitit] {})) :pack-form-not-read))))
+      (check "pattern: with :pattern true, a route tree's code child and an unnamed handler route leave it"
+             (and (= [[:pattern/reitit-literal-tree nil 14] [:pattern/reitit-named-route :shop.routes/route.post.api.login 21]] (off pat))
+                  (not-any? #(= :reitit (:pack %)) (problems pat :pack-form-not-read)))))
+    (let [dir (str (fs/create-temp-dir))
+          files {"resources/config.edn" "{:app/router {:users #ig/ref :app/users :db #ig/ref :app/db}\n :app/users {}\n :app/db {}\n :app/api {:users #ig/ref :app/users}}\n"
+                 "src/app/system.clj" (str "(ns app.system (:require [integrant.core :as ig] [app.routes :as r]))\n"
+                                           "(defmethod ig/init-key :app/router [_ config] (r/router config))\n"
+                                           "(defmethod ig/init-key :app/api [_ {:keys [users]}] (r/api users))\n"
+                                           "(defmethod ig/init-key :app/users [_ _] {})\n(defmethod ig/init-key :app/db [_ _] {})\n")
+                 "src/app/routes.clj" (str "(ns app.routes (:require [reitit.ring :as ring] [app.users :as users]))\n"
+                                           "(defn router [cfg] (ring/router [[\"/u\" {:name ::u :get {:handler (fn [_] cfg)}}]]))\n"
+                                           "(defn api [us] (ring/router [[\"/a\" {:name ::a :get {:handler (users/get-user us)}}]\n"
+                                           "                            [\"/b\" {:name ::b :get {:handler (partial users/list-users us)}}]]))\n")
+                 "src/app/users.clj" "(ns app.users)\n(defn get-user [us] (fn [_] us))\n(defn list-users [us _] us)\n"}]
+      (doseq [[p text] files] (fs/create-dirs (fs/parent (str dir "/" p))) (spit (str dir "/" p) text))
+      (let [idx (index/build {:root dir :src ["src"] :registry [] :packs {:integrant {:configs ["resources"] :pattern true} :reitit {:pattern true}}})
+            off (sort (map (juxt :pattern :dev-id) (problems idx :off-pattern)))]
+        (check "pattern: an init-key handing on its whole config, and an inline fn handler, leave it; handlers built by a call don't"
+               (= [[:pattern/integrant-destructure :app/router] [:pattern/reitit-handler-var :app.routes/u]] off))
+        (check "reitit: a handler built by a call, or by partial, names the fn building it"
+               (and (= '[app.users/get-user] (get-in idx [:entities :app.routes/a :entry :reitit/handler-built-by]))
+                    (= '[app.users/list-users] (get-in idx [:entities :app.routes/b :entry :reitit/handler-built-by]))
+                    (not (get-in idx [:entities :app.routes/a :entry :reitit/handler-code])))))
+      (fs/delete-tree dir))
 
     ;; ---- re-frame: a project's own registration and dispatch fns
     (let [dir (str (fs/create-temp-dir))]
