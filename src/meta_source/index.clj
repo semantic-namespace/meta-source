@@ -29,7 +29,8 @@
             [meta-source.pack.tilakone :as tilakone]
             [meta-source.pack.schema :as schema]
             [meta-source.read :as read]
-            [meta-source.rules :as rules]))
+            [meta-source.rules :as rules])
+  (:import (java.io File)))
 
 (def ^:private bb? (some? (System/getProperty "babashka.version")))
 
@@ -85,31 +86,46 @@
 ;; Reading forms in code
 ;; =============================================================================
 
-(defn- resolve-keywords
-  "`text` with auto-resolved keywords written out: ::alias/name with the
-   namespace the file aliases, ::name with the file's own namespace."
-  [text own-ns aliases]
-  (str/replace text #"::([^\s/\[\](){}\"@^`~,;]+)(/)?"
-               (fn [[_ a slash]]
-                 (if slash
-                   (str ":" (get aliases a a) "/")
-                   (str ":" own-ns "/" a)))))
+(defn- resolver
+  "A reader resolver for a file: ::name resolves to the file's namespace,
+   ::alias/name to the namespace it aliases (the alias itself when the ns
+   form names none), as Clojure's reader would, without creating or
+   touching any namespace. Strings and comments are the reader's to skip."
+  [own-ns aliases]
+  (reify clojure.lang.LispReader$Resolver
+    (currentNS [_] (symbol own-ns))
+    (resolveClass [_ sym] sym)
+    (resolveAlias [_ sym] (symbol (get aliases (str sym) (str sym))))
+    (resolveVar [_ sym] sym)))
+
+(defn- read-with
+  "The next form of `reader`, with `resolver`'s namespaces and `read-opts`
+   (the schema pack reads .cljc reader conditionals as :clj)."
+  [reader resolver read-opts]
+  (binding [*read-eval* false
+            *default-data-reader-fn* tagged-literal
+            *reader-resolver* resolver]
+    (if read-opts (read read-opts reader) (read reader))))
+
+(defn- source-text
+  "A file's text, read once, with where each line starts: {:text :starts}."
+  [lines]
+  {:text (str/join "\n" lines)
+   :starts (vec (reductions + 0 (map #(inc (count %)) lines)))})
 
 (defn- call-at
   "The form that starts with the `(` just before the symbol at `row`/`col`
    (1-based), :unreadable when it can't be read as data, nil when the symbol
-   isn't at the head of a call. Auto-resolved keywords are resolved with the
-   file's namespace and aliases first. `read-opts` go to read-string: the
-   schema pack reads .cljc reader conditionals as :clj."
-  ([lines row col own-ns aliases] (call-at lines row col own-ns aliases nil))
-  ([lines row col own-ns aliases read-opts]
-   (let [line (nth lines (dec row) nil)]
-     (when (and line (>= col 2) (= \( (nth line (- col 2) nil)))
-       (try (binding [*read-eval* false *default-data-reader-fn* tagged-literal]
-              (let [text (resolve-keywords (str/join "\n" (cons (subs line (- col 2)) (drop row lines)))
-                                           own-ns aliases)]
-                (if read-opts (read-string read-opts text) (read-string text))))
-            (catch Exception _ :unreadable))))))
+   isn't at the head of a call. It is read from there in the file's text,
+   read once (`src`, source-text), with the file's namespace and aliases
+   resolving its ::keywords."
+  [lines src row col resolver read-opts]
+  (let [line (nth lines (dec row) nil)]
+    (when (and line (>= col 2) (= \( (nth line (- col 2) nil)))
+      (try (let [r (java.io.StringReader. (:text src))]
+             (.skip r (+ (nth (:starts src) (dec row)) (- col 2)))
+             (read-with (java.io.PushbackReader. r) resolver read-opts))
+           (catch Exception _ :unreadable)))))
 
 ;; =============================================================================
 ;; Packs
@@ -244,10 +260,12 @@
    there, once per position (a .cljc file reports each form per language)."
   [file found packs-config own-ns aliases]
   (let [lines (delay (str/split-lines (slurp file)))
+        src (delay (source-text @lines))
         opts {:read-cond :allow :features #{:clj}}
+        res (resolver own-ns aliases)
         f {:own-ns own-ns :aliases aliases
-           :form-at (fn [row col] (call-at @lines row col own-ns aliases opts))
-           :read (fn [text] (binding [*read-eval* false] (read-string opts (resolve-keywords text own-ns aliases))))
+           :form-at (fn [row col] (call-at @lines @src row col res opts))
+           :read (fn [text] (read-with (java.io.PushbackReader. (java.io.StringReader. text)) res opts))
            ;; the first line from `row` on where `text` is written, as is
            :find-row (fn [text row] (some (fn [n] (when (str/includes? (nth @lines (dec n)) text) n))
                                           (range (max 1 row) (inc (count @lines)))))}]

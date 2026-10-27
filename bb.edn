@@ -20,6 +20,9 @@
          system-snapshot-check {:doc "Runs the integrant and reitit packs' runtime-entities against real integrant and reitit and checks what they give. Needs the clojure CLI."
                                 :requires ([system-snapshot-check])
                                 :task (system-snapshot-check/-main)}
+         jvm-check {:doc "Loads every library namespace on the JVM and checks the shop fixture's index matches babashka's. Needs the clojure CLI."
+                    :requires ([jvm-check])
+                    :task (jvm-check/-main)}
          pathom-snapshot-check {:doc "Rebuilds the shop fixture's Pathom snapshot from real Pathom 3 and 2 and checks it matches the committed one. Needs the clojure CLI."
                                 :requires ([pathom-snapshot-check])
                                 :task (pathom-snapshot-check/-main)}}}
