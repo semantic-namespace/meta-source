@@ -688,21 +688,41 @@
   (when row
     (some (fn [[id r]] (when (and (:row r) (:end-row r) (<= (:row r) row (:end-row r))) id)) (get by-file filename))))
 
+(declare references)
+
+(defn- depends-on
+  "{id #{id}}: what each entity depends on by its entry: the ids it names,
+   and what its pack resolves its names to (an integrant ref to a key that
+   others derive from: :pack/depends)."
+  [idx]
+  (let [resolved (apply merge-with into (keep #(when-let [f (:pack/depends %)] (f (:entities idx))) (:packs idx)))]
+    (into {} (for [[id e] (:entities idx)
+                   :let [ds (into (set (map second (references idx (:entry e)))) (get resolved id))]
+                   :when (seq ds)]
+               [id (disj ds id)]))))
+
 (defn edges
   "What the entities' code says they depend on, beyond what their entries
-   name: {:calls {id #{id}} :provided-by {id #{id}}}.
+   name: {:calls :provided-by :given :inexact}.
 
-   - :calls: an entity's code (its linked var, or the rows a pack located:
-     an inline implementation, an init-key method) calls the var another
-     entity is linked to.
-   - :provided-by: an entity defined inside a var (a route in the fn that
-     builds a route tree) depends on the entity whose code calls that var
-     (the component whose init-key builds the routes, handing them what it
-     was given).
-   - :given: what such an entity is handed, when the builder's pack reads it
-     (:pack/hands): the components behind the config keys an init-key passes
-     to the call. :opaque: the builders of those it isn't known for, whose
-     whole holdings it may reach."
+   - :calls {id #{id}}: an entity's code (its linked var, or the rows a pack
+     located: an inline implementation, an init-key method) calls the var
+     another entity is linked to.
+   - :provided-by {id #{id}}: an entity defined inside a var (a route in the
+     fn that builds a route tree) and the entity whose code calls that var
+     (the component whose init-key builds the routes).
+   - :given {id #{id}}: what such an entity is handed, exactly, when its
+     builder follows the pattern (docs/pattern.md): the components behind the
+     config keys its init-key destructures and passes to the call building it.
+   - :inexact {id #{{:pattern :at ...}}}: an entity whose reach isn't exact,
+     and the pattern rule broken that makes it so. Nothing is guessed for it:
+     I5, a builder whose config isn't destructured or is used whole or
+     rebound (:pattern/integrant-destructure); R4a, a builder using its
+     config outside the calls that build, in a middleware or an option, which
+     may wrap all it builds (:pattern/reitit-hands-route-fns); R4b, a
+     component taking the routes (depending on their builder, transitively)
+     that holds other components, which may wrap them
+     (:pattern/reitit-router-holds-routes)."
   [idx]
   (let [var->id (into {} (for [[id vs] (linked-vars idx) v vs] [[(symbol (str (:ns v))) (symbol (str (:name v)))] id]))
         ranges (group-by (comp :filename second) (concat (:impl-ranges idx) (:body-ranges idx)))
@@ -722,32 +742,86 @@
                                                      id))]
                                     :when (seq ids)]
                                 [k ids])))
+        builders (set (for [[ns n] (keys defined-in)] (str ns "/" n)))
+        ;; {component #{id}}: entities written inside a component's own rows
+        ;; (a route tree in an init-key's body), no call between them
+        defined-inline (let [defs (for [[id e] (:entities idx) d (:definitions e)
+                                        :when (and (:file d) (:line d) (not (:refers d)))]
+                                    [id d])
+                             by-file (group-by (comp :file second) defs)]
+                         (into {} (for [[c r] (:body-ranges idx)
+                                        :let [ids (set (for [[id d] (get by-file (:filename r))
+                                                             :when (and (not= id c) (<= (:row r) (:line d) (:end-row r)))]
+                                                         id))]
+                                        :when (seq ids)]
+                                    [c ids])))
         add (fn [m k v] (if (and k v (not= k v)) (update m k (fnil conj #{}) v) m))
-        ;; what an entity's code hands each fn it calls, as its pack reads it
+        ;; where an entity's code uses what it was given, as its pack reads it
         hands (memoize (fn [id] (let [entry (get-in idx [:entities id :entry])]
                                   (some #(when-let [f (:pack/hands %)] (f entry)) (:packs idx)))))
-        handed (fn [from c] (when-let [h (hands from)]
-                              (let [v (some #(when (contains? h %) (get h %))
-                                            [(str (:to c) "/" (:name c)) (str (:name c)) "*"])]
-                                (or v []))))]
-    (reduce (fn [acc c]
-              (if-let [from (owner c)]
-                (let [k [(:to c) (:name c)]
-                      built (defined-in k)
-                      h (when (seq built) (handed from c))]
-                  (as-> acc a
-                    (update a :calls add from (var->id k))
-                    (reduce #(update %1 :provided-by add %2 from) a built)
-                    ;; what is built there depends on what it is handed, when
-                    ;; that is known; otherwise on all the builder holds
-                    (reduce (fn [a r] (cond (nil? h) (update a :opaque add r from)
-                                            (= :unknown h) (update a :opaque add r from)
-                                            :else (reduce #(update %1 :given add r %2) a h)))
-                            a built)))
-                acc))
-            {:calls {} :provided-by {} :given {} :opaque {}}
-            (for [c (mapcat :calls (vals (:code idx)))]
-              (update c :to #(symbol (str %)))))))
+        {:keys [calls provided-by builds]}
+        (reduce (fn [acc c]
+                  (if-let [from (owner c)]
+                    (let [k [(:to c) (:name c)]
+                          built (defined-in k)]
+                      (as-> acc a
+                        (update a :calls add from (var->id k))
+                        (reduce #(update %1 :provided-by add %2 from) a built)
+                        (reduce #(update %1 :builds conj [%2 from (str (:to c) "/" (:name c))]) a built)))
+                    acc))
+                {:calls {} :provided-by (reduce (fn [m [c ids]] (reduce #(update %1 %2 (fnil conj #{}) c) m ids)) {} defined-inline)
+                 :builds #{}}
+                (for [c (mapcat :calls (vals (:code idx)))]
+                  (update c :to #(symbol (str %)))))
+        ;; exactly what each built entity is handed, or why it isn't known
+        handed (reduce (fn [acc [r from v]]
+                         (let [h (hands from)
+                               ;; the uses inside the call building it: a body-bound value
+                               ;; or the whole config there isn't followed (I5)
+                               mine (when (sequential? h) (filter (fn [[_ callees]] (some #{v} callees)) h))
+                               ;; the config's own uses outside every call that builds (a
+                               ;; body-bound value carries the config only through such a
+                               ;; use, its binding)
+                               loose (when (sequential? h) (remove (fn [[k callees]] (or (= :rebound k) (some builders callees))) h))]
+                           (cond
+                             (or (not (sequential? h)) (some #(#{:unknown :rebound} (first %)) mine))
+                             (update-in acc [:inexact r] (fnil conj #{}) {:pattern :pattern/integrant-destructure :at from})
+                             (seq loose)
+                             (update-in acc [:inexact r] (fnil conj #{}) {:pattern :pattern/reitit-hands-route-fns :at from})
+                             :else (reduce #(update %1 :given add r %2) acc (mapcat first mine)))))
+                       {:given {} :inexact {}}
+                       builds)
+        ;; written inline in an init-key: exact only when it uses no config,
+        ;; which an inline handler could close over (R4: routes in route fns)
+        handed (reduce (fn [acc [c r]]
+                         (let [h (hands c)]
+                           (cond
+                             (and (sequential? h) (empty? h)) acc
+                             (not (sequential? h)) (update-in acc [:inexact r] (fnil conj #{}) {:pattern :pattern/integrant-destructure :at c})
+                             :else (update-in acc [:inexact r] (fnil conj #{}) {:pattern :pattern/reitit-routes-in-route-fns :at c}))))
+                       handed
+                       (for [[c ids] defined-inline r ids] [c r]))
+        ;; what takes the routes and holds anything else may wrap them
+        deps (depends-on idx)
+        users (reduce (fn [m [from tos]] (reduce #(update %1 %2 (fnil conj #{}) from) m tos)) {} deps)
+        takers (memoize (fn [c] (loop [todo [c] seen #{}]
+                                  (if-let [x (peek todo)]
+                                    (let [n (remove seen (users x))]
+                                      (recur (into (pop todo) n) (into seen n)))
+                                    seen))))
+        builder-ids (set (mapcat val provided-by))
+        handed (reduce (fn [acc [r from]]
+                         (let [ks (takers from)
+                               route-chain (conj ks from)]
+                           (reduce (fn [acc k]
+                                     (let [held (sort (remove #(or (route-chain %) (builder-ids %)) (deps k)))]
+                                       (if (seq held)
+                                         (update-in acc [:inexact r] (fnil conj #{}) {:pattern :pattern/reitit-router-holds-routes :at k :holds (vec held)})
+                                         acc)))
+                                   acc ks)))
+                       handed
+                       (for [[r froms] provided-by from froms] [r from]))]
+    (merge {:calls calls :provided-by provided-by} handed)))
 
 (defn- impl-of
   "Where `id` is implemented: its var, or the rows a pack located."
@@ -1210,33 +1284,55 @@
          {:severity :info :problem :pack-form-not-read :pack kind :reason skipped
           :file (relative (:root idx) file) :line row}))
      (identity-problems idx)
-     (runtime-problems idx))))
+     (runtime-problems idx)
+     ;; the pattern across packs (docs/pattern.md, I5 and R4): what builds
+     ;; or takes routes hands components to them only through route fns'
+     ;; destructured parameters, when the project asks
+     (when (some #(get-in (:config idx) [:packs % :pattern]) [:integrant :reitit])
+       (let [{:keys [inexact]} (edges idx)
+             by (group-by (juxt :pattern :at) (for [[r rs] inexact x rs] (assoc x :route r)))]
+         (for [[[pattern at] xs] (sort-by (comp pr-str key) by)]
+           (cond-> {:severity :info :problem :off-pattern :pattern pattern :dev-id at
+                    :routes (vec (sort (distinct (map :route xs))))
+                    :lost (case pattern
+                            :pattern/integrant-destructure "its config isn't destructured, or the whole config or a value bound in the body is handed to a route fn: what the routes it builds reach isn't in the graph"
+                            :pattern/reitit-routes-in-route-fns "its init-key writes routes itself and uses its config: an inline handler may close over any of it, so what those routes reach isn't in the graph"
+                            :pattern/reitit-hands-route-fns "its init-key uses its config outside the route fns' calls (a middleware, an option): what the routes it builds reach isn't in the graph"
+                            :pattern/reitit-router-holds-routes "it takes routes and holds components that build none of them (a middleware's, or routes not written in a route fn), which may wrap them: what those routes reach isn't in the graph")
+                    :definition (loc idx (get-in idx [:entities at]))}
+             (:holds (first xs)) (assoc :holds (:holds (first xs))))))))))
 
 (defn- relations-view
   "The relations rules and queries follow, each once for the whole index."
   [idx]
   (let [entities (sort-by key (:entities idx))
         index-by (fn [f] (reduce (fn [m [id e]] (reduce #(update %1 %2 (fnil conj []) id) m (f e))) {} entities))
-        used-by (index-by #(map second (references idx (:entry %))))
         consumers (index-by #(:consumes (contract-keys idx (:entry %))))
         producers (index-by #(:produces (contract-keys idx (:entry %))))
-        {:keys [calls provided-by given opaque]} (edges idx)
+        {:keys [calls provided-by given inexact]} (edges idx)
+        deps (depends-on idx)
         reverse-of (fn [m] (reduce (fn [r [from tos]] (reduce #(update %1 %2 (fnil conj #{}) from) r tos)) {} m))
         called-by (reverse-of calls)
-        provides (reverse-of provided-by)]
+        provides (reverse-of provided-by)
+        rdeps (reverse-of deps)]
     {:entities (:entities idx)
      :data-key? #(data-key? idx %)
      :loc #(loc idx %)
      :consumers #(get consumers %)
      :producers #(get producers %)
-     :deps #(map second (references idx (get-in idx [:entities % :entry])))
-     :used-by #(distinct (get used-by %))
+     ;; what its entry names, and what its pack resolves those names to
+     :deps #(sort (get deps % #{}))
+     :used-by #(sort (get rdeps % #{}))
      :calls #(sort (get calls %))
      :called-by #(sort (get called-by %))
      :provided-by #(sort (get provided-by %))
      :provides #(sort (get provides %))
      ;; what :reaches follows for :provided-by: what it is handed
-     :handed #(sort (into (get given % #{}) (get opaque % #{})))}))
+     :handed #(sort (get given % #{}))
+     ;; why an entity's reach isn't exact (docs/pattern.md): rules over it
+     ;; are unverifiable rather than passing
+     :inexact #(get inexact %)
+     :inexact-all (fn [] (set (mapcat val inexact)))}))
 
 (defn- rule-findings
   "The project's own rules (meta-source.rules) over the index, and the
@@ -1252,11 +1348,13 @@
   ([idx id] (reach idx id [:deps :calls :provided-by]))
   ([idx id via]
    (when (contains? (:entities idx) id)
-     (let [view (relations-view idx)]
-       {:dev-id id
-        :via (vec via)
-        :reaches (vec (for [[r path] (sort-by (juxt (comp count val) key) (rules/reachable view via id))]
-                        {:dev-id r :path path :definition (loc idx (get-in idx [:entities r]))}))}))))
+     (let [view (relations-view idx)
+           reached (vec (for [[r path] (sort-by (juxt (comp count val) key) (rules/reachable view via id))]
+                          {:dev-id r :path path :definition (loc idx (get-in idx [:entities r]))}))
+           ;; where the answer isn't exact, and why: off the pattern on the way
+           not-exact (set (mapcat (:inexact view) (cons id (map :dev-id reached))))]
+       (cond-> {:dev-id id :via (vec via) :reaches reached}
+         (seq not-exact) (assoc :not-exact (vec (sort-by pr-str not-exact))))))))
 
 (defn reached-by
   "What depends on `id`, transitively, through `via` (default :deps, :calls

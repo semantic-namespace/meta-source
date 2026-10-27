@@ -43,6 +43,13 @@ info  src/app/system.clj:12  init-key of :app/api passes its whole config to mak
 A project can then measure how much of it follows the pattern, and know
 that every answer meta-source gives about that part is exact.
 
+Off the pattern, an answer that follows code isn't exact, and nothing is
+guessed in its place. `reach` says so (`:not-exact`, naming the rule broken
+and where), and a rule following it there (`:reaches`, `:handed`,
+`:reached-by`, in `:when` or `:require`) is `:rule-unverifiable`, a warning,
+instead of passing. That holds whether or not `:pattern` is on: the findings
+are opt-in, never passing in their place is not.
+
 ## Integrant: the well-formed system
 
 | Rule | Shape | What it makes exact | Today |
@@ -51,7 +58,7 @@ that every answer meta-source gives about that part is exact.
 | I2 qualified keys | every top-level key, ref and composite part is a qualified keyword | refs resolvable; integrant throws otherwise | `:ref-invalid` |
 | I3 hierarchy as data | `derive` lives in `integrant/hierarchy.edn` (or `duct_hierarchy.edn`), not in code | ambiguous and missing refs through derived keys | read, and code `derive` anywhere, at any depth |
 | I4 one builder | each key has an `init-key` on itself or an ancestor, or a fn var named like the key (integrant 0.10's default) | what builds each component | `:no-init-key` |
-| I5 destructure | `init-key`'s config parameter is destructured with literal `:keys` (or `{local :ns/key}`), and calls are handed those locals, not the whole map or a rebound value | which components each call is handed: what a route built there reaches | read (`:integrant/passes`); `:off-pattern` when broken |
+| I5 destructure | an `init-key` that builds routes destructures its config parameter with literal `:keys` (or `{local :ns/key}`), and its route fns are handed those locals, not the whole map or a value bound in the body | which components each route fn is handed: what a route built there reaches | read (`:integrant/uses`, through clj-kondo's locals); `:off-pattern` when broken, for components that build routes |
 | I6 no removed methods | no `prep-key`, `pre-init-spec` | | `:removed-method` |
 | I7 vars bound | each `#ig/var` is one `bind`, or Duct's `:vars`, provides | startup won't throw `::unbound-vars` | `:var-unbound`, against Duct's `:vars` |
 
@@ -75,7 +82,7 @@ that every answer meta-source gives about that part is exact.
 | R1 literal trees | route trees are literal vectors in a def, a defn's body, or a router call; children are literals or symbols naming route defs | every route and its inherited data | read; `:off-pattern` for code |
 | R2 named routes | every route with a handler has a qualified `:name`, which is its id | links (`rfe/href`, `match-by-name`) checked; the route is an entity facts can attach to | read; `:off-pattern` when unnamed |
 | R3 handlers by var | `:handler` is a var, or a call building one (`(users/get-user db)`), not an inline `fn` | route → code | read; `:off-pattern` for an inline fn |
-| R4 built in a component | a routes fn per set of components its routes need, each called from one `init-key` and handed those components by I5: `(ring/router [(users/routes users) (billing/routes billing)])` | route → exactly the components its fn is handed, not all the router holds | read (`:provided-by`, `:handed`); a router composed of a project's route fns is read where each writes its routes |
+| R4 built in a component | a routes fn per set of components its routes need, each called from one `init-key` and handed those components by I5: `(ring/router [(users/routes users) (billing/routes billing)])`. Components reach routes only that way: the `init-key` uses its config nowhere else (no middleware or option built from it), and a component taking the routes holds nothing that builds none of them (its middleware's components) | route → exactly the components its fn is handed, not all the router holds | read (`:provided-by`, `:handed`); `:off-pattern` for config used beside the route fns (`:pattern/reitit-hands-route-fns`), a component holding others beside the routes (`:pattern/reitit-router-holds-routes`), routes written in an `init-key` using its config (`:pattern/reitit-routes-in-route-fns`) |
 | R5 contracts | `:parameters` and `:responses` name qualified keys (spec or malli) | what each route consumes and produces | read (`:reitit/parameter-keys`, `:reitit/response-keys`) |
 | R6 middleware by name | middleware and interceptors are vars or registered keywords, not inline fns | what guards each route, inherited | read |
 | R7 policy as data | access rules are route data with qualified keys: `:auth/roles #{:admin}` | rules over who may call what | read (`:reitit/data`) |
