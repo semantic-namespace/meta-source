@@ -898,7 +898,8 @@ info for the payments, when both are model elements.
 | atlas's [grain-counter export](https://github.com/semantic-namespace/atlas/tree/main/docs/adapter-overarch/grain-counter), with the counter's atlas registry | 21 entities, 8 relations, 2 views | every relation declared by the registry, 5 of them through an event a command emits and a read model or processor reads; one info: the processor depends on the read model, a relation the export doesn't draw |
 
 Not read: models written in code, `:spec` selections (they are kept, not
-resolved), and Overarch's templates and plugins.
+resolved), and Overarch's templates and their generation configs. Themes are
+read as entities and left out of the checks.
 
 ![An Overarch model whose ids are atlas ids: a relation the registry doesn't declare, then declared, in Emacs](images/meta-source-overarch.gif)
 
