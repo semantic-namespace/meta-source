@@ -113,9 +113,18 @@
   (into #{} (filter keyword?)
         (tree-seq coll? seq (vals (into {} (remove #(= "overarch" (namespace (key %)))) entry)))))
 
+(def ^:private concern-relations
+  "Overarch's process concepts and the relation that links each to the
+   element it concerns (doc/usage.md, Process Model)."
+  {:decision :decision-for, :goal :goal-for, :non-goal :non-goal-for,
+   :risk :risk-for, :stakeholder :stakeholder-of})
+
 (defn- checks
   "- :relation-to-nothing (error): a relation's :from or :to names no
      element of the model; Overarch can't draw it;
+   - :concerns-nothing (info): a :decision, :goal, :non-goal, :risk or
+     :stakeholder has no relation of its kind (:decision-for, …) from it:
+     the model doesn't say what it is about;
    - :view-of-nothing (error): a view refers to an id the model doesn't
      define;
    - :element-defined-twice (error): two elements of the model share an id;
@@ -153,6 +162,15 @@
            [end x] [[:from from] [:to to]]
            :when (not (contains? elements x))]
        {:severity :error :problem :relation-to-nothing :dev-id id :end end :to x :definition (at e)})
+     (let [linked (set (for [[id e] model
+                             :when (rel? id)
+                             :let [{:overarch/keys [el from]} (:entry e)]
+                             :when (= el (concern-relations (el-of from)))]
+                         from))]
+       (for [[id e] (sort-by key elements)
+             :let [rel (concern-relations (el-of id))]
+             :when (and rel (not (linked id)))]
+         {:severity :info :problem :concerns-nothing :dev-id id :rel rel :definition (at e)}))
      (for [[id e] (sort-by key model)
            x (get-in e [:entry :overarch/shows])
            :when (not (contains? model x))]

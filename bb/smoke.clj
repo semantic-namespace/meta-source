@@ -1412,6 +1412,25 @@
                   (set (map :dev-id (:referenced-by (index/uses oi :shop/orders-db)))))))
       (fs/delete-tree dir))
 
+    ;; ---- the overarch pack: a decision, risk, goal… says what it concerns
+    (let [dir (str (fs/create-temp-dir))]
+      (fs/create-dirs (str dir "/models"))
+      (spit (str dir "/models/model.edn")
+            (str "#{{:el :system :id :p/sys :name \"Sys\"}\n"
+                 "  {:el :decision :id :p/lang :name \"Language\"}\n"
+                 "  {:el :decision :id :p/db :name \"Database\"}\n"
+                 "  {:el :decision-for :id :p/db-for-sys :from :p/db :to :p/sys}\n"
+                 "  {:el :risk :id :p/scale :name \"Scale\"}\n"
+                 "  {:el :rel :id :p/scale-rel :from :p/scale :to :p/sys}\n"
+                 "  {:el :stakeholder :id :p/ops :name \"Ops\"}\n"
+                 "  {:el :stakeholder-of :id :p/ops-of :from :p/ops :to :p/sys}\n"
+                 "  {:el :non-goal :id :p/ui :name \"UI\"}}\n"))
+      (let [oi (index/build {:root dir :src [] :registry [] :packs {:overarch {:models ["models"]}}})]
+        (check "overarch: a decision, risk or non-goal with no relation of its kind from it concerns nothing, at the element; any other relation isn't its kind"
+               (= #{[:p/lang :decision-for 2] [:p/scale :risk-for 5] [:p/ui :non-goal-for 9]}
+                  (set (map (juxt :dev-id :rel (comp :line :definition)) (problems oi :concerns-nothing))))))
+      (fs/delete-tree dir))
+
     ;; ---- check --fail-on: which problems fail a CI run
     (let [ps [{:severity :error} {:severity :warning} {:severity :info}]]
       (check "--fail-on error fails on errors only; warning on warnings and errors; info on all"

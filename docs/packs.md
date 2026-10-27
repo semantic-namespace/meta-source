@@ -854,6 +854,11 @@ says. `check` adds:
 
 - `:relation-to-nothing` (error): a relation's `:from` or `:to` names no
   element of the model; Overarch can't draw it;
+- `:concerns-nothing` (info): a `:decision`, `:goal`, `:non-goal`, `:risk`
+  or `:stakeholder` has no relation of its kind from it (`:decision-for`,
+  `:goal-for`, `:non-goal-for`, `:risk-for`, `:stakeholder-of`, Overarch
+  0.43): the model doesn't say what it is about. Another relation isn't
+  read as one;
 - `:view-of-nothing` (error): a view refers to an id the model doesn't define;
 - `:element-defined-twice` (error): two elements share an id;
 - `:element-in-no-view` (info): no view shows the element, its ancestors or
