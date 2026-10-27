@@ -886,3 +886,8 @@ Not read: models written in code, `:spec` selections (they are kept, not
 resolved), and Overarch's templates and plugins.
 
 ![An Overarch model whose ids are atlas ids: a relation the registry doesn't declare, then declared, in Emacs](images/meta-source-overarch.gif)
+
+Overarch 0.43's own model, its decisions: each concerns nothing until a
+`:decision-for` relation says what it decides.
+
+![Overarch's own decisions in Emacs: a decision that concerns nothing, then a :decision-for relation to the Overarch system](images/meta-source-overarch-decisions.gif)
