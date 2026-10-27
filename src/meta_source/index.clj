@@ -598,7 +598,11 @@
                                                 (first (remove #(or (= :edn (:kind %)) (:refers %)) defs))
                                                 (first (remove :refers defs))
                                                 (first defs))]]
-                          [id (assoc primary :entry entry :definitions defs)]))
+                          [id (cond-> (assoc primary :entry entry :definitions defs)
+                                ;; a unioned key: where each of its values was given
+                                (get-in merged [:value-provenance id])
+                                (assoc :given-by (update-vals (get-in merged [:value-provenance id])
+                                                              (fn [by-v] (update-vals by-v (fn [ls] (mapv #(definition id %) ls)))))))]))
         ;; what packs derive from what was read (atlas's types for routes and
         ;; components): facts that fill a key no source gave, never one one did
         static (reduce (fn [st p]

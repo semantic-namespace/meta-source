@@ -155,6 +155,20 @@ them. A condition is a map, and every key in it must hold:
 
 ![Rules about one property, :resolves and :refs, in Emacs](images/meta-source-rule-refs.gif)
 
+A violation is reported at the entity's definition and at each offender's.
+When the offender comes through a key whose values are unioned across
+sources (`:merge` in `meta-source.edn`, or a pack's), it is also reported
+where that value was given: the other file, or the relation drawn, that
+broke the rule. With `{:merge {:app/deps :union}}` and `wiring.edn` adding
+`{:app/domain {:app/deps [:app/adapter]}}`:
+
+```
+warning registry/app.edn:1   …: :app/domain (:app/adapter), given at registry/wiring.edn:2  [:rule/layers]
+```
+
+The editor marks `wiring.edn:2` too. For `:reaches`, the place is where the
+path's first step was given.
+
 A rule over what an entity depends on, through code as well as entries:
 
 ```clojure

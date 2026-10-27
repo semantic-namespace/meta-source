@@ -317,10 +317,25 @@
                              (when (contains? c :reached-by)
                                (let [r (reachers view (or (:via (:reached-by c)) depends-on) id)]
                                  (into {} (for [b broken :when (contains? r b)] [b (get r b)]))))))]
-        :when (or own-fails? (some some? results))]
+        :when (or own-fails? (some some? results))
+        ;; where `id`'s entry was given each offender (or a :reaches path's
+        ;; first step), when a unioned key carries it: a relation drawn in
+        ;; another place than the entity's own definition
+        :let [given (get-in view [:entities id :given-by])
+              at (fn [ks v] (distinct (for [[k by-v] (sort-by (comp str key) given)
+                                            :when (or (nil? ks) (contains? ks k))
+                                            d (get by-v v)]
+                                        d)))
+              given-at (vec (distinct
+                             (for [o broken
+                                   d (concat (when (contains? c :refs) (at (set (keys (:refs c))) o))
+                                             (when (contains? c :deps) (at nil o))
+                                             (when-let [path (get paths o)] (at nil (or (first path) o))))]
+                               {:offender o :at d})))]]
     (cond-> {:clause c}
       (seq broken) (assoc :offenders broken)
-      (seq paths) (assoc :paths paths))))
+      (seq paths) (assoc :paths paths)
+      (seq given-at) (assoc :given-at given-at))))
 
 (defn check
   "The findings `rules` give over `view`: {:entities, :data-key? (fn [e]),
@@ -363,6 +378,11 @@
                          :definition ((:loc view) (get (:entities view) e-id))}
                   (:doc rule) (assoc :doc (:doc rule))
                   (some :paths fs) (assoc :paths (apply merge (keep :paths fs)))
+                  ;; where each offender was given: the place an editor marks first
+                  (some :given-at fs)
+                  (assoc :given-at (vec (distinct (for [{:keys [offender at]} (mapcat :given-at fs)
+                                                        :let [l ((:loc view) at)] :when l]
+                                                    (assoc l :offender offender)))))
                   (some :offenders fs)
                   (assoc :offenders (vec (distinct (mapcat :offenders fs)))
                          ;; where each is defined: an editor marks them too
