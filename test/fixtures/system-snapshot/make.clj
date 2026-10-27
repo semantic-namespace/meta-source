@@ -18,7 +18,8 @@
 
 (def router
   (ring/router
-   [["/api" {:middleware [[#'wrap]]}
+   ;; middleware as a real app gives it: a fn, which reitit accepts (a #'var it doesn't)
+   [["/api" {:middleware [[wrap]]}
      ["/users/:id" {:name :api/user :get {:handler #'handler}}]
      ["/login" {:post {:handler handler}}]]
     ["/about" {:name :page/about :get handler}]]))

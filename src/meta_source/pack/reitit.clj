@@ -386,11 +386,21 @@
   "{route-name entry} for the named routes the running `router` has, as
    reitit compiled them: what code built (an :expand fn, a tree assembled
    at runtime) included. reitit.core/routes is resolved here: the process
-   has reitit. Handlers and middleware given as #'vars or keywords are
-   named; fns are not."
+   has reitit. Handlers and middleware given as #'vars, keywords, top-level
+   fns (by their class) or maps with a :name are named; anonymous fns and
+   closures are not."
   [router]
   (let [routes ((requiring-resolve 'reitit.core/routes) router)
-        named (fn [x] (cond (var? x) (symbol x) (keyword? x) x (and (vector? x) (seq x)) (recur (first x))))]
+        ;; a top-level fn is named by its class (user$wrap is user/wrap); a
+        ;; closure or anonymous fn has no name to give
+        fn-name (fn [f] (let [c (.getName (class f))]
+                          (when-not (re-find #"\$fn__|\$reify__|__\d+$" c)
+                            (let [[_ n v] (re-find #"^(.+?)\$([^$]+)$" c)]
+                              (when (and n v) (symbol (clojure.lang.Compiler/demunge n) (clojure.lang.Compiler/demunge v)))))))
+        named (fn [x] (cond (var? x) (symbol x) (keyword? x) x
+                            (map? x) (let [n (:name x)] (when (or (keyword? n) (symbol? n)) n))
+                            (fn? x) (fn-name x)
+                            (and (vector? x) (seq x)) (recur (first x))))]
     (into (sorted-map)
           (for [[path data] routes
                 :let [n (:name data)]

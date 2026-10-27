@@ -15,7 +15,9 @@
    :reitit {:api/user {:reitit/path "/api/users/:id" :reitit/methods [:get]
                        :reitit/handlers ['user/handler]
                        :reitit/middleware ['user/wrap]}
-            :page/about {:reitit/path "/about" :reitit/methods [:get]}}})
+            ;; a handler given as a fn is named by its class
+            :page/about {:reitit/path "/about" :reitit/methods [:get]
+                         :reitit/handlers ['user/handler]}}})
 
 (defn -main [& _]
   (let [{:keys [out]} (p/shell {:out :string}
