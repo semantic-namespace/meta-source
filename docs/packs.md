@@ -906,3 +906,9 @@ Overarch 0.43's own model, its decisions: each concerns nothing until a
 `:decision-for` relation says what it decides.
 
 ![Overarch's own decisions in Emacs: a decision that concerns nothing, then a :decision-for relation to the Overarch system](images/meta-source-overarch-decisions.gif)
+
+Overarch's own `model.edn`, read as Overarch's input model reader reads it: a
+relation written without `:id` is found by the id Overarch generates, and
+what Overarch would reject on load is an error as it's written.
+
+![Overarch's own model in Emacs: a generated relation id, a relation without :from, a container with no id](images/meta-source-overarch-reader.gif)
