@@ -1412,6 +1412,39 @@
                   (set (map :dev-id (:referenced-by (index/uses oi :shop/orders-db)))))))
       (fs/delete-tree dir))
 
+    ;; ---- the overarch pack: ids Overarch generates, containment, what it rejects
+    (let [dir (str (fs/create-temp-dir))]
+      (fs/create-dirs (str dir "/models"))
+      (spit (str dir "/models/model.edn")
+            (str "#{{:el :system :id :g/shop :name \"Shop\" :desc \"the shop\"\n"
+                 "   :ct #{{:el :container :name \"Order API\"}\n"
+                 "         {:ref :g/db}}}\n"
+                 "  {:el :container :id :g/db :name \"DB\"}\n"
+                 "  {:el :rel :from :g/shop-order-api-container :to :g/db}\n"
+                 "  {:el :rel :to :g/db}\n"
+                 "  {:el :container :name \"Orphan\"}\n"
+                 "  {:el :system :id :g/other :name \"Other\"}\n"
+                 "  {:el :contained-in :from :g/db :to :g/other}}\n"))
+      ;; Overarch merges a relation written the same in two files
+      (spit (str dir "/models/more.edn") "#{{:el :rel :from :g/shop-order-api-container :to :g/db}}\n")
+      (let [oi (index/build {:root dir :src [] :registry [] :packs {:overarch {:models ["models"] :desc true}}})
+            ps (fn [p] (set (map (juxt :dev-id :line) (map #(assoc % :line (or (:line %) (get-in % [:definition :line]))) (problems oi p)))))]
+        (check "overarch: a child node without :id gets Overarch's generated id, contained in its parent"
+               (and (= :container (get-in (index/where oi :g/shop-order-api-container) [:entry :overarch/el]))
+                    (= #{:g/shop-order-api-container :g/db} (set (get-in (index/where oi :g/shop) [:entry :overarch/contains])))))
+        (check "overarch: a relation without :id gets Overarch's generated id, each at its own line; the same relation written twice is one"
+               (and (= :g/db (get-in (index/where oi :g/shop-order-api-container-rel-db) [:entry :overarch/to]))
+                    (= 5 (get-in (index/where oi :g/shop-order-api-container-rel-db) [:definition :line]))
+                    (empty? (problems oi :element-defined-twice))))
+        (check "overarch: what Overarch rejects on load is an error where it's written: a relation kind with no :from, a top-level node with no :id"
+               (and (= #{[nil 6]} (ps :relation-missing-end))
+                    (= #{[nil 7]} (ps :missing-id))))
+        (check "overarch: a :ref in a :ct and a :contained-in relation both contain: two parents is a parent override"
+               (= #{[:g/db 4]} (ps :parent-override)))
+        (check "overarch: with :desc true, a node without :desc is info"
+               (= #{:g/db :g/other :g/shop-order-api-container} (set (map :dev-id (problems oi :missing-desc))))))
+      (fs/delete-tree dir))
+
     ;; ---- the overarch pack: a decision, risk, goal… says what it concerns
     (let [dir (str (fs/create-temp-dir))]
       (fs/create-dirs (str dir "/models"))

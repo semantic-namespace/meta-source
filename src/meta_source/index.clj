@@ -200,8 +200,10 @@
 ;;                          each with its :file; files is [{:file :path :text}],
 ;;                          all of them at once, so a key several files define
 ;;                          can be one result (meta-source.read/keyed-lines
-;;                          reads them with each key's line)
-;;   :pack/derive           (fn [entities opts]) → {id {key value}}: facts it
+;;                          reads them with each key's line). A result may
+;;                          instead be a finding, {:row :kind :problem
+;;                          :severity ...}: what the library rejects on load
+;;   :pack/derive          (fn [entities opts]) → {id {key value}}: facts it
 ;;                          derives from what every pack read, entities being
 ;;                          {id {:entry merged-entry :kinds #{source-kind}}}
 ;;                          (atlas's: a route is an :atlas/interface-endpoint).
@@ -1303,6 +1305,11 @@
      ;; a form not read; one a pack says breaks its pattern (docs/pattern.md),
      ;; when the project asks for it (:pattern true in the pack's options), is
      ;; :off-pattern instead
+     ;; a finding a pack made reading its data: something the library itself
+     ;; rejects when it loads it (an Overarch element with no id)
+     (for [{:keys [file row kind problem] :as r} (:pack-data-results idx)
+           :when problem]
+       (merge (dissoc r :file :row :kind) {:pack kind :file (relative (:root idx) file) :line row}))
      (for [{:keys [file row kind skipped pattern]} (concat (for [[f {:keys [pack-results]}] (sort-by key (:code idx))
                                                                  [_ results] (sort-by key pack-results)
                                                                  r results]

@@ -831,8 +831,9 @@ read; transitions added at runtime; guards and actions, which are fns.
 
 An [Overarch](https://github.com/soulspace-org/overarch) model is EDN: sets of
 element maps, read as data. Nothing is loaded or run. Each element is an
-entity under its `:id`, with what the model says of it and the elements its
-`:ct` holds:
+entity under its `:id`, with what the model says of it and the elements it
+contains: those its `:ct` holds or refers to (`{:ref …}`), and those a
+`:contained-in` relation puts in it:
 
 ```clojure
 :shop/system #:overarch{:el :system :name "Shop" :contains [:shop/api :shop/orders-db]}
@@ -846,12 +847,26 @@ views showing it. A view (an element whose `:el` ends in `-view`) gives
 `:overarch/shows`, the ids its `:ct` refers to, or `:overarch/selection`, the
 criteria Overarch resolves when it renders.
 
+Elements are read as Overarch's input model reader reads them. An `:id` left
+out is the one Overarch generates: a relation's from its ends
+(`:shop/api-rel-orders-db`), a node's from its parent's `:id` and its name
+(`:shop/system-order-api-container`), so those ids hover and check like any
+other. A relation written the same in two files is one, as Overarch merges
+it.
+
 The pack describes its elements, and depicts them (`:pack/depicts?`): the
 atlas adapter exports atlas ids as they are, so a model element is often an
 entity a registry or another pack defines, and what the system says of it
 stays its primary definition, the model's facts beside it. That is what lets `check` compare the model with what the system
 says. `check` adds:
 
+- `:missing-id` (error): a node or view with no `:id` and none Overarch can
+  generate (a node's needs a parent written with an `:id`, and a `:name`);
+- `:relation-missing-end` (error): a relation kind (`:rel`, `:request`…)
+  without `:from` or `:to`, which Overarch reads as a node;
+- `:parent-override` (error): an element contained in two parents;
+- `:missing-desc` (info, with `:desc true` in the pack's options): a node
+  without `:desc`;
 - `:relation-to-nothing` (error): a relation's `:from` or `:to` names no
   element of the model; Overarch can't draw it;
 - `:concerns-nothing` (info): a `:decision`, `:goal`, `:non-goal`, `:risk`
