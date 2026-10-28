@@ -1400,6 +1400,46 @@
                     (not-any? #(re-find #"failed reading" (str (:reason %))) (problems declared :pack-form-not-read)))))
       (fs/delete-tree dir))
 
+    ;; ---- the namespaces pack: a project's namespaces as entities, by a stated convention
+    (let [dir (str (fs/create-temp-dir))]
+      (doseq [d ["src/app/web" "src/lib" "rules"]] (fs/create-dirs (str dir "/" d)))
+      (spit (str dir "/src/app.clj") "(ns app)\n")
+      (spit (str dir "/src/app/core.clj") "(ns app.core\n  (:require [app.db :as db]\n            [clojure.string :as str]\n            [lib.x]))\n")
+      (spit (str dir "/src/app/db.clj") "(ns app.db)\n")
+      (spit (str dir "/src/app/ui.cljc") "(ns app.ui (:require [app.db]))\n")
+      (spit (str dir "/src/app/web/handler.clj") "(ns app.web.handler\n  (:require [app.core] [app.db]))\n")
+      (spit (str dir "/src/lib/x.clj") "(ns lib.x)\n")
+      (spit (str dir "/rules/layers.edn")
+            (str "{:layers/web-through-core\n"
+                 " {:doc \"web reaches the database through core only\"\n"
+                 "  :when {:id-ns \"shop.web\"}\n"
+                 "  :require [{:deps {:none {:id :shop/db}}}]}}\n"))
+      (let [ix (index/build {:root dir :src ["src"] :registry [] :rules ["rules"]
+                             :packs {:namespaces {:roots {"app" "shop"} :pattern true}}})
+            by-longest (index/build {:root dir :src ["src"] :registry []
+                                     :packs {:namespaces {:roots {"app" "shop" "app.web" "web"}}}})]
+        (check "namespaces: a namespace under a root is an entity, its id the rest of its name; what it requires under a root, by id; a library's isn't named"
+               (and (= "app.core" (get-in (index/where ix :shop/core) [:entry :meta-source/ns]))
+                    (= #{:shop/db} (set (get-in (index/where ix :shop/core) [:entry :meta-source/requires])))
+                    (= "app.web.handler" (get-in (index/where ix :shop.web/handler) [:entry :meta-source/ns]))
+                    (= "app.ui" (get-in (index/where ix :shop/ui) [:entry :meta-source/ns]))
+                    (nil? (index/where ix :shop/x))
+                    (not-any? #(= "lib.x" (get-in % [:entry :meta-source/ns])) (vals (:entities ix)))))
+        (check "namespaces: uses lists what requires a namespace"
+               (= #{:shop/core :shop/ui :shop.web/handler}
+                  (set (map :dev-id (:referenced-by (index/uses ix :shop/db))))))
+        (check "namespaces: a rule says which may require which, at the namespace breaking it, naming what it requires and not again where"
+               (and (= #{[:shop.web/handler 1]}
+                       (set (map (juxt :dev-id (comp :line :definition)) (problems ix :rule-violated))))
+                    (every? #(and (str/includes? (hover/message % (:dev-id %)) "(:shop/db)")
+                                  (not (str/includes? (hover/message % (:dev-id %)) "given at")))
+                            (problems ix :rule-violated))))
+        (check "namespaces: with :pattern true, a root namespace, with no name under the root, is off-pattern"
+               (= [:pattern/namespace-under-root] (map :pattern (problems ix :off-pattern))))
+        (check "namespaces: the longest root a namespace is under maps it"
+               (and (some? (index/where by-longest :web/handler)) (nil? (index/where by-longest :shop.web/handler)))))
+      (fs/delete-tree dir))
+
     ;; ---- check --fail-on: which problems fail a CI run
     (let [ps [{:severity :error} {:severity :warning} {:severity :info}]]
       (check "--fail-on error fails on errors only; warning on warnings and errors; info on all"
