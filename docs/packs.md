@@ -845,7 +845,8 @@ from, `:overarch/relates-to` (unioned across relations). So `deps` on an element
 lists what the model says it relates to, and `uses` the elements relating to it and the
 views showing it. A view (an element whose `:el` ends in `-view`) gives
 `:overarch/shows`, the ids its `:ct` refers to, or `:overarch/selection`, the
-criteria Overarch resolves when it renders.
+criteria Overarch resolves when it renders, written in the view's `:spec` or on
+the view itself (Overarch merges the two, `:spec` winning).
 
 Elements are read as Overarch's input model reader reads them. An `:id` left
 out is the one Overarch generates: a relation's from its ends

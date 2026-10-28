@@ -299,8 +299,8 @@
            :view-of-nothing (str id " shows "(pr-str (:to p)) ", which the model doesn't define")
            :element-defined-twice (str "the model defines " id " twice")
            :element-in-no-view (str "no view shows " id)
-           :model-relation-not-declared (str "the model relates " id " to " (pr-str (:to p)) ", which nothing else says of it names")
-           :relation-missing-from-model (str id " names " (pr-str (:to p)) ", and the model draws no relation between them")
+           :model-relation-not-declared (str "the model relates " id " to " (pr-str (:to p)) ", and nothing else describing " id " names " (pr-str (:to p)))
+           :relation-missing-from-model (str id " names " (pr-str (:to p)) ", and the model draws no relation from it to " (pr-str (:to p)))
            (str (name (:problem p)) (when id (str " " id)) (when (seq (:keys p)) (str " " ks))
                 (when (:reason p) (str ": " (:reason p))) (when (:message p) (str ": " (:message p))))))))
 

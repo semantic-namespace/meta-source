@@ -1464,6 +1464,26 @@
                   (set (map (juxt :dev-id :rel (comp :line :definition)) (problems oi :concerns-nothing))))))
       (fs/delete-tree dir))
 
+    ;; ---- the overarch pack: a view's spec keys, in :spec or on the view
+    (let [dir (str (fs/create-temp-dir))]
+      (fs/create-dirs (str dir "/models"))
+      (spit (str dir "/models/model.edn")
+            (str "#{{:el :system :id :s/sys :name \"Sys\"}\n"
+                 "  {:el :container-view :id :s/top :selection {:namespace \"s\"} :ct []}\n"
+                 "  {:el :context-view :id :s/laid-out :spec {:layout :left-right}}}\n"))
+      (fs/create-dirs (str dir "/plain"))
+      (spit (str dir "/plain/model.edn")
+            (str "#{{:el :system :id :s/sys :name \"Sys\"}\n"
+                 "  {:el :context-view :id :s/laid-out :spec {:layout :left-right}}}\n"))
+      (let [oi (index/build {:root dir :src [] :registry [] :packs {:overarch {:models ["models"]}}})
+            plain (index/build {:root dir :src [] :registry [] :packs {:overarch {:models ["plain"]}}})]
+        (check "overarch: a :selection on the view itself is a selection, as Overarch merges :spec into the view; a :spec that only lays out selects nothing"
+               (and (= {:namespace "s"} (get-in (index/where oi :s/top) [:entry :overarch/selection]))
+                    (nil? (get-in (index/where oi :s/laid-out) [:entry :overarch/selection]))))
+        (check "overarch: a view listing nothing is a view, not an element no view shows"
+               (= #{:s/sys} (set (map :dev-id (problems plain :element-in-no-view))))))
+      (fs/delete-tree dir))
+
     ;; ---- check --fail-on: which problems fail a CI run
     (let [ps [{:severity :error} {:severity :warning} {:severity :info}]]
       (check "--fail-on error fails on errors only; warning on warnings and errors; info on all"

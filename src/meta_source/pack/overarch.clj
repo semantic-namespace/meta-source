@@ -20,7 +20,10 @@
    on an element lists what the model says it relates to, and `uses` the
    elements relating to it and the views showing it. A view is an element
    whose :el ends in -view: :overarch/shows, the ids its :ct refers to, and
-   :overarch/selection, a selection Overarch resolves when it renders.
+   :overarch/selection, the criteria it selects by, which Overarch resolves
+   when it renders. A view's spec keys (:selection, :include, :layout…) are
+   written in its :spec or on the view itself: Overarch merges the two, :spec
+   winning.
 
    The pack describes its elements, as atlas describes an integrant key: an
    element's id is often another registry's id (the atlas adapter exports
@@ -138,10 +141,11 @@
                   {:file file :row row :kind kind :dev-id (:from m) :refers true
                    :entry {:overarch/relates-to #{(:to m)}}}]
                  (view? m)
-                 [{:file file :row row :kind kind :dev-id id
-                   :entry (cond-> (some-keys m [:el :title :desc])
-                            (seq (keep :ref (:ct m))) (assoc :overarch/shows (vec (distinct (keep :ref (:ct m)))))
-                            (:spec m) (assoc :overarch/selection (get-in m [:spec :selection] (:spec m))))}]
+                 (let [selection (:selection (merge (dissoc m :spec) (:spec m)))]
+                   [{:file file :row row :kind kind :dev-id id
+                     :entry (cond-> (some-keys m [:el :title :desc])
+                              (seq (keep :ref (:ct m))) (assoc :overarch/shows (vec (distinct (keep :ref (:ct m)))))
+                              selection (assoc :overarch/selection selection))}])
                  :else
                  (cond-> [{:file file :row row :kind kind :dev-id id
                            :entry (some-keys m [:el :name :desc :tech :tags :external :subtype])}]
@@ -229,10 +233,10 @@
   (let [model (into {} (filter (fn [[_ e]] (seq (own-defs e)))) (of-kinds #{kind}))
         el-of #(get-in model [% :entry :overarch/el])
         rel? (fn [id] (some? (get-in model [id :entry :overarch/from])))
-        view-of? (fn [id] (contains? (get-in model [id :entry]) :overarch/shows))
+        ;; a view by its kind: one listing nothing is a view still
+        view-of? (fn [id] (view? {:el (el-of id)}))
         sel-view? (some #(contains? (:entry %) :overarch/selection) (vals model))
-        elements (into {} (remove (fn [[id e]] (or (rel? id) (view-of? id) (contains? (:entry e) :overarch/selection)
-                                                   (#{:theme :view-spec} (el-of id)))))
+        elements (into {} (remove (fn [[id _]] (or (rel? id) (view-of? id) (#{:theme :view-spec} (el-of id)))))
                        model)
         shown (set (mapcat #(get-in % [:entry :overarch/shows]) (vals model)))
         ;; containment: by :ct and a :ref in a :ct, and :contained-in relations
