@@ -848,7 +848,7 @@ source (`rules/architecture.edn`):
 
 ```clojure
 {:meta-source.architecture/packs-stand-alone
- {:doc "A pack requires only read and other packs, never the index or a front end"
+ {:doc "A pack requires only read and other packs"
   :severity :error
   :when {:id-ns "meta-source.pack"}
   :require [{:deps {:all {:or [{:id-ns "meta-source.pack"} {:id :meta-source/read}]}}}]}}
