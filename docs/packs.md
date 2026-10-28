@@ -931,6 +931,8 @@ components are named that way (`:overarch.domain/model` is
          :overarch {:models ["models/overarch/architecture"]}}}
 ```
 
+![Overarch's own repo in Emacs: its model against its code, a generated id, decisions that concern nothing](images/meta-source-overarch-overview.gif)
+
 ## A project's own namespaces: the namespaces pack
 
 ```clojure
