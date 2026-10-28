@@ -821,3 +821,49 @@ Not read: a state whose name is code (a template machine), reported as not
 read; transitions added at runtime; guards and actions, which are fns.
 
 ![A tilakone machine: a renamed state, the transition left behind, in Emacs](images/meta-source-tilakone.gif)
+
+## A project's own namespaces: the namespaces pack
+
+```clojure
+:namespaces {:roots {org.acme.shop shop}}
+```
+
+The pack gives each of the project's namespaces an id, by a naming convention
+the project states: the roots it maps. A namespace under a root is an entity
+whose id is the rest of its name, its last segment the id's name:
+`org.acme.shop.orders.api` is `:shop.orders/api`, `org.acme.shop.db` is
+`:shop/db`. When a namespace is under several roots, the longest maps it.
+Read from clj-kondo's analysis; nothing is loaded.
+
+```clojure
+#:meta-source{:ns "org.acme.shop.orders.api"
+              :requires [:shop/db :shop.orders/model]}
+```
+
+`:meta-source/requires` names what it requires under a root. A library's
+namespaces aren't the system's, and aren't named. So `deps` on a namespace
+lists what of the project it requires, `uses` what requires it, and rules say
+which may require which. meta-source's own layering, checked on its own
+source (`rules/architecture.edn`):
+
+```clojure
+{:meta-source.architecture/packs-stand-alone
+ {:doc "A pack requires read and other packs only"
+  :severity :error
+  :when {:id-ns "meta-source.pack"}
+  :require [{:deps {:all {:or [{:id-ns "meta-source.pack"} {:id :meta-source/read}]}}}]}}
+```
+
+A violation is reported at the namespace's `ns` form, naming what it requires,
+and for `:reaches` the path: `:meta-source/index (:meta-source/read →
+:meta-source/hover)`.
+
+The ids are the ones the rest of the project can use. An architecture
+model's component or an atlas entity written under the same id is the same
+entity, and what it says about the namespace is compared with what the
+namespace requires.
+
+Nothing is guessed: a namespace is under a root or it isn't. A root
+namespace itself has no name under the root to give its id. It isn't read,
+and with `:pattern true` in the pack's options it is `:off-pattern`
+(`:pattern/namespace-under-root`).

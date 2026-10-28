@@ -1,0 +1,19 @@
+;; How meta-source is put together, checked on its own source
+;; (meta-source.edn). docs/architecture.md says why.
+{:meta-source.architecture/packs-stand-alone
+ {:doc "A pack requires read and other packs only: never the index, the rules or a front end, so it stays a map the index runs"
+  :severity :error
+  :when {:id-ns "meta-source.pack"}
+  :require [{:deps {:all {:or [{:id-ns "meta-source.pack"} {:id :meta-source/read}]}}}]}
+
+ :meta-source.architecture/core-without-front-ends
+ {:doc "The index and what it is built from never reach a front end: the CLI, hover, the corpus"
+  :severity :error
+  :when {:id #{:meta-source/index :meta-source/rules :meta-source/merge :meta-source/read}}
+  :require [{:reaches {:none {:id #{:meta-source/cli :meta-source/hover :meta-source/corpus}}}}]}
+
+ :meta-source.architecture/leaves
+ {:doc "read, merge and rules require nothing of meta-source's"
+  :severity :error
+  :when {:id #{:meta-source/read :meta-source/merge :meta-source/rules}}
+  :require [{:missing :meta-source/requires}]}}

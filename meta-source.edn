@@ -1,0 +1,7 @@
+;; meta-source on its own source: each namespace under meta-source is an
+;; entity (meta-source.pack.reitit is :meta-source.pack/reitit), and
+;; rules/architecture.edn says which may require which.
+{:src ["src"]
+ :registry []
+ :packs {:namespaces {:roots {meta-source meta-source} :pattern true}}
+ :rules ["rules"]}
