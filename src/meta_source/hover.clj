@@ -255,8 +255,12 @@
                                                                (str/join " → " (map pr-str path))
                                                                (pr-str o))))
                                       ")"))
-                               (when (seq (:given-at p))
-                                 (str ", given at " (str/join ", " (distinct (for [g (:given-at p)] (str (:file g) ":" (:line g)))))))
+                               ;; where it was given, when that's not where it's reported
+                               (when-let [gs (seq (distinct (for [g (:given-at p)
+                                                                  :let [l (str (:file g) ":" (:line g))]
+                                                                  :when (not= l (str (get-in p [:definition :file]) ":" (get-in p [:definition :line])))]
+                                                              l)))]
+                                 (str ", given at " (str/join ", " gs)))
                                "  [" (pr-str (:rule p)) "]")
            :rule-unverifiable (str (or (:doc p) (pr-str (:rule p))) ": " id
                                    (if (= :unknown (:applies p)) ", whether it applies" "")

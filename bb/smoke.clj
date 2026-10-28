@@ -1428,9 +1428,12 @@
         (check "namespaces: uses lists what requires a namespace"
                (= #{:shop/core :shop/ui :shop.web/handler}
                   (set (map :dev-id (:referenced-by (index/uses ix :shop/db))))))
-        (check "namespaces: a rule says which may require which, at the namespace breaking it"
-               (= #{[:shop.web/handler 1]}
-                  (set (map (juxt :dev-id (comp :line :definition)) (problems ix :rule-violated)))))
+        (check "namespaces: a rule says which may require which, at the namespace breaking it, naming what it requires and not again where"
+               (and (= #{[:shop.web/handler 1]}
+                       (set (map (juxt :dev-id (comp :line :definition)) (problems ix :rule-violated))))
+                    (every? #(and (str/includes? (hover/message % (:dev-id %)) "(:shop/db)")
+                                  (not (str/includes? (hover/message % (:dev-id %)) "given at")))
+                            (problems ix :rule-violated))))
         (check "namespaces: with :pattern true, a root namespace, with no name under the root, is off-pattern"
                (= [:pattern/namespace-under-root] (map :pattern (problems ix :off-pattern))))
         (check "namespaces: the longest root a namespace is under maps it"
