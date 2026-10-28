@@ -1563,6 +1563,30 @@
                (= #{:s/sys} (set (map :dev-id (problems plain :element-in-no-view))))))
       (fs/delete-tree dir))
 
+    ;; ---- the overarch and namespaces packs: the model against what the code requires
+    (let [dir (str (fs/create-temp-dir))]
+      (doseq [d ["src/app" "models"]] (fs/create-dirs (str dir "/" d)))
+      (spit (str dir "/src/app/api.clj") "(ns app.api\n  (:require [app.db] [app.audit]))\n")
+      (spit (str dir "/src/app/db.clj") "(ns app.db)\n")
+      (spit (str dir "/src/app/mailer.clj") "(ns app.mailer)\n")
+      (spit (str dir "/src/app/audit.clj") "(ns app.audit)\n")
+      (spit (str dir "/models/model.edn")
+            (str "#{{:el :container :id :shop/api :name \"API\"}\n"
+                 "  {:el :container :id :shop/db :name \"DB\"}\n"
+                 "  {:el :container :id :shop/mailer :name \"Mailer\"}\n"
+                 "  {:el :container :id :shop/audit :name \"Audit\"}\n"
+                 "  {:el :rel :id :shop/api-db :from :shop/api :to :shop/db}\n"
+                 "  {:el :rel :id :shop/api-mailer :from :shop/api :to :shop/mailer}}\n"))
+      (let [ix (index/build {:root dir :src ["src"] :registry []
+                             :packs {:namespaces {:roots {"app" "shop"}} :overarch {:models ["models"]}}})
+            ps (fn [p] (set (map (juxt :dev-id :to (comp :line :definition)) (problems ix p))))]
+        (check "overarch + namespaces: a relation the model draws and the code doesn't require is a warning at the relation; a require the model doesn't draw is info"
+               (and (= #{[:shop/api :shop/mailer 6]} (ps :model-relation-not-declared))
+                    (= #{[:shop/api :shop/audit 1]} (ps :relation-missing-from-model))))
+        (check "overarch + namespaces: the namespace is the component's primary definition, the model a picture of it"
+               (str/ends-with? (get-in (index/where ix :shop/api) [:definition :file]) "src/app/api.clj")))
+      (fs/delete-tree dir))
+
     ;; ---- check --fail-on: which problems fail a CI run
     (let [ps [{:severity :error} {:severity :warning} {:severity :info}]]
       (check "--fail-on error fails on errors only; warning on warnings and errors; info on all"

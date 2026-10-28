@@ -914,6 +914,23 @@ relation written without `:id` is found by the id Overarch generates, and
 what Overarch would reject on load is an error as it's written.
 
 ![Overarch's own model in Emacs: a generated relation id, a relation without :from, a container with no id](images/meta-source-overarch-reader.gif)
+
+### The model against the code
+
+With the namespaces pack, a model whose components are named by the same
+convention as the namespaces is checked against what the namespaces require,
+by the checks above: a relation the model draws that the code doesn't have is
+`:model-relation-not-declared`, a require between modelled components that the
+model doesn't draw is `:relation-missing-from-model`. Overarch's own
+components are named that way (`:overarch.domain/model` is
+`org.soulspace.overarch.domain.model`):
+
+```clojure
+{:src ["src"]
+ :packs {:namespaces {:roots {org.soulspace.overarch overarch}}
+         :overarch {:models ["models/overarch/architecture"]}}}
+```
+
 ## A project's own namespaces: the namespaces pack
 
 ```clojure
