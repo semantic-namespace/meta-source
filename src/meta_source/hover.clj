@@ -180,6 +180,7 @@
    (for [k [:definition :impl] :let [l (get p k)] :when (:file l)] l)
    (filter :file (:vars p))
    (filter :file (:definitions p))
+   (filter :file (:given-at p))
    (for [v (:values p) s (:sources v) :when (:file s)] s)))
 
 (defn- token-at
@@ -257,6 +258,12 @@
                                                                (str/join " → " (map pr-str path))
                                                                (pr-str o))))
                                       ")"))
+                               ;; where it was given, when that's not where it's reported
+                               (when-let [gs (seq (distinct (for [g (:given-at p)
+                                                                  :let [l (str (:file g) ":" (:line g))]
+                                                                  :when (not= l (str (get-in p [:definition :file]) ":" (get-in p [:definition :line])))]
+                                                              l)))]
+                                 (str ", given at " (str/join ", " gs)))
                                "  [" (pr-str (:rule p)) "]")
            :rule-unverifiable (str (or (:doc p) (pr-str (:rule p))) ": " id
                                    (if (= :unknown (:applies p)) ", whether it applies" "")

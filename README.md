@@ -193,7 +193,9 @@ two readers, and where each piece lives.
   schema files, the pulls and lookup refs that need them to be refs or
   unique), **tilakone** (state machines, their states and transitions, a
   transition to no state), **Overarch** (an architecture model's elements,
-  relations and views, and where the model and the system disagree), and
+  relations and views, and where the model and the system disagree),
+  **namespaces** (your own namespaces as entities, by a naming convention
+  you state, and what each requires: rules on which may require which), and
   **your own**: a pack is one map.
   [docs/packs.md](docs/packs.md)
 - **Facts merge per keyword.** A file says things about an id; it doesn't

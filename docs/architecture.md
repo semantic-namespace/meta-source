@@ -306,3 +306,11 @@ conformance` and `npm test` check each reader against it.
 | CLI and `serve` | `meta_source/cli.clj` | `js/bin/meta-source-js.js` |
 | packs | `meta_source/pack/*.clj` | modules named in `:js {:packs …}` |
 | editors | `emacs/meta-source.el` | `vscode/` (both readers) |
+
+meta-source is checked on itself. `meta-source.edn` at the root runs the
+namespaces pack over `src/` (`meta-source.pack.reitit` is
+`:meta-source.pack/reitit`), and `rules/architecture.edn` says how it is put
+together: a pack requires only `read` and other packs, so it stays a map the
+index runs; the index and what it is built from never reach the CLI, hover or
+the corpus; `read`, `merge` and `rules` require nothing of meta-source's. CI
+runs `meta-source check` on it.

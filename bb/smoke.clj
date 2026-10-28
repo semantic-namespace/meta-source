@@ -1320,6 +1320,45 @@
                (= [:app.model/user] (get-in idx [:entities :app.spec/owner :entry :spec/req]))))
       (fs/delete-tree dir))
 
+    ;; ---- rules: a violation through a unioned key is located where the value was given
+    (let [dir (str (fs/create-temp-dir))]
+      (fs/create-dirs (str dir "/registry"))
+      (fs/create-dirs (str dir "/rules"))
+      (spit (str dir "/registry/app.edn")
+            (str "{:app/domain {:app/layer :domain :app/deps [:app/util]}\n"
+                 " :app/util {:app/layer :domain}\n"
+                 " :app/adapter {:app/layer :adapter}}\n"))
+      ;; another file draws what the domain depends on
+      (spit (str dir "/registry/wiring.edn")
+            (str "{:app/other {:app/layer :domain}\n"
+                 " :app/domain {:app/deps [:app/adapter]}}\n"))
+      (spit (str dir "/rules/layers.edn")
+            (str "{:rule/refs {:when {:id :app/domain} :require [{:refs {:app/deps {:none {:= {:app/layer :adapter}}}}}]}\n"
+                 " :rule/deps {:when {:id :app/domain} :require [{:deps {:none {:= {:app/layer :adapter}}}}]}\n"
+                 " :rule/reaches {:when {:id :app/domain} :require [{:reaches {:none {:= {:app/layer :adapter}}}}]}}\n"))
+      (let [build (fn [merge] (index/build {:root dir :src [] :registry ["registry"] :rules ["rules"] :cache nil :merge merge}))
+            at (fn [idx] (into {} (for [p (problems idx :rule-violated)]
+                                    [(:rule p) (set (map (juxt :file :line :offender) (:given-at p)))])))
+            unioned (build {:app/deps :union})]
+        (check "rules: through a unioned key, :refs, :deps and :reaches each say where the offending value was given"
+               (= {:rule/refs #{["registry/wiring.edn" 2 :app/adapter]}
+                   :rule/deps #{["registry/wiring.edn" 2 :app/adapter]}
+                   :rule/reaches #{["registry/wiring.edn" 2 :app/adapter]}}
+                  (at unioned)))
+        (check "rules: the editor marks that place too, as well as the entity's own definition"
+               (let [ls (set (map :line (hover/diagnostics unioned "registry/wiring.edn")))]
+                 (contains? ls 2)))
+        ;; one file, the key not unioned: the value is in the entity's own definition
+        (fs/create-dirs (str dir "/single"))
+        (spit (str dir "/single/app.edn")
+              (str "{:app/domain {:app/layer :domain :app/deps [:app/adapter]}\n"
+                   " :app/adapter {:app/layer :adapter}}\n"))
+        (let [single (index/build {:root dir :src [] :registry ["single"] :rules ["rules"] :cache nil})]
+          (check "rules: a key not unioned gives no such place: its value is in the entity's own definition"
+                 (and (= #{:rule/refs :rule/deps :rule/reaches} (set (keys (at single))))
+                      (every? empty? (vals (at single)))))))
+      (fs/delete-tree dir))
+
     ;; ---- re-frame: a project's own registration and dispatch fns
     (let [dir (str (fs/create-temp-dir))]
       (fs/create-dirs (str dir "/src/app"))
@@ -1359,6 +1398,46 @@
         (check "re-frame: an :fx a local names doesn't fail the file"
                (and (= #{:event} (get-in (index/where declared :app.ui/batch) [:entry :re-frame/registered]))
                     (not-any? #(re-find #"failed reading" (str (:reason %))) (problems declared :pack-form-not-read)))))
+      (fs/delete-tree dir))
+
+    ;; ---- the namespaces pack: a project's namespaces as entities, by a stated convention
+    (let [dir (str (fs/create-temp-dir))]
+      (doseq [d ["src/app/web" "src/lib" "rules"]] (fs/create-dirs (str dir "/" d)))
+      (spit (str dir "/src/app.clj") "(ns app)\n")
+      (spit (str dir "/src/app/core.clj") "(ns app.core\n  (:require [app.db :as db]\n            [clojure.string :as str]\n            [lib.x]))\n")
+      (spit (str dir "/src/app/db.clj") "(ns app.db)\n")
+      (spit (str dir "/src/app/ui.cljc") "(ns app.ui (:require [app.db]))\n")
+      (spit (str dir "/src/app/web/handler.clj") "(ns app.web.handler\n  (:require [app.core] [app.db]))\n")
+      (spit (str dir "/src/lib/x.clj") "(ns lib.x)\n")
+      (spit (str dir "/rules/layers.edn")
+            (str "{:layers/web-through-core\n"
+                 " {:doc \"web reaches the database through core only\"\n"
+                 "  :when {:id-ns \"shop.web\"}\n"
+                 "  :require [{:deps {:none {:id :shop/db}}}]}}\n"))
+      (let [ix (index/build {:root dir :src ["src"] :registry [] :rules ["rules"]
+                             :packs {:namespaces {:roots {"app" "shop"} :pattern true}}})
+            by-longest (index/build {:root dir :src ["src"] :registry []
+                                     :packs {:namespaces {:roots {"app" "shop" "app.web" "web"}}}})]
+        (check "namespaces: a namespace under a root is an entity, its id the rest of its name; what it requires under a root, by id; a library's isn't named"
+               (and (= "app.core" (get-in (index/where ix :shop/core) [:entry :meta-source/ns]))
+                    (= #{:shop/db} (set (get-in (index/where ix :shop/core) [:entry :meta-source/requires])))
+                    (= "app.web.handler" (get-in (index/where ix :shop.web/handler) [:entry :meta-source/ns]))
+                    (= "app.ui" (get-in (index/where ix :shop/ui) [:entry :meta-source/ns]))
+                    (nil? (index/where ix :shop/x))
+                    (not-any? #(= "lib.x" (get-in % [:entry :meta-source/ns])) (vals (:entities ix)))))
+        (check "namespaces: uses lists what requires a namespace"
+               (= #{:shop/core :shop/ui :shop.web/handler}
+                  (set (map :dev-id (:referenced-by (index/uses ix :shop/db))))))
+        (check "namespaces: a rule says which may require which, at the namespace breaking it, naming what it requires and not again where"
+               (and (= #{[:shop.web/handler 1]}
+                       (set (map (juxt :dev-id (comp :line :definition)) (problems ix :rule-violated))))
+                    (every? #(and (str/includes? (hover/message % (:dev-id %)) "(:shop/db)")
+                                  (not (str/includes? (hover/message % (:dev-id %)) "given at")))
+                            (problems ix :rule-violated))))
+        (check "namespaces: with :pattern true, a root namespace, with no name under the root, is off-pattern"
+               (= [:pattern/namespace-under-root] (map :pattern (problems ix :off-pattern))))
+        (check "namespaces: the longest root a namespace is under maps it"
+               (and (some? (index/where by-longest :web/handler)) (nil? (index/where by-longest :shop.web/handler)))))
       (fs/delete-tree dir))
 
     ;; ---- the overarch pack: an architecture model read as data
