@@ -867,3 +867,5 @@ Nothing is guessed: a namespace is under a root or it isn't. A root
 namespace itself has no name under the root to give its id. It isn't read,
 and with `:pattern true` in the pack's options it is `:off-pattern`
 (`:pattern/namespace-under-root`).
+
+![meta-source's own layering: a pack requiring the index is an error at its ns form, in Emacs](images/meta-source-namespaces.gif)
