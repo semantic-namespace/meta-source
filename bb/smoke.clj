@@ -477,6 +477,20 @@
                   (map (juxt :dev-id (comp :line :definition) :severity)
                        (problems (index/build {:root dir :src ["src"] :registry [] :packs {:reitit {}}}) :route-not-defined))))
         (fs/delete-tree dir))
+      (let [dir (str (fs/create-temp-dir))]
+        (fs/create-dirs (str dir "/src/app"))
+        (spit (str dir "/src/app/routes.clj")
+              (str "(ns app.routes (:require [reitit.middleware :as rm] [reitit.interceptor :as ri] [app.other :as other]))\n"
+                   "(def mw-router (rm/router [[\"/users\" {:name ::users :handler identity}]]))\n"
+                   "(def ic-router (ri/router [[\"/orders\" {:name ::orders :handler identity}]]))\n"
+                   "(def own-router (other/router [[\"/carts\" {:name ::carts :handler identity}]]))\n"))
+        (let [ix (index/build {:root dir :src ["src"] :registry [] :packs {:reitit {}}})
+              ids (set (keys (:entities ix)))]
+          (check "reitit.middleware and reitit.interceptor routers are router calls: their trees are read"
+                 (and (ids :app.routes/users) (ids :app.routes/orders)))
+          (check "a project's own fn named router isn't reitit's: the tree handed to it isn't read as routes"
+                 (not (ids :app.routes/carts))))
+        (fs/delete-tree dir))
       (check "a route consumes its parameter keys, next to resolvers and functions"
              (some #{:shop.routes/user} (map :dev-id (:consumers (index/data-key ri :user/id))))))
 
@@ -816,7 +830,28 @@
                (empty? (problems ii :init-key-without-config))))
       (fs/delete-tree dir))
 
-;; ---- integrant: config shapes from real systems that read as refs to nothing
+;; ---- integrant: (defmethod ig/init-key :default ...) builds every key with no method of its own
+    (let [build (fn [default?]
+                  (let [dir (str (fs/create-temp-dir))]
+                    (fs/create-dirs (str dir "/resources")) (fs/create-dirs (str dir "/src/app"))
+                    (spit (str dir "/resources/system.edn") "{:app/clock {} :app/db {:clock #ig/ref :app/clock}}\n")
+                    (spit (str dir "/src/app/core.clj")
+                          (str "(ns app.core (:require [integrant.core :as ig]))\n"
+                               "(defn start [config] (ig/init config))\n"
+                               "(defmethod ig/init-key :app/db [_ v] v)\n"
+                               (when default? "(defmethod ig/init-key :default [_ v] v)\n")))
+                    (try (index/build {:root dir :src ["src"] :registry [] :packs {:integrant {:configs ["resources"]}}})
+                         (finally (fs/delete-tree dir)))))
+          with (build true) without (build false)]
+      (check "integrant: a :default init-key builds every key with no method of its own: no key is unbuilt, and the method is read"
+             (and (empty? (problems with :no-init-key))
+                  (empty? (problems with :init-key-without-config))
+                  (not-any? #(re-find #"dispatch value :default" (str (:reason %))) (problems with :pack-form-not-read))
+                  (true? (get-in (index/where with :integrant/default) [:entry :integrant/init-key]))))
+      (check "integrant: without it, a key with no init-key is unbuilt"
+             (= [:app/clock] (map :dev-id (problems without :no-init-key)))))
+
+    ;; ---- integrant: config shapes from real systems that read as refs to nothing
     (let [ig-check (fn [files]
                      (let [dir (str (fs/create-temp-dir))]
                        (doseq [[p text] files] (fs/create-dirs (fs/parent (str dir "/" p))) (spit (str dir "/" p) text))

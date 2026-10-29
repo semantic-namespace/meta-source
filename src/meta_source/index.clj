@@ -35,7 +35,7 @@
 
 (def ^:private bb? (some? (System/getProperty "babashka.version")))
 
-(def cache-version 5)
+(def cache-version 6)
 
 (def default-id-key
   "The meta key a plain var carries to say which id it implements. A
