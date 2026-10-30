@@ -95,6 +95,24 @@ file is reported the same way, for that file, and one whose `:pack/find`
 throws, at the first file. Two packs giving the same
 `:kind` are refused; a `:refer` in an `ns` form is never handed to a pack. `bb smoke` runs a pack like this one.
 
+## What the index doesn't cover: `:not-covered`
+
+meta-source reads conventions: what a project declares as data. What it
+doesn't read, it says, rather than passing over it (`:not-covered`, info):
+
+- the project's source files in a language the index doesn't read (Kotlin,
+  Java, TypeScript, JavaScript, …), anywhere under the root except hidden
+  directories, dependencies (`node_modules`) and build output (`target`,
+  `build`, `dist`, `out`), with how many and where most of them are;
+- a library declaring a system's structure that the project calls and no
+  enabled pack reads: Pedestal (routes and interceptors), Compojure, bidi and
+  Ataraxy (routes), Component, mount, donut.system and clip (a system), with
+  the files calling it. A pack that reads one names its namespaces in
+  `:pack/covers`, and it isn't reported.
+
+A system a function returns is outside the conventions too: the integrant
+pack reports `:checks-not-run` for it and concludes nothing from it.
+
 ## One id, two packs
 
 Data keys are global: a spec and a malli schema shaping `:user/email` are one

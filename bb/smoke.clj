@@ -119,6 +119,12 @@
    :pack/find (fn [_ _] []) :pack/read (fn [_ _ _] [])
    :pack/dataflow-of (fn [entries] {:consumes (vec (keep :flow/in-key (vals entries)))})})
 
+(def pedestal-pack
+  "A project's own pack reading Pedestal's routes (here, nothing): it names
+   the namespaces it covers."
+  {:pack/id :pedestal :pack/kinds #{:pedestal} :pack/covers #{'io.pedestal.http.route}
+   :pack/find (fn [_ _] []) :pack/read (fn [_ _ _] [])})
+
 (def rules-pack
   "A pack deriving rules from what was read: an entry's :rule/as-data is a
    rule, as atlas's invariants carry :invariant/rule."
@@ -880,6 +886,33 @@
       (check "integrant: with the config read, the checks run (control)"
              (and (= [:app/unused] (map :dev-id (problems as-map :init-key-without-config)))
                   (empty? (problems as-map :checks-not-run)))))
+
+    ;; ---- what the index doesn't cover: other languages, libraries no pack reads
+    (let [build (fn [files packs]
+                  (let [dir (str (fs/create-temp-dir))]
+                    (doseq [[p text] files] (fs/create-dirs (fs/parent (str dir "/" p))) (spit (str dir "/" p) text))
+                    (try (index/build {:root dir :src ["src"] :registry [] :packs packs})
+                         (finally (fs/delete-tree dir)))))
+          files {"src/app/web.clj" (str "(ns app.web (:require [io.pedestal.http.route :as route]))\n"
+                                        "(def routes (route/expand-routes #{[\"/\" :get (fn [_] {}) :route-name ::home]}))\n")
+                 "core/src/main/kotlin/app/Node.kt" "class Node\n"
+                 "core/src/main/kotlin/app/Base.kt" "class Base\n"
+                 "web/node_modules/lib/index.js" "module.exports = 1\n"
+                 "target/classes/Gen.java" "class Gen {}\n"}
+          idx (build files {})
+          nc (problems idx :not-covered)
+          plain (problems (build {"src/app/core.clj" "(ns app.core)\n(defn f [] 1)\n"} {}) :not-covered)
+          own-pack (problems (build files {'smoke/pedestal-pack {}}) :not-covered)]
+      (check "not covered: the project's sources in another language, outside dependencies and build output, are said"
+             (= [{:language "Kotlin" :files 2 :dirs ["core/src"]}]
+                (map #(select-keys % [:language :files :dirs]) (filter :language nc))))
+      (check "not covered: a library declaring routes that no pack reads, with the files calling it"
+             (= [{:library "Pedestal" :files ["src/app/web.clj"]}]
+                (map #(select-keys % [:library :files]) (filter :library nc))))
+      (check "not covered: nothing to say on a Clojure-only project calling no such library (control)"
+             (empty? plain))
+      (check "not covered: a library an enabled pack covers (:pack/covers) isn't said"
+             (empty? (filter :library own-pack))))
 
     ;; ---- integrant: config shapes from real systems that read as refs to nothing
     (let [ig-check (fn [files]

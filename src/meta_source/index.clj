@@ -71,6 +71,53 @@
     (if (str/starts-with? path r) (subs path (count r)) path)))
 
 ;; =============================================================================
+;; What the index doesn't cover
+;; =============================================================================
+
+(def ^:private other-languages
+  "Source files the index doesn't read, by extension: meta-source reads
+   Clojure (.clj, .cljc, .cljs) and EDN."
+  {".kt" "Kotlin" ".kts" "Kotlin" ".java" "Java" ".scala" "Scala" ".groovy" "Groovy"
+   ".ts" "TypeScript" ".tsx" "TypeScript" ".js" "JavaScript" ".jsx" "JavaScript"
+   ".mjs" "JavaScript" ".cjs" "JavaScript" ".py" "Python" ".go" "Go" ".rb" "Ruby"
+   ".rs" "Rust" ".cs" "C#" ".swift" "Swift" ".php" "PHP"})
+
+(def ^:private not-source-dirs
+  "Directories that hold dependencies or build output, not the project's code."
+  #{"node_modules" "target" "build" "dist" "out"})
+
+(defn- other-sources
+  "{language [path ...]}: the project's source files in languages the index
+   doesn't read, anywhere under root, paths relative to it."
+  [root]
+  (let [top (io/file root)]
+    (->> (tree-seq #(and (.isDirectory ^File %)
+                         (or (= % top) (not (or (hidden? %) (not-source-dirs (.getName ^File %))))))
+                   #(seq (.listFiles ^File %))
+                   top)
+         (keep (fn [^File f]
+                 (when (and (.isFile f) (not (hidden? f)))
+                   (let [n (.getName f) dot (str/last-index-of n ".")]
+                     (when-let [lang (and dot (other-languages (subs n dot)))]
+                       [lang (relative root (canonical f))])))))
+         (reduce (fn [m [lang path]] (update m lang (fnil conj []) path)) {})
+         (into (sorted-map) (map (fn [[k v]] [k (vec (sort v))]))))))
+
+(def ^:private no-pack-libraries
+  "Libraries that declare a system's structure and that no meta-source pack
+   reads: a project calling them has that structure outside the index. A
+   pack that does read one names its namespaces in :pack/covers."
+  [{:library "Pedestal" :holds "routes and interceptors"
+    :nses #{'io.pedestal.http 'io.pedestal.http.route 'io.pedestal.interceptor 'io.pedestal.connector}}
+   {:library "Compojure" :holds "routes" :nses #{'compojure.core}}
+   {:library "bidi" :holds "routes" :nses #{'bidi.bidi 'bidi.ring}}
+   {:library "Ataraxy" :holds "routes" :nses #{'ataraxy.core}}
+   {:library "Component" :holds "a system of components" :nses #{'com.stuartsierra.component}}
+   {:library "mount" :holds "states" :nses #{'mount.core}}
+   {:library "donut.system" :holds "a system" :nses #{'donut.system}}
+   {:library "clip" :holds "a system" :nses #{'juxt.clip.core}}])
+
+;; =============================================================================
 ;; Registry files
 ;; =============================================================================
 
@@ -194,6 +241,9 @@
 ;;                          other), {} for nothing, nil when not known
 ;;   :pack/merge            {key :union}: keys whose values it unions across
 ;;                          sources (a set of tags); others conflict
+;;   :pack/covers           #{ns ...}: library namespaces whose structure the
+;;                          pack reads, so the index doesn't report them as
+;;                          :not-covered (a project's own Pedestal pack)
 ;;   :pack/data-files       (fn [opts]) → paths under the root, files or
 ;;                          directories of .edn, that the pack reads as data
 ;;   :pack/read-data        (fn [files opts]) → results as :pack/read gives,
@@ -677,6 +727,8 @@
      :analysed (count stale)
      :pack-snapshots (mapv #(-> % (dissoc :entities) (assoc :ids (set (keys (:entities %))))) snapshots)
      :pack-data-results data-results
+     ;; source files in languages the index doesn't read: {language [path ...]}
+     :other-sources (other-sources root)
      :read-problems (concat (keep :problem (vals edn))
                             (for [c (:conflicts merged)]
                               (update c :values (fn [vs] (mapv (fn [v] (update v :sources #(mapv (fn [l] (let [{:keys [file lines]} (by-label l)]
@@ -1418,6 +1470,30 @@
       (constantly false)
       (fn [f] (or (lib-file? (:file f)) (and (:dev-id f) (lib-entity? (:dev-id f))))))))
 
+(defn- not-covered
+  "What the index doesn't cover, said rather than passed over (info): the
+   project's source files in a language it doesn't read, and each library
+   declaring a system's structure (routes, a system) that the project calls
+   and no enabled pack reads."
+  [idx]
+  (let [covered (into #{} (mapcat :pack/covers) (:packs idx))
+        top-dirs (fn [paths] (->> paths
+                                  (map #(let [parts (str/split % #"/")] (str/join "/" (take 2 (butlast parts)))))
+                                  frequencies (sort-by (comp - val)) (take 3) (mapv key)))]
+    (concat
+     (for [[lang paths] (:other-sources idx)]
+       {:severity :info :problem :not-covered :language lang :files (count paths)
+        :dirs (top-dirs paths) :reason (str lang " sources aren't read")})
+     (for [{:keys [library holds nses]} no-pack-libraries
+           :when (not-any? covered nses)
+           :let [files (sort (distinct (for [[f {:keys [calls]}] (:code idx)
+                                             c calls
+                                             :when (nses (symbol (str (:to c))))]
+                                         (relative (:root idx) f))))]
+           :when (seq files)]
+       {:severity :info :problem :not-covered :library library :files (vec files)
+        :reason (str "the project calls " library ", whose " holds " no pack reads")}))))
+
 (defn check
   "Where code and registry files disagree, most severe first. What is found
    in a library's own code (:libs) is the library's, and left out."
@@ -1440,7 +1516,8 @@
           (undeclared-calls idx)
           (keys-outside-contract idx)
           (pack-problems idx)
-          (rule-findings idx)))))))
+          (rule-findings idx)
+          (not-covered idx)))))))
 
 (defn summary [idx]
   (let [kinds (frequencies (for [[_ e] (:entities idx)] (:kind e)))]
