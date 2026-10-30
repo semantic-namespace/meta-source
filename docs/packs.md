@@ -94,7 +94,8 @@ never thrown: the index reports those as `:pack-form-not-read` and
 counts each kind's reads in `meta-source summary`. A pack that throws on a
 file is reported the same way, for that file, and one whose `:pack/find`
 throws, at the first file. Two packs giving the same
-`:kind` are refused; a `:refer` in an `ns` form is never handed to a pack. `bb smoke` runs a pack like this one.
+`:kind` are refused; a `:refer` in an `ns` form is never handed to a pack, and
+neither is a form inside a `(comment ...)` block, which is REPL scratch. `bb smoke` runs a pack like this one.
 
 ## What the index doesn't cover: `:not-covered`
 
@@ -894,8 +895,7 @@ are commands it dispatches; what a command or a periodic task produces,
 events. A schema `defschemas` registers keeps its own name: grain's malli
 registry is one. An option written as code (`:authorized? (constantly true)`)
 is dropped and listed. A form whose name or options aren't literal (an event
-named by a var) is not read, and said so. Forms inside `(comment ...)` are
-REPL scratch, and not read.
+named by a var) is not read, and said so.
 
 Checks:
 

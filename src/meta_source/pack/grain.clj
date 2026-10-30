@@ -84,18 +84,11 @@
 (def ^:private covers (set (map (comp symbol namespace) (keys macros))))
 
 (defn- find-forms [analysis _opts]
-  (let [;; (comment ...) blocks are REPL scratch, not declarations
-        comments (group-by :filename (for [u (:var-usages analysis)
-                                           :when (and (= 'clojure.core (:to u)) (= 'comment (:name u)) (:end-row u))]
-                                       u))
-        in-comment? (fn [u] (some #(and (<= (:row %) (:row u) (:end-row %))
-                                        (not (and (= (:row %) (:row u)) (= (:col %) (:col u)))))
-                                  (get comments (:filename u))))]
-    (for [u (:var-usages analysis)
-          :let [role (macros (symbol (str (:to u)) (str (:name u))))]
-          ;; grain's own macros calling one another aren't declarations
-          :when (and role (not (covers (:from u))) (not (in-comment? u)))]
-      (assoc (select-keys u [:filename :row :name-row :name-col]) :role role))))
+  (for [u (:var-usages analysis)
+        :let [role (macros (symbol (str (:to u)) (str (:name u))))]
+        ;; grain's own macros calling one another aren't declarations
+        :when (and role (not (covers (:from u))))]
+    (assoc (select-keys u [:filename :row :name-row :name-col]) :role role)))
 
 (defn- code? [v] (or (seq? v) (fn? v)))
 

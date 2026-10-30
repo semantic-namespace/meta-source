@@ -887,6 +887,18 @@
              (and (= [:app/unused] (map :dev-id (problems as-map :init-key-without-config)))
                   (empty? (problems as-map :checks-not-run)))))
 
+    ;; ---- (comment ...) blocks are REPL scratch: no pack reads a form inside one
+    (let [dir (str (fs/create-temp-dir))]
+      (fs/create-dirs (str dir "/src/app"))
+      (spit (str dir "/src/app/core.clj")
+            (str "(ns app.core (:require [integrant.core :as ig]))\n"
+                 "(defmethod ig/init-key :app/db [_ v] v)\n"
+                 "(comment\n  (defmethod ig/init-key :app/scratch [_ v] v))\n"))
+      (let [idx (try (index/build {:root dir :src ["src"] :registry [] :packs {:integrant {}}})
+                     (finally (fs/delete-tree dir)))]
+        (check "a form inside (comment ...) isn't read by any pack; one outside is"
+               (and (index/where idx :app/db) (nil? (index/where idx :app/scratch))))))
+
     ;; ---- grain: the event model, from the def sites and defeventmodel
     (let [dir (str (fs/create-temp-dir))
           files {"src/app/commands.clj"

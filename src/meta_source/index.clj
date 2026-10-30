@@ -36,7 +36,7 @@
 
 (def ^:private bb? (some? (System/getProperty "babashka.version")))
 
-(def cache-version 7)
+(def cache-version 8)
 
 (def default-id-key
   "The meta key a plain var carries to say which id it implements. A
@@ -201,7 +201,8 @@
 ;;                          their context and response keys
 ;;   :pack/find             (fn [analysis opts]) → sites, each {:filename :row
 ;;                          :name-row :name-col ...} found in clj-kondo's
-;;                          analysis; name-row/name-col is the symbol right
+;;                          analysis (a site inside a (comment ...) block
+;;                          is dropped: REPL scratch); name-row/name-col is the symbol right
 ;;                          after the form's opening paren
 ;;   :pack/read             (fn [sites file opts]) → [{:row :kind :dev-id
 ;;                          :entry} or {:row :kind :skipped reason}] for one
@@ -477,8 +478,18 @@
           for-packs (update analysis :var-usages #(remove :refer %))
           ;; a pack that fails finding its forms costs that pack, not the index:
           ;; the failure is reported at the first file, as a form not read
+          ;; (comment ...) blocks are REPL scratch, not declarations: a pack's
+          ;; site inside one isn't read. {file [[start end] ...]}, positions [row col]
+          comments (update-vals (group-by :filename (for [u (:var-usages analysis)
+                                                          :when (and (= 'clojure.core (:to u)) (= 'comment (:name u)) (:end-row u))]
+                                                      u))
+                                #(vec (for [u %] [[(:row u) (:col u)] [(:end-row u) (:end-col u)]])))
+          in-comment? (fn [{:keys [filename row name-row name-col]}]
+                        (let [at [(or name-row row) (or name-col 0)]]
+                          (some (fn [[start end]] (and (pos? (compare at start)) (neg? (compare at end))))
+                                (get comments filename))))
           found (vec (for [p packs :when (:pack/find p)]
-                       [p (try (group-by :filename (vec ((:pack/find p) for-packs packs-config)))
+                       [p (try (group-by :filename (vec (remove in-comment? ((:pack/find p) for-packs packs-config))))
                                (catch Exception ex
                                  {(canonical (first files))
                                   [{:filename (canonical (first files)) :row 1 :name-row 1 :name-col 1
