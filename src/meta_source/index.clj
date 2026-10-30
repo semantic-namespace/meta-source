@@ -27,6 +27,7 @@
             [meta-source.pack.pathom :as pathom]
             [meta-source.pack.re-frame :as re-frame]
             [meta-source.pack.reitit :as reitit]
+            [meta-source.pack.overarch :as overarch]
             [meta-source.pack.tilakone :as tilakone]
             [meta-source.pack.schema :as schema]
             [meta-source.read :as read]
@@ -193,6 +194,9 @@
 ;;                          (atlas's registry, under an integrant component's
 ;;                          key): sharing their ids is no :id-in-several-packs,
 ;;                          and their source is the id's primary definition
+;;   :pack/depicts?         true when it is a picture of the system (an
+;;                          architecture model): never an id's primary
+;;                          definition while anything else defines it
 ;;   :pack/dataflow         {:consumes [k ...] :produces [k ...]}: entry keys
 ;;                          that list data keys
 ;;   :pack/dataflow-of      (fn [entries]) → the same, derived from what was
@@ -250,8 +254,10 @@
 ;;                          each with its :file; files is [{:file :path :text}],
 ;;                          all of them at once, so a key several files define
 ;;                          can be one result (meta-source.read/keyed-lines
-;;                          reads them with each key's line)
-;;   :pack/derive           (fn [entities opts]) → {id {key value}}: facts it
+;;                          reads them with each key's line). A result may
+;;                          instead be a finding, {:row :kind :problem
+;;                          :severity ...}: what the library rejects on load
+;;   :pack/derive          (fn [entities opts]) → {id {key value}}: facts it
 ;;                          derives from what every pack read, entities being
 ;;                          {id {:entry merged-entry :kinds #{source-kind}}}
 ;;                          (atlas's: a route is an :atlas/interface-endpoint).
@@ -284,7 +290,7 @@
 ;; cached per file, so it must be data. A pack needs :pack/find and
 ;; :pack/read, or :pack/data-files and :pack/read-data, or both.
 
-(def builtin-packs [schema/pack fn-schema/pack datascript/pack pathom/pack integrant/pack aero/pack re-frame/pack reitit/pack tilakone/pack namespaces/pack])
+(def builtin-packs [schema/pack fn-schema/pack datascript/pack pathom/pack integrant/pack aero/pack re-frame/pack reitit/pack tilakone/pack overarch/pack namespaces/pack])
 
 (defn enabled-packs
   "The packs `packs-config` (meta-source.edn's :packs) enables: each
@@ -401,9 +407,16 @@
 (defn- pack-of [idx kind] (first (filter #(contains? (:pack/kinds %) kind) (:packs idx))))
 
 (defn describe
-  "The line a pack gives an editor for `entry`, or nil."
+  "The line a pack gives an editor for `entry`, or nil. A picture of the
+   system (:pack/depicts?) gives its own, `depict`."
   [idx entry]
-  (some #(when-let [d (:pack/describe %)] (d entry)) (:packs idx)))
+  (some #(when-let [d (:pack/describe %)] (d entry)) (remove :pack/depicts? (:packs idx))))
+
+(defn depict
+  "The line a picture of the system (an architecture model) gives for
+   `entry`, or nil."
+  [idx entry]
+  (some #(when-let [d (:pack/describe %)] (d entry)) (filter :pack/depicts? (:packs idx))))
 
 ;; =============================================================================
 ;; Code (clj-kondo)
@@ -635,6 +648,7 @@
         by-label (into {} (map (juxt :label identity)) sources)
         data-key-kinds (set (mapcat :pack/kinds (filter :pack/data-keys? packs)))
         describing-kinds (set (mapcat :pack/kinds (filter :pack/describes? packs)))
+        depicting-kinds (set (mapcat :pack/kinds (filter :pack/depicts? packs)))
         merged (merge/merge-sources (for [{:keys [label entities]} sources] {:source label :entities entities})
                                     (merge-policy config packs))
         definition (fn [id label]
@@ -649,10 +663,13 @@
                               :let [defs (mapv #(definition id %) (merge/sources-of (:provenance merged) id))
                                     ;; what a pack declares (a component, a resolver, a
                                     ;; data key's schema) before what a describing pack
-                                    ;; or EDN adds to it, and all before a place that
-                                    ;; only refers to it
+                                    ;; or EDN adds to it, then a picture of it (a
+                                    ;; model), and all before a place that only
+                                    ;; refers to it
                                     primary (or (first (filter #(data-key-kinds (:kind %)) defs))
                                                 (first (remove #(or (= :edn (:kind %)) (:refers %) (describing-kinds (:kind %))) defs))
+                                                (first (remove #(or (= :edn (:kind %)) (:refers %) (depicting-kinds (:kind %))) defs))
+                                                (first (remove #(or (:refers %) (depicting-kinds (:kind %))) defs))
                                                 (first (remove #(or (= :edn (:kind %)) (:refers %)) defs))
                                                 (first (remove :refers defs))
                                                 (first defs))]]
@@ -1362,6 +1379,11 @@
      ;; a form not read; one a pack says breaks its pattern (docs/pattern.md),
      ;; when the project asks for it (:pattern true in the pack's options), is
      ;; :off-pattern instead
+     ;; a finding a pack made reading its data: something the library itself
+     ;; rejects when it loads it (an Overarch element with no id)
+     (for [{:keys [file row kind problem] :as r} (:pack-data-results idx)
+           :when problem]
+       (merge (dissoc r :file :row :kind) {:pack kind :file (relative (:root idx) file) :line row}))
      (for [{:keys [file row kind skipped pattern]} (concat (for [[f {:keys [pack-results]}] (sort-by key (:code idx))
                                                                  [_ results] (sort-by key pack-results)
                                                                  r results]
