@@ -902,7 +902,13 @@
           idx (build files {})
           nc (problems idx :not-covered)
           plain (problems (build {"src/app/core.clj" "(ns app.core)\n(defn f [] 1)\n"} {}) :not-covered)
-          own-pack (problems (build files {'smoke/pedestal-pack {}}) :not-covered)]
+          own-pack (problems (build files {'smoke/pedestal-pack {}}) :not-covered)
+          stated (let [dir (str (fs/create-temp-dir))]
+                   (doseq [[p text] files] (fs/create-dirs (fs/parent (str dir "/" p))) (spit (str dir "/" p) text))
+                   (try (problems (index/build {:root dir :src ["src"] :registry [] :packs {}
+                                                :not-covered {:languages ["Kotlin"] :libraries ["Pedestal"]}})
+                                  :not-covered)
+                        (finally (fs/delete-tree dir))))]
       (check "not covered: the project's sources in another language, outside dependencies and build output, are said"
              (= [{:language "Kotlin" :files 2 :dirs ["core/src"]}]
                 (map #(select-keys % [:language :files :dirs]) (filter :language nc))))
@@ -912,7 +918,9 @@
       (check "not covered: nothing to say on a Clojure-only project calling no such library (control)"
              (empty? plain))
       (check "not covered: a library an enabled pack covers (:pack/covers) isn't said"
-             (empty? (filter :library own-pack))))
+             (empty? (filter :library own-pack)))
+      (check "not covered: what meta-source.edn's :not-covered states the project knows isn't said again"
+             (empty? stated)))
 
     ;; ---- integrant: config shapes from real systems that read as refs to nothing
     (let [ig-check (fn [files]

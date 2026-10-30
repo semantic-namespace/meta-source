@@ -110,6 +110,14 @@ doesn't read, it says, rather than passing over it (`:not-covered`, info):
   the files calling it. A pack that reads one names its namespaces in
   `:pack/covers`, and it isn't reported.
 
+What the project knows isn't read here, because another tool reads it, it
+states in `meta-source.edn`, and it isn't said again:
+
+```clojure
+:not-covered {:languages ["JavaScript" "TypeScript"]   ; read by our JS tooling
+              :libraries ["Pedestal"]}
+```
+
 A system a function returns is outside the conventions too: the integrant
 pack reports `:checks-not-run` for it and concludes nothing from it.
 

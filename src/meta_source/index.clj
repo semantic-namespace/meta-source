@@ -552,6 +552,10 @@
                 :lib-src (vec (:lib-src opts))
                 ;; fns whose first argument, a literal keyword, is the entity they call
                 :calls-by-id (vec (sort (map symbol (:calls-by-id opts))))
+                ;; what the project states it knows isn't read here (another
+                ;; tool reads it): not reported as :not-covered
+                :not-covered (let [{:keys [languages libraries]} (:not-covered opts)]
+                               {:languages (vec (sort languages)) :libraries (vec (sort libraries))})
                 ;; a changed clj-kondo config changes what the code analyses to
                 :kondo-config (kondo-config-stamps root)}
         edn-files (vec (files-under root registry [".edn"]))
@@ -1474,18 +1478,21 @@
   "What the index doesn't cover, said rather than passed over (info): the
    project's source files in a language it doesn't read, and each library
    declaring a system's structure (routes, a system) that the project calls
-   and no enabled pack reads."
+   and no enabled pack reads. What meta-source.edn's :not-covered lists
+   (:languages, :libraries) the project knows of, and isn't said again."
   [idx]
   (let [covered (into #{} (mapcat :pack/covers) (:packs idx))
+        {known-languages :languages known-libraries :libraries} (get-in idx [:config :not-covered])
         top-dirs (fn [paths] (->> paths
                                   (map #(let [parts (str/split % #"/")] (str/join "/" (take 2 (butlast parts)))))
                                   frequencies (sort-by (comp - val)) (take 3) (mapv key)))]
     (concat
-     (for [[lang paths] (:other-sources idx)]
+     (for [[lang paths] (:other-sources idx)
+           :when (not (some #{lang} known-languages))]
        {:severity :info :problem :not-covered :language lang :files (count paths)
         :dirs (top-dirs paths) :reason (str lang " sources aren't read")})
      (for [{:keys [library holds nses]} no-pack-libraries
-           :when (not-any? covered nses)
+           :when (and (not-any? covered nses) (not (some #{library} known-libraries)))
            :let [files (sort (distinct (for [[f {:keys [calls]}] (:code idx)
                                              c calls
                                              :when (nses (symbol (str (:to c))))]
