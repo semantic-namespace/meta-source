@@ -426,7 +426,9 @@ Each config key becomes a component, in the pack's own vocabulary:
   composite (integrant 0.10's default `init-key`): `ig/init` throws
   `::missing-init-key`. Only keys whose every keyword is under the project's
   own namespaces count, since a library's key is built by the library; nor
-  do keys that expand, or that `:provided` names;
+  do keys that expand, or that `:provided` names. A project with
+  `(defmethod ig/init-key :default ...)` builds every key that way, so none
+  is reported (the method is the entity `:integrant/default`);
 - `:removed-method`: a `pre-init-spec` (removed in 0.9, replaced by
   `assert-key`) or `prep-key` (removed in 1.0, replaced by `expand-key`). A
   warning when the project's `deps.edn` or `project.clj` asks for a version
@@ -649,7 +651,8 @@ at runtime, which a snapshot could give, as Pathom's does.
 ```
 
 A route tree is read where it is written: the first argument of a reitit
-`router` call (`reitit.core`, `reitit.ring`, `reitit.http`, `reitit.frontend`),
+`router` call (`reitit.core`, `reitit.ring`, `reitit.http`, `reitit.frontend`,
+`reitit.middleware`, `reitit.interceptor`),
 and any `def` or `defn` holding route data, since trees are often assembled
 from route defs in namespaces that never require reitit. A child that names
 a route def in the same file is read in place; one in another file is read

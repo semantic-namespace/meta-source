@@ -31,6 +31,11 @@
      :integrant/init-key, :integrant/halt-key!, ...
                             true when the code has that defmethod for it
 
+   A method on :default ((defmethod ig/init-key :default ...)) is what
+   integrant runs for a key with no method of its own: it is the entity
+   :integrant/default, with the same :integrant/<method> facts, so a key
+   with no init-key of its own is still built.
+
    Config files are read all at once, so a key several files configure
    (variants of one system) is one entry with every file listed, not a
    conflict. Tags no reader knows (aero's #env, #or, #profile) are kept as
@@ -389,7 +394,12 @@
                       id (component-id dispatch)
                       method (when (symbol? mm) (name mm))
                       adds (when id (written-keys body))]]
-            (if (and id method (ig-methods (symbol method)))
+            (cond
+              ;; what integrant runs for a key with no method of its own
+              (and (= :default dispatch) method (ig-methods (symbol method)))
+              {:row row :kind kind :dev-id :integrant/default :entry {(keyword "integrant" method) true}}
+
+              (and id method (ig-methods (symbol method)))
               {:row row :kind kind :dev-id id
                ;; the method that builds the component: its calls are the component's
                :body-range (when (and end-row (#{"init-key" "expand-key" "prep-key"} method))
@@ -402,6 +412,8 @@
                         ;; where its config is used: nothing used is said by saying nothing
                         (= "init-key" method) (as-> e (let [p (if (vector? params) (passes (second params) hand-usages) :unknown)]
                                                         (if (and (sequential? p) (empty? p)) e (assoc e :integrant/uses p)))))}
+
+              :else
               {:row row :kind kind :skipped (str "dispatch value " (pr-str dispatch) " is not a config key")}))
           (for [{:keys [row name-row name-col config-var]} var-sites
                 :let [form (form-at name-row name-col)
@@ -635,7 +647,8 @@
              :when p]
          p))
      (for [[id e] components
-           :when (and (get-in e [:entry :integrant/init-key]) (not (contains? defined id)))]
+           :when (and (get-in e [:entry :integrant/init-key]) (not (contains? defined id))
+                      (not= :integrant/default id))]
        {:severity :info :problem :init-key-without-config :dev-id id :definition (loc e)})
      ;; what ig/ref refuses as it reads the config
      (for [[id e] configured
@@ -652,6 +665,8 @@
      ;; keys whose every keyword is in the project's own namespaces: a
      ;; library's key is built by the library
      (let [builders (set (for [[id e] components :when (get-in e [:entry :integrant/init-key])] id))
+           ;; (defmethod ig/init-key :default ...) builds every key with no method of its own
+           default? (contains? builders :integrant/default)
            roots (set (for [n (:namespaces view)] (first (str/split n #"\."))))
            own? (fn [k] (contains? roots (first (str/split (namespace k) #"\."))))
            fn-named? (fn [k] (true? (var-defined? (symbol (namespace k) (name k)))))]
@@ -659,7 +674,8 @@
              :let [entry (:entry e)
                    parts (into [id] (:integrant/derives entry))
                    ls (get lineage id)]
-             :when (and (every? own? ls)
+             :when (and (not default?)
+                        (every? own? ls)
                         (not-any? builders ls)
                         (not-any? fn-named? parts)
                         ;; expanded away before ig/init, or added by something else
