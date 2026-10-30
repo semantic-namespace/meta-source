@@ -415,6 +415,15 @@ Each config key becomes a component, in the pack's own vocabulary:
   order them;
 - `:init-key-without-config` (info): an `init-key` for a key nothing configures
   or derives from: unused, or configured somewhere not read;
+- `:checks-not-run` (info): a config the pack couldn't read (a file that isn't
+  a map of config keys, a `:vars` var whose value isn't a map, a system a
+  function returns) or a `:vars` var that isn't there. What no config defines
+  can't be told then, so `:init-key-without-config`, `:ref-to-undefined` and
+  `:ref-maybe-from-module` don't run, and this lists why (`:because`, each
+  with its file and line). A system built by calling functions is outside
+  what the pack reads: it says so, and concludes nothing from it;
+- `:config-var-not-found` (warning): a var `:vars` names that the code doesn't
+  define, or whose namespace wasn't read;
 - `:ref-invalid` (warning): an `#ig/ref` or `#ig/refset` to something other
   than a qualified keyword or a vector of them (`#ig/ref :db`): `ig/ref`
   throws reading the config;

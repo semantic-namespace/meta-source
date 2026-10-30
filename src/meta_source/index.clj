@@ -35,7 +35,7 @@
 
 (def ^:private bb? (some? (System/getProperty "babashka.version")))
 
-(def cache-version 6)
+(def cache-version 7)
 
 (def default-id-key
   "The meta key a plain var carries to say which id it implements. A
@@ -170,12 +170,15 @@
 ;;                          the id, as the meta key does (an s/fdef's)
 ;;   :pack/checks           (fn [view]) → problems; view is {:entities
 ;;                          :of-kinds :data-key? :loc :flow :opts
-;;                          :var-defined? :namespaces :not-read :impl :linked-by}:
+;;                          :var-defined? :namespaces :not-read :skipped :impl
+;;                          :linked-by}:
 ;;                          var-defined? true or
 ;;                          false for a qualified symbol in a namespace the
 ;;                          analysis read, nil for one it didn't; namespaces,
 ;;                          the names (strings) of those it read; not-read,
-;;                          how many forms of a kind couldn't be read; impl,
+;;                          how many forms of a kind couldn't be read; skipped,
+;;                          those results of a kind (data files' too), as the
+;;                          pack gave them, with :file relative; impl,
 ;;                          where the var implementing an id is, or nil;
 ;;                          linked-by, the pack whose :pack/id-key linked it
 ;;   :pack/inline-data-keys (fn [entities]) → data keys its entities define
@@ -1287,7 +1290,17 @@
               :linked-by #(:linked-by-pack (impl-of idx %))
               ;; how many forms of a kind a pack found and couldn't read
               :not-read (let [n (frequencies (for [{:keys [pack-results]} (vals (:code idx)) [_ rs] pack-results r rs :when (:skipped r)] (:kind r)))]
-                          #(get n % 0))}]
+                          #(get n % 0))
+              ;; those forms, and the data files a pack couldn't read: each
+              ;; result as the pack gave it, with its :file relative to the root
+              :skipped (let [by-kind (group-by :kind (for [r (concat (for [[f {:keys [pack-results]}] (sort-by key (:code idx))
+                                                                          [_ rs] (sort-by key pack-results)
+                                                                          r rs]
+                                                                      (assoc r :file f))
+                                                                    (:pack-data-results idx))
+                                                           :when (:skipped r)]
+                                                       (update r :file #(some->> % (relative (:root idx))))))]
+                         #(get by-kind % []))}]
     (concat
      (mapcat #(when-let [c (:pack/checks %)] (c view)) (:packs idx))
      ;; a form not read; one a pack says breaks its pattern (docs/pattern.md),

@@ -851,6 +851,36 @@
       (check "integrant: without it, a key with no init-key is unbuilt"
              (= [:app/clock] (map :dev-id (problems without :no-init-key)))))
 
+    ;; ---- integrant: a config not read stops the checks that need all of it
+    (let [build (fn [config-src vars]
+                  (let [dir (str (fs/create-temp-dir))]
+                    (fs/create-dirs (str dir "/src/app"))
+                    (spit (str dir "/src/app/core.clj")
+                          (str "(ns app.core (:require [integrant.core :as ig]))\n"
+                               config-src
+                               "(defn start [env] (ig/init (system env)))\n"
+                               "(defmethod ig/init-key :app/db [_ v] v)\n"
+                               "(defmethod ig/init-key :app/web [_ v] v)\n"
+                               "(defmethod ig/init-key :app/unused [_ v] v)\n"))
+                    (try (index/build {:root dir :src ["src"] :registry []
+                                       :packs {:integrant {:vars vars}}})
+                         (finally (fs/delete-tree dir)))))
+          in-fn (build "(defn system [env] (merge {:app/db {} :app/web {:db (ig/ref :app/db)}} (when env {:app/x {}})))\n"
+                       '[app.core/system])
+          absent (build "(def system {:app/db {} :app/web {:db (ig/ref :app/db)}})\n" '[app.core/sistem])
+          as-map (build "(def system {:app/db {} :app/web {:db (ig/ref :app/db)}})\n" '[app.core/system])]
+      (check "integrant: a config var not read (a fn) concludes nothing about what no config defines, and says which checks didn't run"
+             (and (empty? (problems in-fn :init-key-without-config))
+                  (= [{:reason "the config var's value is not a map" :file "src/app/core.clj" :line 2}]
+                     (:because (first (problems in-fn :checks-not-run))))))
+      (check "integrant: a config var :vars names that isn't there is a warning, and stops those checks too"
+             (and (= ['app.core/sistem] (map :var (problems absent :config-var-not-found)))
+                  (empty? (problems absent :init-key-without-config))
+                  (seq (problems absent :checks-not-run))))
+      (check "integrant: with the config read, the checks run (control)"
+             (and (= [:app/unused] (map :dev-id (problems as-map :init-key-without-config)))
+                  (empty? (problems as-map :checks-not-run)))))
+
     ;; ---- integrant: config shapes from real systems that read as refs to nothing
     (let [ig-check (fn [files]
                      (let [dir (str (fs/create-temp-dir))]
