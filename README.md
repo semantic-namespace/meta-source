@@ -192,7 +192,10 @@ two readers, and where each piece lives.
   route names), **Datascript** (attributes from schemas and Datomic-style
   schema files, the pulls and lookup refs that need them to be refs or
   unique), **tilakone** (state machines, their states and transitions, a
-  transition to no state), **namespaces** (your own namespaces as entities,
+  transition to no state), **grain** (a grain app's event model: commands,
+  queries, read models, processors, events, what each reads, produces and
+  consumes, where the def sites and the event model disagree), **namespaces**
+  (your own namespaces as entities,
   by a naming convention you state, and what each requires: rules on which
   may require which), and **your own**: a pack is one map.
   [docs/packs.md](docs/packs.md)
