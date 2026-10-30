@@ -314,8 +314,8 @@
                    k))
         read (for [{:keys [file path kvs]} parsed]
                  (cond
-                   (instance? Exception kvs) {:skipped {:file file :row 1 :kind kind :skipped (str "not readable: " (ex-message kvs))}}
-                   (nil? kvs) {:skipped {:file file :row 1 :kind kind :skipped "not a map of config keys"}}
+                   (instance? Exception kvs) {:skipped {:file file :row 1 :kind kind :config true :skipped (str "not readable: " (ex-message kvs))}}
+                   (nil? kvs) {:skipped {:file file :row 1 :kind kind :config true :skipped "not a map of config keys"}}
                    (re-find hierarchy-file (str path)) {:isa (hierarchy-results kvs file)}
                    :else (let [held (system-holders kvs top opts)
                                ;; Duct's :vars, the #ig/var names the file binds
@@ -420,7 +420,7 @@
                       m (when (and (seq? form) (>= (count form) 3)) (last form))]
                 r (if (map? m)
                     (combine (for [[k v] m :when (component-id k)] {:key k :value v :path (str own-ns "/" config-var) :line row}))
-                    [{:kind kind :skipped "the config var's value is not a map"}])]
+                    [{:kind kind :config true :skipped "the config var's value is not a map"}])]
             (assoc r :row row))))))
 
 ;; =============================================================================
@@ -562,8 +562,20 @@
      calls by its id (:calls-by-id): unused, or configured somewhere not
      read. A key some configured component
      derives from, by a composite key or a derive call, counts as configured."
-  [{:keys [of-kinds loc opts var-defined?] :as view}]
+  [{:keys [of-kinds loc opts var-defined? skipped] :as view}]
   (let [components (sort-by key (of-kinds #{kind}))
+        ;; a config the pack couldn't read, or a config var :vars names that
+        ;; isn't there: what no config defines can't be told, so the checks
+        ;; that conclude it don't run
+        missing-vars (for [v (get-in opts [:integrant :vars])
+                           :let [d (var-defined? v)]
+                           :when (not d)]
+                       {:var v :reason (if (nil? d) "its namespace wasn't read" "no such var")})
+        unread (concat (for [r (skipped kind) :when (:config r)]
+                         (cond-> {:reason (:skipped r)}
+                           (:file r) (assoc :file (:file r))
+                           (:row r) (assoc :line (:row r))))
+                       missing-vars)
         configured (filter #(get-in (val %) [:entry :integrant/config-in]) components)
         parents #(concat (get-in (val %) [:entry :integrant/derives]) (get-in (val %) [:entry :integrant/isa]))
         ;; a key some code calls by its id (:calls-by-id): a workflow engine
@@ -621,7 +633,7 @@
        {:severity :warning :problem :ref-cycle :dev-id (first cycle) :cycle cycle
         :definition (loc (get (into {} configured) (first cycle)))})
      ;; a composite ref no configured key matches
-     (for [[id e] configured
+     (for [[id e] (when (empty? unread) configured)
            ;; matched by no configured key, and not every keyword of it is
            ;; one something else adds (a module, :provided)
            :let [missing (vec (remove #(or (seq (candidates %)) (every? defined %))
@@ -632,7 +644,7 @@
      ;; builds) isn't read: a missing ref in its namespace it may well add
      (let [own-modules (map key modules)
            module-for (fn [k] (some #(when (= (namespace %) (namespace k)) %) own-modules))]
-       (for [[id e] configured
+       (for [[id e] (when (empty? unread) configured)
              :let [entry (:entry e)
                    ;; a refset may match nothing; a composite is checked whole, above
                    plain (remove (into (set (:integrant/refsets entry)) (map last (:integrant/composite-refs entry)))
@@ -646,10 +658,17 @@
                    :module (module-for (first maybe)) :definition (loc e)})]
              :when p]
          p))
-     (for [[id e] components
-           :when (and (get-in e [:entry :integrant/init-key]) (not (contains? defined id))
-                      (not= :integrant/default id))]
-       {:severity :info :problem :init-key-without-config :dev-id id :definition (loc e)})
+     (when (empty? unread)
+       (for [[id e] components
+             :when (and (get-in e [:entry :integrant/init-key]) (not (contains? defined id))
+                        (not= :integrant/default id))]
+         {:severity :info :problem :init-key-without-config :dev-id id :definition (loc e)}))
+     (for [v missing-vars]
+       {:severity :warning :problem :config-var-not-found :var (:var v) :reason (:reason v)})
+     (when (seq unread)
+       [{:severity :info :problem :checks-not-run :pack kind
+         :checks [:init-key-without-config :ref-to-undefined :ref-maybe-from-module]
+         :because (vec unread)}])
      ;; what ig/ref refuses as it reads the config
      (for [[id e] configured
            :let [bad (get-in e [:entry :integrant/invalid-refs])]

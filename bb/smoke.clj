@@ -119,6 +119,12 @@
    :pack/find (fn [_ _] []) :pack/read (fn [_ _ _] [])
    :pack/dataflow-of (fn [entries] {:consumes (vec (keep :flow/in-key (vals entries)))})})
 
+(def pedestal-pack
+  "A project's own pack reading Pedestal's routes (here, nothing): it names
+   the namespaces it covers."
+  {:pack/id :pedestal :pack/kinds #{:pedestal} :pack/covers #{'io.pedestal.http.route}
+   :pack/find (fn [_ _] []) :pack/read (fn [_ _ _] [])})
+
 (def rules-pack
   "A pack deriving rules from what was read: an entry's :rule/as-data is a
    rule, as atlas's invariants carry :invariant/rule."
@@ -850,6 +856,71 @@
                   (true? (get-in (index/where with :integrant/default) [:entry :integrant/init-key]))))
       (check "integrant: without it, a key with no init-key is unbuilt"
              (= [:app/clock] (map :dev-id (problems without :no-init-key)))))
+
+    ;; ---- integrant: a config not read stops the checks that need all of it
+    (let [build (fn [config-src vars]
+                  (let [dir (str (fs/create-temp-dir))]
+                    (fs/create-dirs (str dir "/src/app"))
+                    (spit (str dir "/src/app/core.clj")
+                          (str "(ns app.core (:require [integrant.core :as ig]))\n"
+                               config-src
+                               "(defn start [env] (ig/init (system env)))\n"
+                               "(defmethod ig/init-key :app/db [_ v] v)\n"
+                               "(defmethod ig/init-key :app/web [_ v] v)\n"
+                               "(defmethod ig/init-key :app/unused [_ v] v)\n"))
+                    (try (index/build {:root dir :src ["src"] :registry []
+                                       :packs {:integrant {:vars vars}}})
+                         (finally (fs/delete-tree dir)))))
+          in-fn (build "(defn system [env] (merge {:app/db {} :app/web {:db (ig/ref :app/db)}} (when env {:app/x {}})))\n"
+                       '[app.core/system])
+          absent (build "(def system {:app/db {} :app/web {:db (ig/ref :app/db)}})\n" '[app.core/sistem])
+          as-map (build "(def system {:app/db {} :app/web {:db (ig/ref :app/db)}})\n" '[app.core/system])]
+      (check "integrant: a config var not read (a fn) concludes nothing about what no config defines, and says which checks didn't run"
+             (and (empty? (problems in-fn :init-key-without-config))
+                  (= [{:reason "the config var's value is not a map" :file "src/app/core.clj" :line 2}]
+                     (:because (first (problems in-fn :checks-not-run))))))
+      (check "integrant: a config var :vars names that isn't there is a warning, and stops those checks too"
+             (and (= ['app.core/sistem] (map :var (problems absent :config-var-not-found)))
+                  (empty? (problems absent :init-key-without-config))
+                  (seq (problems absent :checks-not-run))))
+      (check "integrant: with the config read, the checks run (control)"
+             (and (= [:app/unused] (map :dev-id (problems as-map :init-key-without-config)))
+                  (empty? (problems as-map :checks-not-run)))))
+
+    ;; ---- what the index doesn't cover: other languages, libraries no pack reads
+    (let [build (fn [files packs]
+                  (let [dir (str (fs/create-temp-dir))]
+                    (doseq [[p text] files] (fs/create-dirs (fs/parent (str dir "/" p))) (spit (str dir "/" p) text))
+                    (try (index/build {:root dir :src ["src"] :registry [] :packs packs})
+                         (finally (fs/delete-tree dir)))))
+          files {"src/app/web.clj" (str "(ns app.web (:require [io.pedestal.http.route :as route]))\n"
+                                        "(def routes (route/expand-routes #{[\"/\" :get (fn [_] {}) :route-name ::home]}))\n")
+                 "core/src/main/kotlin/app/Node.kt" "class Node\n"
+                 "core/src/main/kotlin/app/Base.kt" "class Base\n"
+                 "web/node_modules/lib/index.js" "module.exports = 1\n"
+                 "target/classes/Gen.java" "class Gen {}\n"}
+          idx (build files {})
+          nc (problems idx :not-covered)
+          plain (problems (build {"src/app/core.clj" "(ns app.core)\n(defn f [] 1)\n"} {}) :not-covered)
+          own-pack (problems (build files {'smoke/pedestal-pack {}}) :not-covered)
+          stated (let [dir (str (fs/create-temp-dir))]
+                   (doseq [[p text] files] (fs/create-dirs (fs/parent (str dir "/" p))) (spit (str dir "/" p) text))
+                   (try (problems (index/build {:root dir :src ["src"] :registry [] :packs {}
+                                                :not-covered {:languages ["Kotlin"] :libraries ["Pedestal"]}})
+                                  :not-covered)
+                        (finally (fs/delete-tree dir))))]
+      (check "not covered: the project's sources in another language, outside dependencies and build output, are said"
+             (= [{:language "Kotlin" :files 2 :dirs ["core/src"]}]
+                (map #(select-keys % [:language :files :dirs]) (filter :language nc))))
+      (check "not covered: a library declaring routes that no pack reads, with the files calling it"
+             (= [{:library "Pedestal" :files ["src/app/web.clj"]}]
+                (map #(select-keys % [:library :files]) (filter :library nc))))
+      (check "not covered: nothing to say on a Clojure-only project calling no such library (control)"
+             (empty? plain))
+      (check "not covered: a library an enabled pack covers (:pack/covers) isn't said"
+             (empty? (filter :library own-pack)))
+      (check "not covered: what meta-source.edn's :not-covered states the project knows isn't said again"
+             (empty? stated)))
 
     ;; ---- integrant: config shapes from real systems that read as refs to nothing
     (let [ig-check (fn [files]

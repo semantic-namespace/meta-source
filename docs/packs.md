@@ -95,6 +95,32 @@ file is reported the same way, for that file, and one whose `:pack/find`
 throws, at the first file. Two packs giving the same
 `:kind` are refused; a `:refer` in an `ns` form is never handed to a pack. `bb smoke` runs a pack like this one.
 
+## What the index doesn't cover: `:not-covered`
+
+meta-source reads conventions: what a project declares as data. What it
+doesn't read, it says, rather than passing over it (`:not-covered`, info):
+
+- the project's source files in a language the index doesn't read (Kotlin,
+  Java, TypeScript, JavaScript, …), anywhere under the root except hidden
+  directories, dependencies (`node_modules`) and build output (`target`,
+  `build`, `dist`, `out`), with how many and where most of them are;
+- a library declaring a system's structure that the project calls and no
+  enabled pack reads: Pedestal (routes and interceptors), Compojure, bidi and
+  Ataraxy (routes), Component, mount, donut.system and clip (a system), with
+  the files calling it. A pack that reads one names its namespaces in
+  `:pack/covers`, and it isn't reported.
+
+What the project knows isn't read here, because another tool reads it, it
+states in `meta-source.edn`, and it isn't said again:
+
+```clojure
+:not-covered {:languages ["JavaScript" "TypeScript"]   ; read by our JS tooling
+              :libraries ["Pedestal"]}
+```
+
+A system a function returns is outside the conventions too: the integrant
+pack reports `:checks-not-run` for it and concludes nothing from it.
+
 ## One id, two packs
 
 Data keys are global: a spec and a malli schema shaping `:user/email` are one
@@ -415,6 +441,15 @@ Each config key becomes a component, in the pack's own vocabulary:
   order them;
 - `:init-key-without-config` (info): an `init-key` for a key nothing configures
   or derives from: unused, or configured somewhere not read;
+- `:checks-not-run` (info): a config the pack couldn't read (a file that isn't
+  a map of config keys, a `:vars` var whose value isn't a map, a system a
+  function returns) or a `:vars` var that isn't there. What no config defines
+  can't be told then, so `:init-key-without-config`, `:ref-to-undefined` and
+  `:ref-maybe-from-module` don't run, and this lists why (`:because`, each
+  with its file and line). A system built by calling functions is outside
+  what the pack reads: it says so, and concludes nothing from it;
+- `:config-var-not-found` (warning): a var `:vars` names that the code doesn't
+  define, or whose namespace wasn't read;
 - `:ref-invalid` (warning): an `#ig/ref` or `#ig/refset` to something other
   than a qualified keyword or a vector of them (`#ig/ref :db`): `ig/ref`
   throws reading the config;
