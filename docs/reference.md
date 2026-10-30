@@ -147,7 +147,7 @@ them. A condition is a map, and every key in it must hold:
 | `:provided-by`, `:provides` | ...the entity whose code calls the var it is defined in (a route's component: its `init-key` calls the fn building the route), or what it so builds... |
 | `:handed` | ...what that component hands it: the components behind the config keys its `init-key` passes to the call, or all it holds when that isn't known... |
 | | ...with `{:all cond}`, `{:some cond}` or `{:none cond}` |
-| `:reaches {q cond}` | everything it depends on, transitively, through `:deps`, `:calls` and `:provided-by` (`:via #{:deps}` follows only those): `{:reaches {:none {:id :infra.db/xtdb}}}`. A violation shows the path to each offender |
+| `:reaches {q cond}` | everything it depends on, transitively, through declared relations: `:deps`, `:calls` and `:provided-by` (`:via #{:deps}` follows only those): `{:reaches {:none {:id :infra.db/xtdb}}}`. Not through data: reading a key a second entity produces doesn't reach that entity (atlas's effective dependencies do, so atlas's blast radius can answer differently). A violation shows the path to each offender |
 | `:reached-by {q cond}` | everything that depends on it, transitively, `:via` as for `:reaches`: `{:reached-by {:none {:kind :reitit}}}` on the database. A violation shows the path from each offender |
 | `:refs {:k q}` | what its `:k` names (the qualified keywords in its value), `q` as above: `{:refs {:fn/deps {:none {:has :kind/component}}}}`. `:deps` follows every key; this, one |
 | `:referenced-by {:k q}` | the entities whose `:k` names it: `{:referenced-by {:vp/pattern {:some {:has :kind/vp}}}}` |
