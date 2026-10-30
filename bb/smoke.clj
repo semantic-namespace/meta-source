@@ -953,6 +953,23 @@
         (check "grain: a form inside (comment ...) isn't read"
                (nil? (index/where idx :shop/order-placed)))))
 
+    ;; ---- grain: an area that declares no producers is one finding, not one per event
+    (let [dir (str (fs/create-temp-dir))]
+      (fs/create-dirs (str dir "/src/app"))
+      (spit (str dir "/src/app/blocks.clj")
+            (str "(ns app.blocks (:require [ai.obney.grain.command-processor-v2.interface :refer [defcommand]]\n"
+                 "                         [ai.obney.grain.read-model-processor-v2.interface :refer [defreadmodel]]))\n"
+                 "(defcommand :crm add-lead {:authorized? (constantly true)} \"Adds a lead.\" [ctx] {})\n"
+                 "(defcommand :crm drop-lead {} \"Drops a lead.\" [ctx] {})\n"
+                 "(defreadmodel :crm leads {:events #{:crm/lead-added :crm/lead-dropped :ext/synced}} \"Leads.\" [s e] s)\n"))
+      (let [ps (try (index/check (index/build {:root dir :src ["src"] :registry [] :packs {:grain {}}}))
+                    (finally (fs/delete-tree dir)))
+            of #(filter (fn [p] (= % (:problem p))) ps)]
+        (check "grain: an area none of whose producers declares :produces is one finding, with its events; others stay per event"
+               (and (= [[:crm 2 [:event.crm/lead-added :event.crm/lead-dropped]]]
+                       (map (juxt :dev-id :blocks :events) (of :grain-area-declares-no-producers)))
+                    (= [:event.ext/synced] (map :dev-id (of :grain-event-not-produced)))))))
+
     ;; ---- what the index doesn't cover: other languages, libraries no pack reads
     (let [build (fn [files packs]
                   (let [dir (str (fs/create-temp-dir))]

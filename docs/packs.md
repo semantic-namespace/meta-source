@@ -908,6 +908,10 @@ Checks:
 - `:grain-event-not-produced` (info): an event a read model or processor
   consumes that no block declares producing: undeclared, or appended by code
   outside a block, as grain's control plane does;
+- `:grain-area-declares-no-producers` (info): an area none of whose commands,
+  processors and periodic tasks declares `:produces`, as in an app written
+  before grain's event model: one finding for the area, with the events its
+  read models and processors consume, instead of one per event;
 - `:grain-event-not-consumed` (info): an event a block declares producing that
   no read model or processor consumes.
 
@@ -916,7 +920,12 @@ Each runs while every grain form of the kinds it needs was read; otherwise
 
 On grain itself (its example service and control plane): 68 entities, the
 def sites and the example's event model agreeing, and one event the example
-produces that nothing consumes (`:example/average-calculated`).
+produces that nothing consumes (`:example/average-calculated`). On
+[orc](https://github.com/ObneyAI/orc), a grain app, untouched: all 262 blocks
+read (127 commands, 45 queries, 54 read models, 35 processors, a periodic
+task) and 417 schemas, nothing unread; it predates the event model, so four
+areas declare no producers, and 9 events of libraries outside any block are
+consumed with no producer declared.
 
 ## A project's own namespaces: the namespaces pack
 

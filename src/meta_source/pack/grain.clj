@@ -61,6 +61,10 @@
    - :grain-event-not-produced (info): an event a read model or processor
      consumes that no block declares producing: undeclared, or appended by
      code outside a block (grain's control plane does);
+   - :grain-area-declares-no-producers (info): an area none of whose
+     commands, processors and periodic tasks declares :produces (an app
+     before grain's event model): one finding for the area, with the events
+     it consumes, instead of one per event;
    - :grain-event-not-consumed (info): an event a block declares producing
      that no read model or processor consumes."
   (:require [clojure.set :as set]))
@@ -252,6 +256,15 @@
         modelled-areas (set (for [[_ e] es :when (get-in e [:entry :grain/in-model])] (get-in e [:entry :grain/area])))
         produced (set (mapcat #(get-in (val %) [:entry :grain/produces]) es))
         consumed (set (mapcat #(get-in (val %) [:entry :grain/consumes]) es))
+        ;; areas where no producing block (command, processor, periodic task)
+        ;; declares :grain/produces at all: their events' producers aren't
+        ;; declared, which one finding per area says
+        producers-by-area (group-by #(get-in (val %) [:entry :grain/area])
+                                    (filter #(#{:command :todo-processor :periodic-task} (get-in (val %) [:entry :grain/type])) es))
+        silent (into {} (for [[area bs] producers-by-area
+                              :when (and area (not-any? #(contains? (:entry (val %)) :grain/produces) bs))]
+                          [area (count bs)]))
+        area-of-event #(keyword (subs (namespace %) (count "event.")))
         when-runs (fn [check xs] (when (runs? check) xs))]
     (concat
      (when (seq not-run)
@@ -277,8 +290,15 @@
              :when (seq missing)]
          {:severity :warning :problem :grain-reads-undefined :dev-id id :keys (vec (sort missing)) :definition (loc e)}))
      (when-runs :grain-event-not-produced
+       (for [[area evs] (sort-by key (group-by area-of-event (sort (set/difference consumed produced))))
+             :when (silent area)]
+         {:severity :info :problem :grain-area-declares-no-producers :dev-id area :blocks (silent area)
+          :events (vec evs)
+          :message (str area ": none of its " (silent area) " commands, processors and periodic tasks declares what it produces, so "
+                        (count evs) " consumed events have no declared producer")}))
+     (when-runs :grain-event-not-produced
        (for [ev (sort (set/difference consumed produced))
-             :when (or (events ev) (not (entry ev)))]
+             :when (and (or (events ev) (not (entry ev))) (not (silent (area-of-event ev))))]
          {:severity :info :problem :grain-event-not-produced :dev-id ev
           :message (str ev ": consumed, and no block declares producing it (code outside a block may append it)")
           :consumers (vec (sort (for [[id e] es :when (some #{ev} (get-in e [:entry :grain/consumes]))] id)))

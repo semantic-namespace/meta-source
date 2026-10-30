@@ -303,6 +303,8 @@
            :grain-model-only (str id ": the event model lists it, and no def site defines it")
            :grain-reads-undefined (str id " reads " ks ", which no read model defines")
            :grain-event-not-produced (str id " is consumed, and no block declares producing it")
+           :grain-area-declares-no-producers (str "area " id ": no command, processor or periodic task declares what it produces ("
+                                                  (count (:events p)) " consumed events)")
            :grain-event-not-consumed (str id " is produced, and no read model or processor consumes it")
            (str (name (:problem p)) (when id (str " " id)) (when (seq (:keys p)) (str " " ks))
                 (when (:reason p) (str ": " (:reason p))) (when (:message p) (str ": " (:message p))))))))
