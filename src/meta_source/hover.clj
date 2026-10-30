@@ -299,6 +299,11 @@
            :initial-state-not-a-state (str id " starts at " (pr-str (:to p)) ", which is no state of it")
            :state-defined-twice (str id " defines the state " (pr-str (:state p)) " twice: tilakone takes the first")
            :state-unreachable (str (pr-str (:state p)) " is not reached from " (pr-str (:from p)) " by " id "'s transitions")
+           :grain-not-in-model (str id " is defined, and its area's event model doesn't list it")
+           :grain-model-only (str id ": the event model lists it, and no def site defines it")
+           :grain-reads-undefined (str id " reads " ks ", which no read model defines")
+           :grain-event-not-produced (str id " is consumed, and no block declares producing it")
+           :grain-event-not-consumed (str id " is produced, and no read model or processor consumes it")
            (str (name (:problem p)) (when id (str " " id)) (when (seq (:keys p)) (str " " ks))
                 (when (:reason p) (str ": " (:reason p))) (when (:message p) (str ": " (:message p))))))))
 
