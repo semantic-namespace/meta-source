@@ -178,6 +178,8 @@
    (filter :file (:vars p))
    (filter :file (:definitions p))
    (filter :file (:given-at p))
+   ;; what a check couldn't run on: the config not read
+   (filter :file (:because p))
    (for [v (:values p) s (:sources v) :when (:file s)] s)))
 
 (defn- token-at
@@ -241,6 +243,10 @@
            :input-without-producer (str "nothing produces " ks)
            :operation-option-not-read (str id ": " (str/join ", " (map name (:options p))) " written as code, not read")
            :pack-form-not-read (str (some-> (:pack p) name) " form not read: " (:reason p))
+           :checks-not-run (str (some-> (:pack p) name) " checks not run, a config wasn't read: "
+                                (str/join ", " (map name (:checks p))))
+           :config-var-not-found (str (:var p) ", a config var the options name: " (:reason p))
+           :not-covered (:reason p)
            :register-call-not-read (str "register! call not read: " (:reason p))
            :id-in-several-packs (str id " is declared by several packs: " (str/join ", " (map name (:packs p))))
            :runtime-disagrees (str id " differs from the running process"
