@@ -914,7 +914,7 @@ Checks:
 Each runs while every grain form of the kinds it needs was read; otherwise
 `:checks-not-run` says which didn't, and why.
 
-On grain itself (its example service and control plane): 88 entities, the
+On grain itself (its example service and control plane): 68 entities, the
 def sites and the example's event model agreeing, and one event the example
 produces that nothing consumes (`:example/average-calculated`).
 
