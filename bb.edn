@@ -1,4 +1,4 @@
-{:paths ["src" "bb"]
+{:paths ["src" "resources" "bb"]
  ;; bbin install io.github.semantic-namespace/meta-source
  :bbin/bin {meta-source {:main-opts ["-m" "meta-source.cli"]}}
  :tasks {meta-source {:doc "meta-source <where|uses|deps|data|check|diagnostics|summary|hover|serve> [arg] [--root dir]: answers from the project's files, nothing loaded"

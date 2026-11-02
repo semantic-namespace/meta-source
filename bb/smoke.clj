@@ -236,6 +236,32 @@
               (try (index/build (assoc-in cfg [:packs 'smoke/pathom-again] {})) nil
                    (catch clojure.lang.ExceptionInfo e (ex-data e)))))
 
+    (check "a :packs key no pack on the classpath is enabled by is an error, naming it"
+           (= [:nope] (:keys (try (index/build (assoc-in cfg [:packs :nope] {})) nil
+                                  (catch clojure.lang.ExceptionInfo e (ex-data e))))))
+
+    ;; ---- packs from a library: its meta-source/packs.edn, on the classpath through :deps
+    (let [dir (str (fs/create-temp-dir))
+          pack (fn [id ks] (str "{:pack/id " id " :pack/kinds #{" id "} :pack/config-keys " ks
+                                " :pack/find (fn [& _] nil) :pack/read (fn [& _] [])}"))]
+      (fs/create-dirs (str dir "/packs/src/libpack"))
+      (fs/create-dirs (str dir "/packs/resources/meta-source"))
+      (spit (str dir "/packs/deps.edn") "{:paths [\"src\" \"resources\"]}")
+      (spit (str dir "/packs/resources/meta-source/packs.edn")
+            "[{:pack libpack.core/pack :config-keys #{:libpack}} {:pack libpack.core/drift :config-keys #{:drift}}]")
+      (spit (str dir "/packs/src/libpack/core.clj")
+            (str "(ns libpack.core)\n(def pack " (pack :libpack "#{:libpack}") ")\n"
+                 "(def drift " (pack :drift "#{:other}") ")\n"))
+      (spit (str dir "/meta-source.edn") "{:deps {my/packs {:local/root \"packs\"}} :packs {:libpack {}}}")
+      (let [c (cli/config {:root dir})]
+        (check "a library's packs are found through its meta-source/packs.edn, once :deps puts it on the classpath"
+               (and (some #{'libpack.core/pack} (map :pack (index/available-packs)))
+                    (= [:libpack] (map :pack/id (index/enabled-packs (:packs c))))))
+        (check "packs.edn and the pack disagreeing on its config keys is an error, not a guess"
+               (= #{:drift} (:resource (try (index/enabled-packs {:drift {}}) nil
+                                            (catch clojure.lang.ExceptionInfo e (ex-data e)))))))
+      (fs/delete-tree dir))
+
     ;; ---- integrant: resources/*.edn and shop.system
     (let [ig #(:entry (index/where idx %))
           ig-part #(into {} (filter (fn [[k _]] (= "integrant" (namespace k)))) (ig %))]

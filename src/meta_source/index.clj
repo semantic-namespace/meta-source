@@ -19,18 +19,6 @@
             [clojure.java.io :as io]
             [clojure.string :as str]
             [meta-source.merge :as merge]
-            [meta-source.pack.aero :as aero]
-            [meta-source.pack.datascript :as datascript]
-            [meta-source.pack.fn-schema :as fn-schema]
-            [meta-source.pack.integrant :as integrant]
-            [meta-source.pack.namespaces :as namespaces]
-            [meta-source.pack.pathom :as pathom]
-            [meta-source.pack.re-frame :as re-frame]
-            [meta-source.pack.reitit :as reitit]
-            [meta-source.pack.overarch :as overarch]
-            [meta-source.pack.tilakone :as tilakone]
-            [meta-source.pack.grain :as grain]
-            [meta-source.pack.schema :as schema]
             [meta-source.read :as read]
             [meta-source.rules :as rules])
   (:import (java.io File)))
@@ -292,21 +280,49 @@
 ;; cached per file, so it must be data. A pack needs :pack/find and
 ;; :pack/read, or :pack/data-files and :pack/read-data, or both.
 
-(def builtin-packs [schema/pack fn-schema/pack datascript/pack pathom/pack integrant/pack aero/pack re-frame/pack reitit/pack tilakone/pack overarch/pack grain/pack namespaces/pack])
+(def ^:private packs-resource "meta-source/packs.edn")
+
+(defn available-packs
+  "The packs on the classpath, in classpath order: each library of packs
+   ships a meta-source/packs.edn resource, a vector of {:pack sym
+   :config-keys #{k ...}}, the var holding a pack and the keys of
+   meta-source.edn's :packs that enable it. Nothing is loaded here."
+  []
+  (into [] (comp (mapcat #(edn/read-string (slurp %))) (distinct))
+        (enumeration-seq (.getResources (clojure.lang.RT/baseLoader) packs-resource))))
+
+(defn- load-pack
+  "The pack held by the var `sym`, which must be a map a pack can be."
+  [sym]
+  (let [p (some-> (requiring-resolve sym) deref)]
+    (when-not (and (map? p) (or (and (:pack/find p) (:pack/read p))
+                                (and (:pack/data-files p) (:pack/read-data p))))
+      (throw (ex-info "A pack is a map with :pack/find and :pack/read, or :pack/data-files and :pack/read-data" {:pack sym})))
+    p))
 
 (defn enabled-packs
-  "The packs `packs-config` (meta-source.edn's :packs) enables: each
-   built-in pack one of whose :pack/config-keys it has, and each qualified
-   symbol in it, resolved to a project's own pack."
+  "The packs `packs-config` (meta-source.edn's :packs) enables: each pack on
+   the classpath (available-packs) one of whose config keys it has, and each
+   qualified symbol in it, resolved to a project's own pack. A key no pack
+   on the classpath is enabled by is an error, not a pack silently left out."
   [packs-config]
   (let [ks (set (keys packs-config))
+        available (available-packs)
+        unknown (sort (remove #(or (qualified-symbol? %) (some (fn [a] (contains? (:config-keys a) %)) available)) ks))
+        _ (when (seq unknown)
+            (throw (ex-info (str "No pack on the classpath is enabled by " (str/join ", " (map pr-str unknown))
+                                 " in meta-source.edn's :packs: add the library that has it to the project's deps")
+                            {:keys (vec unknown) :available (vec (sort (mapcat :config-keys available)))})))
+        found (for [{:keys [pack config-keys]} available
+                    :when (some ks config-keys)
+                    :let [p (load-pack pack)]]
+                (if (= (set config-keys) (set (:pack/config-keys p)))
+                  p
+                  (throw (ex-info (str pack "'s :pack/config-keys aren't the ones its " packs-resource " gives")
+                                  {:pack pack :resource config-keys :pack/config-keys (:pack/config-keys p)}))))
         own (for [k ks :when (qualified-symbol? k)]
-              (let [p (some-> (requiring-resolve k) deref)]
-                (when-not (and (map? p) (or (and (:pack/find p) (:pack/read p))
-                                            (and (:pack/data-files p) (:pack/read-data p))))
-                  (throw (ex-info "A pack is a map with :pack/find and :pack/read, or :pack/data-files and :pack/read-data" {:pack k})))
-                (update p :pack/config-keys (fnil conj #{}) k)))
-        ps (vec (concat (filter #(some ks (:pack/config-keys %)) builtin-packs) (sort-by :pack/id own)))]
+              (update (load-pack k) :pack/config-keys (fnil conj #{}) k))
+        ps (vec (concat found (sort-by :pack/id own)))]
     (when-let [dup (seq (for [[k n] (frequencies (mapcat :pack/kinds ps)) :when (> n 1)] k))]
       (throw (ex-info "Two packs give sources of the same kind" {:kinds (vec dup)})))
     ps))

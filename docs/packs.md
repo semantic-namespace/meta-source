@@ -22,9 +22,8 @@ what the index does for every pack), see [architecture.md](architecture.md#packs
 
 ## Writing a pack
 
-A pack is a map; the built-in ones are `meta-source.pack.schema/pack`,
-`meta-source.pack.pathom/pack` and `meta-source.pack.integrant/pack`. A project enables its own by naming the var
-under `:packs`, with its options as the value:
+A pack is a map. A project enables its own by naming the var under
+`:packs`, with its options as the value:
 
 ```clojure
 {:packs {:spec {} app.source/job-pack {}}
@@ -33,6 +32,21 @@ under `:packs`, with its options as the value:
 
 `:deps` puts the pack's code on meta-source's classpath, resolved as a
 `deps.edn` would; a pack in the project's own `src` doesn't need it.
+
+A library of packs is enabled by keys instead (`:spec`, `:integrant`): it
+ships a `meta-source/packs.edn` resource naming each pack's var and the keys
+that enable it, and meta-source reads every such resource on its classpath,
+loading a pack only when `:packs` has one of its keys. The packs this page
+describes are listed in [resources/meta-source/packs.edn](../resources/meta-source/packs.edn):
+
+```clojure
+[{:pack meta-source.pack.integrant/pack :config-keys #{:integrant}}
+ {:pack meta-source.pack.schema/pack :config-keys #{:spec :malli}}]
+```
+
+A key under `:packs` that no pack on the classpath is enabled by is an
+error naming it, and so is a pack whose `:pack/config-keys` aren't the
+ones its `packs.edn` gives.
 
 A pack needs `:pack/find` and `:pack/read` (forms in code), or
 `:pack/data-files` and `:pack/read-data` (data files), or both. This one reads a project's
@@ -61,7 +75,7 @@ The optional keys:
 
 | Key | What it gives |
 |---|---|
-| `:pack/config-keys` | for a built-in pack, the `:packs` keys that enable it |
+| `:pack/config-keys` | for a pack a library lists in its `meta-source/packs.edn`, the `:packs` keys that enable it (the same the resource gives) |
 | `:pack/data-keys?` | true when its entities are data keys, as a schema's are |
 | `:pack/describes?` | true when it describes what other packs declare, as atlas's registry describes an integrant component under its key: sharing their ids is no `:id-in-several-packs`, and their source stays the id's primary definition |
 | `:pack/depicts?` | true when it is a picture of the system, as an architecture model is: never an id's primary definition while anything else defines it |

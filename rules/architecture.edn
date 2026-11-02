@@ -17,4 +17,10 @@
  {:doc "read, merge and rules require nothing of meta-source's"
   :severity :error
   :when {:id #{:meta-source/read :meta-source/merge :meta-source/rules}}
-  :require [{:missing :meta-source/requires}]}}
+  :require [{:missing :meta-source/requires}]}
+
+ :meta-source.architecture/core-without-packs
+ {:doc "Core finds packs on the classpath and never requires one: only the namespaces pack, its own, is part of it"
+  :severity :error
+  :when {:id-ns "meta-source" :not {:id-ns "meta-source.pack"}}
+  :require [{:reaches {:none {:id-ns "meta-source.pack" :not {:id :meta-source.pack/namespaces}}}}]}}

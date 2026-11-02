@@ -124,7 +124,7 @@ the order they're called (every key is described in
 
 | When | Keys | What the pack gives |
 |---|---|---|
-| **enabling** | `:pack/config-keys` | for a built-in pack, the `:packs` keys that turn it on; a project's pack is turned on by its symbol |
+| **enabling** | `:pack/config-keys` | for a pack a library lists in its `meta-source/packs.edn` resource, the `:packs` keys that turn it on; a project's pack is turned on by its symbol |
 | **analysis** | `:pack/kondo-config`, `:pack/var-meta`, `:pack/id-key` | clj-kondo config its library would export (`:lint-as`), meta keys to keep on var definitions, and its own meta key linking a var to an id (atlas's `:atlas.source/id`) |
 | **finding** | `:pack/find` | from the analysis of every file, the sites where its forms are: file, row, and the head symbol's position |
 | **reading** | `:pack/read`; `:pack/data-files`, `:pack/read-data` | for one file's sites, each form read as data into `{:row :kind :dev-id :entry}`; for data files, all of them at once |
@@ -287,9 +287,11 @@ conformance` and `npm test` check each reader against it.
 
 - **A pack** (see [Packs](#packs-one-contract-shared-machinery)): name yours by its
   qualified symbol in `meta-source.edn`'s `:packs`, with `:deps` to put it
-  on the classpath ([packs.md](packs.md#writing-a-pack)). Libraries ship
-  their own: atlas's registry is `atlas.meta-source/pack`, and its JS
-  module adds an endpoint-call pack.
+  on the classpath ([packs.md](packs.md#writing-a-pack)). A library of
+  packs ships a `meta-source/packs.edn` resource and is enabled by keys,
+  as meta-source's own packs are; the index requires no pack, and finds
+  them on the classpath. Libraries ship their own: atlas's registry is
+  `atlas.meta-source/pack`, and its JS module adds an endpoint-call pack.
 - **Rules** are EDN files of `{:when … :require …}` over entities and their
   relations.
 - **The meta key** is `:meta-source/id` unless `:id-key` says otherwise.
