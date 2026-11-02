@@ -67,7 +67,8 @@
                 (vec (for [{:keys [row name-row name-col]} sites
                            :let [[_ nm opts] (form-at name-row name-col)]]
                        {:row row :kind :job :dev-id (keyword own-ns (name nm)) :entry opts})))
-   :pack/describe (fn [entry] (when-let [s (:job/schedule entry)] (str "job  " s)))})
+   :pack/describe (fn [entry] (when-let [s (:job/schedule entry)] (str "job  " s)))
+   :pack/messages {:job-unscheduled (fn [_ id _] (str id " has no schedule"))}})
 
 (def pathom-again
   "A pack claiming a kind the Pathom pack gives."
@@ -230,7 +231,11 @@
              (and (empty? (problems own :entity-without-type))
                   (= {:read 1 :not-read 0} (:job (:packs (index/summary own))))))
       (check "the hover uses its :pack/describe"
-             (str/includes? (:eldoc (hover/lookup own :shop.jobs/nightly-digest)) "job  0 3 * * *")))
+             (str/includes? (:eldoc (hover/lookup own :shop.jobs/nightly-digest)) "job  0 3 * * *"))
+      (check "a problem says what its pack's :pack/messages says, while the pack is enabled"
+             (let [p {:problem :job-unscheduled :dev-id :shop.jobs/x :severity :warning}]
+               (and (= "meta-source: :shop.jobs/x has no schedule" (hover/message own p nil))
+                    (= "meta-source: job-unscheduled :shop.jobs/x" (hover/message idx p nil))))))
     (check "two packs giving the same kind are refused"
            (= {:kinds [:pathom]}
               (try (index/build (assoc-in cfg [:packs 'smoke/pathom-again] {})) nil
@@ -1646,8 +1651,8 @@
         (check "namespaces: a rule says which may require which, at the namespace breaking it, naming what it requires and not again where"
                (and (= #{[:shop.web/handler 1]}
                        (set (map (juxt :dev-id (comp :line :definition)) (problems ix :rule-violated))))
-                    (every? #(and (str/includes? (hover/message % (:dev-id %)) "(:shop/db)")
-                                  (not (str/includes? (hover/message % (:dev-id %)) "given at")))
+                    (every? #(and (str/includes? (hover/message ix % (:dev-id %)) "(:shop/db)")
+                                  (not (str/includes? (hover/message ix % (:dev-id %)) "given at")))
                             (problems ix :rule-violated))))
         (check "namespaces: with :pattern true, a root namespace, with no name under the root, is off-pattern"
                (= [:pattern/namespace-under-root] (map :pattern (problems ix :off-pattern))))

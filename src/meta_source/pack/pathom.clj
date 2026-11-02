@@ -317,6 +317,9 @@
 (def pack
   {:pack/id :pathom
    :pack/config-keys #{:pathom}
+   :pack/messages
+   {:input-without-producer (fn [_ _ ks] (str "nothing produces " ks))
+    :operation-option-not-read (fn [p id _] (str id ": " (str/join ", " (map name (:options p))) " written as code, not read"))}
    :pack/kinds #{kind}
    :pack/vocabulary #{"pathom"}
    :pack/data-keys? false

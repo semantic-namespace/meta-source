@@ -155,6 +155,12 @@
 (def pack
   {:pack/id :tilakone
    :pack/config-keys #{:tilakone}
+   :pack/messages
+   {:transition-to-no-state (fn [p id _] (str id ": " (pr-str (:state p)) " on " (pr-str (:on p)) " goes to " (pr-str (:to p))
+                                              ", which is no state of it"))
+    :initial-state-not-a-state (fn [p id _] (str id " starts at " (pr-str (:to p)) ", which is no state of it"))
+    :state-defined-twice (fn [p id _] (str id " defines the state " (pr-str (:state p)) " twice: tilakone takes the first"))
+    :state-unreachable (fn [p id _] (str (pr-str (:state p)) " is not reached from " (pr-str (:from p)) " by " id "'s transitions"))}
    :pack/kinds #{kind}
    :pack/vocabulary #{"tilakone"}
    :pack/data-keys? false

@@ -214,6 +214,10 @@
 (def pack
   {:pack/id :schema
    :pack/config-keys #{:spec :malli}
+   :pack/messages
+   {:data-key-without-schema (fn [_ _ ks] (str "no schema shapes " ks))
+    :schema-key-without-shape (fn [_ _ ks] (str ks " has no spec of its own"))
+    :unqualified-schema-keys (fn [_ _ ks] (str "unqualified key " ks ": dataflow can't follow it"))}
    :pack/kinds kinds
    :pack/vocabulary #{"spec" "malli"}
    :pack/data-keys? true

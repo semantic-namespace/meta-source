@@ -446,6 +446,9 @@
 (def pack
   {:pack/id :reitit
    :pack/config-keys #{:reitit}
+   :pack/messages
+   {:route-not-defined (fn [_ id _] (str "no route is named " id))
+    :handler-not-found (fn [p id _] (str id "'s handler " (:calls p) " is not defined"))}
    :pack/kinds #{kind}
    :pack/vocabulary #{"reitit"}
    :pack/data-keys? false

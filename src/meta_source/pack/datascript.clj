@@ -237,6 +237,11 @@
 (def pack
   {:pack/id :datascript
    :pack/config-keys #{:datascript}
+   :pack/messages
+   {:pull-join-not-ref (fn [p id _] (str "pull joins on " id ", which is not a ref" (when (:in-no-schema p) " (no schema read gives it)")))
+    :reverse-not-ref (fn [p id _] (str "reverse " id " needs it to be a ref" (when (:in-no-schema p) " (no schema read gives it)")))
+    :lookup-ref-not-unique (fn [p id _] (str "lookup ref on " id ", which is not :db/unique" (when (:in-no-schema p) " (no schema read gives it)")))
+    :schema-disagrees (fn [p id _] (str id " is " (:datascript p) " in the Datascript schema, one " (:shape p) " in its spec"))}
    :pack/kinds #{kind}
    :pack/vocabulary #{"datascript"}
    :pack/data-keys? true

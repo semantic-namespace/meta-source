@@ -321,6 +321,19 @@
 (def pack
   {:pack/id :overarch
    :pack/config-keys #{:overarch}
+   :pack/messages
+   {:relation-to-nothing (fn [p id _] (str id "'s " (name (:end p)) " " (pr-str (:to p)) " is no element of the model"))
+    :missing-id (fn [p _ _] (str "this " (some-> (:el p) name) (when (:name p) (str " " (pr-str (:name p))))
+                                 " has no :id, and Overarch can't generate one: it needs a parent with an :id, and a :name"))
+    :relation-missing-end (fn [p _ _] (str "this " (name (:el p)) " has no " (:missing p) ": Overarch reads it as a node, not a relation"))
+    :parent-override (fn [p id _] (str id " is contained in " (str/join " and " (map pr-str (:parents p))) ": Overarch takes one parent"))
+    :missing-desc (fn [_ id _] (str id " has no :desc"))
+    :concerns-nothing (fn [p id _] (str id " concerns nothing: no " (pr-str (:rel p)) " relation from it"))
+    :view-of-nothing (fn [p id _] (str id " shows "(pr-str (:to p)) ", which the model doesn't define"))
+    :element-defined-twice (fn [_ id _] (str "the model defines " id " twice"))
+    :element-in-no-view (fn [_ id _] (str "no view shows " id))
+    :model-relation-not-declared (fn [p id _] (str "the model relates " id " to " (pr-str (:to p)) ", and nothing else describing " id " names " (pr-str (:to p))))
+    :relation-missing-from-model (fn [p id _] (str id " names " (pr-str (:to p)) ", and the model draws no relation from it to " (pr-str (:to p))))}
    :pack/kinds #{kind}
    :pack/vocabulary #{"overarch"}
    :pack/data-keys? false

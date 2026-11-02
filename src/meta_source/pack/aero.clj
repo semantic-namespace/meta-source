@@ -256,6 +256,14 @@
 (def pack
   {:pack/id :aero
    :pack/config-keys #{:aero}
+   :pack/messages
+   {:include-not-found (fn [p _ _] (str "#include " (pr-str (name (:dev-id p))) " is not found: aero reads it as {:aero/missing-include ...}"))
+    :tag-without-reader (fn [p _ _] (str "no reader for #" (str/replace (name (:dev-id p)) "." "/") ": reading the config throws"))
+    :profile-never-read (fn [p id _] (str id ": no profile read sees " (str/join " " (map pr-str (:keys p)))))
+    :profile-without-branch (fn [p id _] (str id ": #profile has no :default, and no branch for " (str/join " " (map pr-str (:keys p)))))
+    :ref-to-nothing (fn [p id _] (str id ": #ref to nothing: " (str/join " " (map pr-str (:paths p)))))
+    :env-not-set (fn [_ id _] (str id " is read with no default, and no :env-sources file sets it"))
+    :not-a-number (fn [p id _] (str id ": #" (name (:tag p)) " over " (pr-str (:value p)) ", not a number"))}
    :pack/kinds #{kind}
    :pack/vocabulary #{"aero"}
    :pack/data-keys? false

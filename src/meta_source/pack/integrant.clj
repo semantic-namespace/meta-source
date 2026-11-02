@@ -785,6 +785,20 @@
 (def pack
   {:pack/id :integrant
    :pack/config-keys #{:integrant}
+   :pack/messages
+   {:ref-to-undefined (fn [_ _ ks] (str "no config defines " ks))
+    :init-key-without-config (fn [_ id _] (str "init-key for " id ", which no config defines"))
+    :ref-ambiguous (fn [p _ ks] (str "a ref to " ks " matches " (str/join ", " (map pr-str (:candidates p)))
+                                     ", configured together: integrant can't choose"))
+    :ref-cycle (fn [p _ _] (str "the refs go round in a circle: " (str/join " → " (map pr-str (:cycle p)))))
+    :ref-invalid (fn [p id _] (str id ": integrant refuses these refs, not a qualified keyword or a vector of them: "
+                                   (str/join " " (map pr-str (:refs p)))))
+    :var-unbound (fn [p id _] (str id ": #ig/var " (str/join " " (:vars p)) " is not in the file's :vars: ig/init refuses it"))
+    :no-init-key (fn [_ id _] (str "nothing builds " id ": no init-key on it or what it derives from, and no fn named like it"))
+    :removed-method (fn [p id _] (str (:method p) " for " id ": integrant removed it in " (:removed-in p)
+                                      (if (:integrant-version p) (str ", and the project uses " (:integrant-version p)) "")))
+    :ref-maybe-from-module (fn [p _ ks] (str "no config defines " ks ", which the project's module " (pr-str (:module p)) " may add"))
+    :config-var-not-found (fn [p _ _] (str (:var p) ", a config var the options name: " (:reason p)))}
    :pack/kinds #{kind}
    :pack/vocabulary #{"integrant"}
    :pack/data-keys? false

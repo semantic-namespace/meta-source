@@ -317,6 +317,14 @@
 (def pack
   {:pack/id :grain
    :pack/config-keys #{:grain}
+   :pack/messages
+   {:grain-not-in-model (fn [_ id _] (str id " is defined, and its area's event model doesn't list it"))
+    :grain-model-only (fn [_ id _] (str id ": the event model lists it, and no def site defines it"))
+    :grain-reads-undefined (fn [_ id ks] (str id " reads " ks ", which no read model defines"))
+    :grain-event-not-produced (fn [_ id _] (str id " is consumed, and no block declares producing it"))
+    :grain-area-declares-no-producers (fn [p id _] (str "area " id ": no command, processor or periodic task declares what it produces ("
+                                                        (count (:events p)) " consumed events)"))
+    :grain-event-not-consumed (fn [_ id _] (str id " is produced, and no read model or processor consumes it"))}
    :pack/kinds #{kind}
    :pack/vocabulary #{"grain" "grain.model"}
    :pack/data-keys? false

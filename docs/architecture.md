@@ -132,7 +132,7 @@ the order they're called (every key is described in
 | **deriving** | `:pack/dataflow`, `:pack/dataflow-of`, `:pack/rules-of`, `:pack/inline-data-keys` | which entry keys list data read and given (declared, or derived from what was read), rules derived from entries (atlas's invariants), data keys defined inline |
 | **the running system** | `:pack/runtime-fill`, `:pack/runtime-diff`, `:pack/runtime-kinds` | given its snapshot: what static reading couldn't read, and where code and process disagree |
 | **checking** | `:pack/checks` | its library's problems, given a view of the index |
-| **showing** | `:pack/describe`, `:pack/shape`, `:pack/members` | a hover's one line, a data key's shape, the keys a schema is made of |
+| **showing** | `:pack/describe`, `:pack/shape`, `:pack/members`, `:pack/messages` | a hover's one line, a data key's shape, the keys a schema is made of, and what each of its problems says, in a line |
 
 ### What meta-source does for every pack
 

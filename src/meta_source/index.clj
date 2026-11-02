@@ -209,6 +209,10 @@
 ;;                          id (a dispatch): never its primary definition.
 ;;                          One with :var ns/name says that var implements
 ;;                          the id, as the meta key does (an s/fdef's)
+;;   :pack/messages         {problem (fn [p id ks])} → the line a problem
+;;                          of its checks shows in the editor and in check
+;;                          --brief (meta-source.hover/message); id and ks
+;;                          are the problem's dev-id and keys as written
 ;;   :pack/checks           (fn [view]) → problems; view is {:entities
 ;;                          :of-kinds :data-key? :loc :flow :opts
 ;;                          :var-defined? :namespaces :not-read :skipped :impl

@@ -451,6 +451,13 @@
 (def pack
   {:pack/id :re-frame
    :pack/config-keys #{:re-frame}
+   :pack/messages
+   {:event-not-registered (fn [_ id _] (str "no reg-event registers " id))
+    :sub-not-registered (fn [_ id _] (str "no reg-sub registers " id))
+    :effect-not-registered (fn [_ id _] (str "no reg-fx registers the effect " id))
+    :cofx-not-registered (fn [_ id _] (str "no reg-cofx registers " id))
+    :event-never-dispatched (fn [_ id _] (str "nothing dispatches " id))
+    :sub-never-subscribed (fn [_ id _] (str "nothing subscribes to " id))}
    :pack/kinds #{kind}
    :pack/vocabulary #{"re-frame"}
    :pack/data-keys? false
