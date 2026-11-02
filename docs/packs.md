@@ -15,6 +15,7 @@ carry data. Then it describes the built-in packs:
 - [Routes: the reitit pack](#routes-the-reitit-pack)
 - [A database's attributes: the Datascript pack](#a-databases-attributes-the-datascript-pack)
 - [State machines: the tilakone pack](#state-machines-the-tilakone-pack)
+- [An event model: the grain pack](#an-event-model-the-grain-pack)
 
 For how packs fit into meta-source (the build each pack takes part in, and
 what the index does for every pack), see [architecture.md](architecture.md#packs-one-contract-shared-machinery).
@@ -93,7 +94,8 @@ never thrown: the index reports those as `:pack-form-not-read` and
 counts each kind's reads in `meta-source summary`. A pack that throws on a
 file is reported the same way, for that file, and one whose `:pack/find`
 throws, at the first file. Two packs giving the same
-`:kind` are refused; a `:refer` in an `ns` form is never handed to a pack. `bb smoke` runs a pack like this one.
+`:kind` are refused; a `:refer` in an `ns` form is never handed to a pack, and
+neither is a form inside a `(comment ...)` block, which is REPL scratch. `bb smoke` runs a pack like this one.
 
 ## What the index doesn't cover: `:not-covered`
 
@@ -859,6 +861,71 @@ Not read: a state whose name is code (a template machine), reported as not
 read; transitions added at runtime; guards and actions, which are fns.
 
 ![A tilakone machine: a renamed state, the transition left behind, in Emacs](images/meta-source-tilakone.gif)
+
+## An event model: the grain pack
+
+```clojure
+:grain {}
+```
+
+A [grain](https://github.com/ObneyAI/grain) app declares its event model with
+macros whose options are data: `defcommand`, `defquery`, `defreadmodel`,
+`defprocessor`, `defperiodic`, `defevent` and `defschemas`. Its area's
+`defeventmodel` declares the same model again, and grain's boot guard refuses
+to start when the two disagree. The pack reads both into one entity per block,
+so where they disagree meta-source says so (`:conflicting-values`) before
+anything runs.
+
+Grain keeps a registry per kind, so one name may be a query and a read model.
+A block's id puts its kind before the namespace, as atlas's grain ontology
+names them:
+
+```clojure
+(index/where idx :command.example/create-counter)
+;; :entry #:grain{:type :command :area :example :name :example/create-counter
+;;                :reads #{:read-model.example/counters}
+;;                :produces #{:event.example/counter-created}
+;;                :doc "Creates a new counter. Counter name must be unique."
+;;                :defined true :in-model true}
+```
+
+`:grain/reads`, `:grain/produces` and `:grain/consumes` (a read model's
+`:events`, a processor's `:topics`) are those ids: what a processor produces
+are commands it dispatches; what a command or a periodic task produces,
+events. A schema `defschemas` registers keeps its own name: grain's malli
+registry is one. An option written as code (`:authorized? (constantly true)`)
+is dropped and listed. A form whose name or options aren't literal (an event
+named by a var) is not read, and said so.
+
+Checks:
+
+- `:grain-not-in-model` (warning): a block defined in an area that has an
+  event model, which doesn't list it. Grain requires full coverage;
+- `:grain-model-only` (warning): a block the model lists that no def site
+  defines;
+- `:grain-reads-undefined` (warning): a block reading a read model nothing
+  defines;
+- `:grain-event-not-produced` (info): an event a read model or processor
+  consumes that no block declares producing: undeclared, or appended by code
+  outside a block, as grain's control plane does;
+- `:grain-area-declares-no-producers` (info): an area none of whose commands,
+  processors and periodic tasks declares `:produces`, as in an app written
+  before grain's event model: one finding for the area, with the events its
+  read models and processors consume, instead of one per event;
+- `:grain-event-not-consumed` (info): an event a block declares producing that
+  no read model or processor consumes.
+
+Each runs while every grain form of the kinds it needs was read; otherwise
+`:checks-not-run` says which didn't, and why.
+
+On grain itself (its example service and control plane): 68 entities, the
+def sites and the example's event model agreeing, and one event the example
+produces that nothing consumes (`:example/average-calculated`). On
+[orc](https://github.com/ObneyAI/orc), a grain app, untouched: all 262 blocks
+read (127 commands, 45 queries, 54 read models, 35 processors, a periodic
+task) and 417 schemas, nothing unread; it predates the event model, so four
+areas declare no producers, and 9 events of libraries outside any block are
+consumed with no producer declared.
 
 ## A project's own namespaces: the namespaces pack
 
