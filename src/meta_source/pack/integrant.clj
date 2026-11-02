@@ -31,6 +31,11 @@
      :integrant/init-key, :integrant/halt-key!, ...
                             true when the code has that defmethod for it
 
+   A method on :default ((defmethod ig/init-key :default ...)) is what
+   integrant runs for a key with no method of its own: it is the entity
+   :integrant/default, with the same :integrant/<method> facts, so a key
+   with no init-key of its own is still built.
+
    Config files are read all at once, so a key several files configure
    (variants of one system) is one entry with every file listed, not a
    conflict. Tags no reader knows (aero's #env, #or, #profile) are kept as
@@ -309,8 +314,8 @@
                    k))
         read (for [{:keys [file path kvs]} parsed]
                  (cond
-                   (instance? Exception kvs) {:skipped {:file file :row 1 :kind kind :skipped (str "not readable: " (ex-message kvs))}}
-                   (nil? kvs) {:skipped {:file file :row 1 :kind kind :skipped "not a map of config keys"}}
+                   (instance? Exception kvs) {:skipped {:file file :row 1 :kind kind :config true :skipped (str "not readable: " (ex-message kvs))}}
+                   (nil? kvs) {:skipped {:file file :row 1 :kind kind :config true :skipped "not a map of config keys"}}
                    (re-find hierarchy-file (str path)) {:isa (hierarchy-results kvs file)}
                    :else (let [held (system-holders kvs top opts)
                                ;; Duct's :vars, the #ig/var names the file binds
@@ -389,7 +394,12 @@
                       id (component-id dispatch)
                       method (when (symbol? mm) (name mm))
                       adds (when id (written-keys body))]]
-            (if (and id method (ig-methods (symbol method)))
+            (cond
+              ;; what integrant runs for a key with no method of its own
+              (and (= :default dispatch) method (ig-methods (symbol method)))
+              {:row row :kind kind :dev-id :integrant/default :entry {(keyword "integrant" method) true}}
+
+              (and id method (ig-methods (symbol method)))
               {:row row :kind kind :dev-id id
                ;; the method that builds the component: its calls are the component's
                :body-range (when (and end-row (#{"init-key" "expand-key" "prep-key"} method))
@@ -402,13 +412,15 @@
                         ;; where its config is used: nothing used is said by saying nothing
                         (= "init-key" method) (as-> e (let [p (if (vector? params) (passes (second params) hand-usages) :unknown)]
                                                         (if (and (sequential? p) (empty? p)) e (assoc e :integrant/uses p)))))}
+
+              :else
               {:row row :kind kind :skipped (str "dispatch value " (pr-str dispatch) " is not a config key")}))
           (for [{:keys [row name-row name-col config-var]} var-sites
                 :let [form (form-at name-row name-col)
                       m (when (and (seq? form) (>= (count form) 3)) (last form))]
                 r (if (map? m)
                     (combine (for [[k v] m :when (component-id k)] {:key k :value v :path (str own-ns "/" config-var) :line row}))
-                    [{:kind kind :skipped "the config var's value is not a map"}])]
+                    [{:kind kind :config true :skipped "the config var's value is not a map"}])]
             (assoc r :row row))))))
 
 ;; =============================================================================
@@ -550,8 +562,20 @@
      calls by its id (:calls-by-id): unused, or configured somewhere not
      read. A key some configured component
      derives from, by a composite key or a derive call, counts as configured."
-  [{:keys [of-kinds loc opts var-defined?] :as view}]
+  [{:keys [of-kinds loc opts var-defined? skipped] :as view}]
   (let [components (sort-by key (of-kinds #{kind}))
+        ;; a config the pack couldn't read, or a config var :vars names that
+        ;; isn't there: what no config defines can't be told, so the checks
+        ;; that conclude it don't run
+        missing-vars (for [v (get-in opts [:integrant :vars])
+                           :let [d (var-defined? v)]
+                           :when (not d)]
+                       {:var v :reason (if (nil? d) "its namespace wasn't read" "no such var")})
+        unread (concat (for [r (skipped kind) :when (:config r)]
+                         (cond-> {:reason (:skipped r)}
+                           (:file r) (assoc :file (:file r))
+                           (:row r) (assoc :line (:row r))))
+                       missing-vars)
         configured (filter #(get-in (val %) [:entry :integrant/config-in]) components)
         parents #(concat (get-in (val %) [:entry :integrant/derives]) (get-in (val %) [:entry :integrant/isa]))
         ;; a key some code calls by its id (:calls-by-id): a workflow engine
@@ -609,7 +633,7 @@
        {:severity :warning :problem :ref-cycle :dev-id (first cycle) :cycle cycle
         :definition (loc (get (into {} configured) (first cycle)))})
      ;; a composite ref no configured key matches
-     (for [[id e] configured
+     (for [[id e] (when (empty? unread) configured)
            ;; matched by no configured key, and not every keyword of it is
            ;; one something else adds (a module, :provided)
            :let [missing (vec (remove #(or (seq (candidates %)) (every? defined %))
@@ -620,7 +644,7 @@
      ;; builds) isn't read: a missing ref in its namespace it may well add
      (let [own-modules (map key modules)
            module-for (fn [k] (some #(when (= (namespace %) (namespace k)) %) own-modules))]
-       (for [[id e] configured
+       (for [[id e] (when (empty? unread) configured)
              :let [entry (:entry e)
                    ;; a refset may match nothing; a composite is checked whole, above
                    plain (remove (into (set (:integrant/refsets entry)) (map last (:integrant/composite-refs entry)))
@@ -634,9 +658,17 @@
                    :module (module-for (first maybe)) :definition (loc e)})]
              :when p]
          p))
-     (for [[id e] components
-           :when (and (get-in e [:entry :integrant/init-key]) (not (contains? defined id)))]
-       {:severity :info :problem :init-key-without-config :dev-id id :definition (loc e)})
+     (when (empty? unread)
+       (for [[id e] components
+             :when (and (get-in e [:entry :integrant/init-key]) (not (contains? defined id))
+                        (not= :integrant/default id))]
+         {:severity :info :problem :init-key-without-config :dev-id id :definition (loc e)}))
+     (for [v missing-vars]
+       {:severity :warning :problem :config-var-not-found :var (:var v) :reason (:reason v)})
+     (when (seq unread)
+       [{:severity :info :problem :checks-not-run :pack kind
+         :checks [:init-key-without-config :ref-to-undefined :ref-maybe-from-module]
+         :because (vec unread)}])
      ;; what ig/ref refuses as it reads the config
      (for [[id e] configured
            :let [bad (get-in e [:entry :integrant/invalid-refs])]
@@ -652,6 +684,8 @@
      ;; keys whose every keyword is in the project's own namespaces: a
      ;; library's key is built by the library
      (let [builders (set (for [[id e] components :when (get-in e [:entry :integrant/init-key])] id))
+           ;; (defmethod ig/init-key :default ...) builds every key with no method of its own
+           default? (contains? builders :integrant/default)
            roots (set (for [n (:namespaces view)] (first (str/split n #"\."))))
            own? (fn [k] (contains? roots (first (str/split (namespace k) #"\."))))
            fn-named? (fn [k] (true? (var-defined? (symbol (namespace k) (name k)))))]
@@ -659,7 +693,8 @@
              :let [entry (:entry e)
                    parts (into [id] (:integrant/derives entry))
                    ls (get lineage id)]
-             :when (and (every? own? ls)
+             :when (and (not default?)
+                        (every? own? ls)
                         (not-any? builders ls)
                         (not-any? fn-named? parts)
                         ;; expanded away before ig/init, or added by something else

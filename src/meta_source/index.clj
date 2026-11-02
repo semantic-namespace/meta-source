@@ -29,6 +29,7 @@
             [meta-source.pack.reitit :as reitit]
             [meta-source.pack.overarch :as overarch]
             [meta-source.pack.tilakone :as tilakone]
+            [meta-source.pack.grain :as grain]
             [meta-source.pack.schema :as schema]
             [meta-source.read :as read]
             [meta-source.rules :as rules])
@@ -36,7 +37,7 @@
 
 (def ^:private bb? (some? (System/getProperty "babashka.version")))
 
-(def cache-version 5)
+(def cache-version 8)
 
 (def default-id-key
   "The meta key a plain var carries to say which id it implements. A
@@ -70,6 +71,53 @@
 (defn- relative [root path]
   (let [r (str (canonical root) "/")]
     (if (str/starts-with? path r) (subs path (count r)) path)))
+
+;; =============================================================================
+;; What the index doesn't cover
+;; =============================================================================
+
+(def ^:private other-languages
+  "Source files the index doesn't read, by extension: meta-source reads
+   Clojure (.clj, .cljc, .cljs) and EDN."
+  {".kt" "Kotlin" ".kts" "Kotlin" ".java" "Java" ".scala" "Scala" ".groovy" "Groovy"
+   ".ts" "TypeScript" ".tsx" "TypeScript" ".js" "JavaScript" ".jsx" "JavaScript"
+   ".mjs" "JavaScript" ".cjs" "JavaScript" ".py" "Python" ".go" "Go" ".rb" "Ruby"
+   ".rs" "Rust" ".cs" "C#" ".swift" "Swift" ".php" "PHP"})
+
+(def ^:private not-source-dirs
+  "Directories that hold dependencies or build output, not the project's code."
+  #{"node_modules" "target" "build" "dist" "out"})
+
+(defn- other-sources
+  "{language [path ...]}: the project's source files in languages the index
+   doesn't read, anywhere under root, paths relative to it."
+  [root]
+  (let [top (io/file root)]
+    (->> (tree-seq #(and (.isDirectory ^File %)
+                         (or (= % top) (not (or (hidden? %) (not-source-dirs (.getName ^File %))))))
+                   #(seq (.listFiles ^File %))
+                   top)
+         (keep (fn [^File f]
+                 (when (and (.isFile f) (not (hidden? f)))
+                   (let [n (.getName f) dot (str/last-index-of n ".")]
+                     (when-let [lang (and dot (other-languages (subs n dot)))]
+                       [lang (relative root (canonical f))])))))
+         (reduce (fn [m [lang path]] (update m lang (fnil conj []) path)) {})
+         (into (sorted-map) (map (fn [[k v]] [k (vec (sort v))]))))))
+
+(def ^:private no-pack-libraries
+  "Libraries that declare a system's structure and that no meta-source pack
+   reads: a project calling them has that structure outside the index. A
+   pack that does read one names its namespaces in :pack/covers."
+  [{:library "Pedestal" :holds "routes and interceptors"
+    :nses #{'io.pedestal.http 'io.pedestal.http.route 'io.pedestal.interceptor 'io.pedestal.connector}}
+   {:library "Compojure" :holds "routes" :nses #{'compojure.core}}
+   {:library "bidi" :holds "routes" :nses #{'bidi.bidi 'bidi.ring}}
+   {:library "Ataraxy" :holds "routes" :nses #{'ataraxy.core}}
+   {:library "Component" :holds "a system of components" :nses #{'com.stuartsierra.component}}
+   {:library "mount" :holds "states" :nses #{'mount.core}}
+   {:library "donut.system" :holds "a system" :nses #{'donut.system}}
+   {:library "clip" :holds "a system" :nses #{'juxt.clip.core}}])
 
 ;; =============================================================================
 ;; Registry files
@@ -157,7 +205,8 @@
 ;;                          their context and response keys
 ;;   :pack/find             (fn [analysis opts]) → sites, each {:filename :row
 ;;                          :name-row :name-col ...} found in clj-kondo's
-;;                          analysis; name-row/name-col is the symbol right
+;;                          analysis (a site inside a (comment ...) block
+;;                          is dropped: REPL scratch); name-row/name-col is the symbol right
 ;;                          after the form's opening paren
 ;;   :pack/read             (fn [sites file opts]) → [{:row :kind :dev-id
 ;;                          :entry} or {:row :kind :skipped reason}] for one
@@ -174,12 +223,15 @@
 ;;                          the id, as the meta key does (an s/fdef's)
 ;;   :pack/checks           (fn [view]) → problems; view is {:entities
 ;;                          :of-kinds :data-key? :loc :flow :opts
-;;                          :var-defined? :namespaces :not-read :impl :linked-by}:
+;;                          :var-defined? :namespaces :not-read :skipped :impl
+;;                          :linked-by}:
 ;;                          var-defined? true or
 ;;                          false for a qualified symbol in a namespace the
 ;;                          analysis read, nil for one it didn't; namespaces,
 ;;                          the names (strings) of those it read; not-read,
-;;                          how many forms of a kind couldn't be read; impl,
+;;                          how many forms of a kind couldn't be read; skipped,
+;;                          those results of a kind (data files' too), as the
+;;                          pack gave them, with :file relative; impl,
 ;;                          where the var implementing an id is, or nil;
 ;;                          linked-by, the pack whose :pack/id-key linked it
 ;;   :pack/inline-data-keys (fn [entities]) → data keys its entities define
@@ -195,6 +247,9 @@
 ;;                          other), {} for nothing, nil when not known
 ;;   :pack/merge            {key :union}: keys whose values it unions across
 ;;                          sources (a set of tags); others conflict
+;;   :pack/covers           #{ns ...}: library namespaces whose structure the
+;;                          pack reads, so the index doesn't report them as
+;;                          :not-covered (a project's own Pedestal pack)
 ;;   :pack/data-files       (fn [opts]) → paths under the root, files or
 ;;                          directories of .edn, that the pack reads as data
 ;;   :pack/read-data        (fn [files opts]) → results as :pack/read gives,
@@ -237,7 +292,7 @@
 ;; cached per file, so it must be data. A pack needs :pack/find and
 ;; :pack/read, or :pack/data-files and :pack/read-data, or both.
 
-(def builtin-packs [schema/pack fn-schema/pack datascript/pack pathom/pack integrant/pack aero/pack re-frame/pack reitit/pack tilakone/pack overarch/pack namespaces/pack])
+(def builtin-packs [schema/pack fn-schema/pack datascript/pack pathom/pack integrant/pack aero/pack re-frame/pack reitit/pack tilakone/pack overarch/pack grain/pack namespaces/pack])
 
 (defn enabled-packs
   "The packs `packs-config` (meta-source.edn's :packs) enables: each
@@ -436,8 +491,18 @@
           for-packs (update analysis :var-usages #(remove :refer %))
           ;; a pack that fails finding its forms costs that pack, not the index:
           ;; the failure is reported at the first file, as a form not read
+          ;; (comment ...) blocks are REPL scratch, not declarations: a pack's
+          ;; site inside one isn't read. {file [[start end] ...]}, positions [row col]
+          comments (update-vals (group-by :filename (for [u (:var-usages analysis)
+                                                          :when (and (= 'clojure.core (:to u)) (= 'comment (:name u)) (:end-row u))]
+                                                      u))
+                                #(vec (for [u %] [[(:row u) (:col u)] [(:end-row u) (:end-col u)]])))
+          in-comment? (fn [{:keys [filename row name-row name-col]}]
+                        (let [at [(or name-row row) (or name-col 0)]]
+                          (some (fn [[start end]] (and (pos? (compare at start)) (neg? (compare at end))))
+                                (get comments filename))))
           found (vec (for [p packs :when (:pack/find p)]
-                       [p (try (group-by :filename (vec ((:pack/find p) for-packs packs-config)))
+                       [p (try (group-by :filename (vec (remove in-comment? ((:pack/find p) for-packs packs-config))))
                                (catch Exception ex
                                  {(canonical (first files))
                                   [{:filename (canonical (first files)) :row 1 :name-row 1 :name-col 1
@@ -512,6 +577,10 @@
                 :lib-src (vec (:lib-src opts))
                 ;; fns whose first argument, a literal keyword, is the entity they call
                 :calls-by-id (vec (sort (map symbol (:calls-by-id opts))))
+                ;; what the project states it knows isn't read here (another
+                ;; tool reads it): not reported as :not-covered
+                :not-covered (let [{:keys [languages libraries]} (:not-covered opts)]
+                               {:languages (vec (sort languages)) :libraries (vec (sort libraries))})
                 ;; a changed clj-kondo config changes what the code analyses to
                 :kondo-config (kondo-config-stamps root)}
         edn-files (vec (files-under root registry [".edn"]))
@@ -691,6 +760,8 @@
      :analysed (count stale)
      :pack-snapshots (mapv #(-> % (dissoc :entities) (assoc :ids (set (keys (:entities %))))) snapshots)
      :pack-data-results data-results
+     ;; source files in languages the index doesn't read: {language [path ...]}
+     :other-sources (other-sources root)
      :read-problems (concat (keep :problem (vals edn))
                             (for [c (:conflicts merged)]
                               (update c :values (fn [vs] (mapv (fn [v] (update v :sources #(mapv (fn [l] (let [{:keys [file lines]} (by-label l)]
@@ -1304,7 +1375,17 @@
               :linked-by #(:linked-by-pack (impl-of idx %))
               ;; how many forms of a kind a pack found and couldn't read
               :not-read (let [n (frequencies (for [{:keys [pack-results]} (vals (:code idx)) [_ rs] pack-results r rs :when (:skipped r)] (:kind r)))]
-                          #(get n % 0))}]
+                          #(get n % 0))
+              ;; those forms, and the data files a pack couldn't read: each
+              ;; result as the pack gave it, with its :file relative to the root
+              :skipped (let [by-kind (group-by :kind (for [r (concat (for [[f {:keys [pack-results]}] (sort-by key (:code idx))
+                                                                          [_ rs] (sort-by key pack-results)
+                                                                          r rs]
+                                                                      (assoc r :file f))
+                                                                    (:pack-data-results idx))
+                                                           :when (:skipped r)]
+                                                       (update r :file #(some->> % (relative (:root idx))))))]
+                         #(get by-kind % []))}]
     (concat
      (mapcat #(when-let [c (:pack/checks %)] (c view)) (:packs idx))
      ;; a form not read; one a pack says breaks its pattern (docs/pattern.md),
@@ -1427,6 +1508,33 @@
       (constantly false)
       (fn [f] (or (lib-file? (:file f)) (and (:dev-id f) (lib-entity? (:dev-id f))))))))
 
+(defn- not-covered
+  "What the index doesn't cover, said rather than passed over (info): the
+   project's source files in a language it doesn't read, and each library
+   declaring a system's structure (routes, a system) that the project calls
+   and no enabled pack reads. What meta-source.edn's :not-covered lists
+   (:languages, :libraries) the project knows of, and isn't said again."
+  [idx]
+  (let [covered (into #{} (mapcat :pack/covers) (:packs idx))
+        {known-languages :languages known-libraries :libraries} (get-in idx [:config :not-covered])
+        top-dirs (fn [paths] (->> paths
+                                  (map #(let [parts (str/split % #"/")] (str/join "/" (take 2 (butlast parts)))))
+                                  frequencies (sort-by (comp - val)) (take 3) (mapv key)))]
+    (concat
+     (for [[lang paths] (:other-sources idx)
+           :when (not (some #{lang} known-languages))]
+       {:severity :info :problem :not-covered :language lang :files (count paths)
+        :dirs (top-dirs paths) :reason (str lang " sources aren't read")})
+     (for [{:keys [library holds nses]} no-pack-libraries
+           :when (and (not-any? covered nses) (not (some #{library} known-libraries)))
+           :let [files (sort (distinct (for [[f {:keys [calls]}] (:code idx)
+                                             c calls
+                                             :when (nses (symbol (str (:to c))))]
+                                         (relative (:root idx) f))))]
+           :when (seq files)]
+       {:severity :info :problem :not-covered :library library :files (vec files)
+        :reason (str "the project calls " library ", whose " holds " no pack reads")}))))
+
 (defn check
   "Where code and registry files disagree, most severe first. What is found
    in a library's own code (:libs) is the library's, and left out."
@@ -1449,7 +1557,8 @@
           (undeclared-calls idx)
           (keys-outside-contract idx)
           (pack-problems idx)
-          (rule-findings idx)))))))
+          (rule-findings idx)
+          (not-covered idx)))))))
 
 (defn summary [idx]
   (let [kinds (frequencies (for [[_ e] (:entities idx)] (:kind e)))]

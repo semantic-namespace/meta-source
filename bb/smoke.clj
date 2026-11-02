@@ -119,6 +119,12 @@
    :pack/find (fn [_ _] []) :pack/read (fn [_ _ _] [])
    :pack/dataflow-of (fn [entries] {:consumes (vec (keep :flow/in-key (vals entries)))})})
 
+(def pedestal-pack
+  "A project's own pack reading Pedestal's routes (here, nothing): it names
+   the namespaces it covers."
+  {:pack/id :pedestal :pack/kinds #{:pedestal} :pack/covers #{'io.pedestal.http.route}
+   :pack/find (fn [_ _] []) :pack/read (fn [_ _ _] [])})
+
 (def rules-pack
   "A pack deriving rules from what was read: an entry's :rule/as-data is a
    rule, as atlas's invariants carry :invariant/rule."
@@ -477,6 +483,20 @@
                   (map (juxt :dev-id (comp :line :definition) :severity)
                        (problems (index/build {:root dir :src ["src"] :registry [] :packs {:reitit {}}}) :route-not-defined))))
         (fs/delete-tree dir))
+      (let [dir (str (fs/create-temp-dir))]
+        (fs/create-dirs (str dir "/src/app"))
+        (spit (str dir "/src/app/routes.clj")
+              (str "(ns app.routes (:require [reitit.middleware :as rm] [reitit.interceptor :as ri] [app.other :as other]))\n"
+                   "(def mw-router (rm/router [[\"/users\" {:name ::users :handler identity}]]))\n"
+                   "(def ic-router (ri/router [[\"/orders\" {:name ::orders :handler identity}]]))\n"
+                   "(def own-router (other/router [[\"/carts\" {:name ::carts :handler identity}]]))\n"))
+        (let [ix (index/build {:root dir :src ["src"] :registry [] :packs {:reitit {}}})
+              ids (set (keys (:entities ix)))]
+          (check "reitit.middleware and reitit.interceptor routers are router calls: their trees are read"
+                 (and (ids :app.routes/users) (ids :app.routes/orders)))
+          (check "a project's own fn named router isn't reitit's: the tree handed to it isn't read as routes"
+                 (not (ids :app.routes/carts))))
+        (fs/delete-tree dir))
       (check "a route consumes its parameter keys, next to resolvers and functions"
              (some #{:shop.routes/user} (map :dev-id (:consumers (index/data-key ri :user/id))))))
 
@@ -816,7 +836,176 @@
                (empty? (problems ii :init-key-without-config))))
       (fs/delete-tree dir))
 
-;; ---- integrant: config shapes from real systems that read as refs to nothing
+;; ---- integrant: (defmethod ig/init-key :default ...) builds every key with no method of its own
+    (let [build (fn [default?]
+                  (let [dir (str (fs/create-temp-dir))]
+                    (fs/create-dirs (str dir "/resources")) (fs/create-dirs (str dir "/src/app"))
+                    (spit (str dir "/resources/system.edn") "{:app/clock {} :app/db {:clock #ig/ref :app/clock}}\n")
+                    (spit (str dir "/src/app/core.clj")
+                          (str "(ns app.core (:require [integrant.core :as ig]))\n"
+                               "(defn start [config] (ig/init config))\n"
+                               "(defmethod ig/init-key :app/db [_ v] v)\n"
+                               (when default? "(defmethod ig/init-key :default [_ v] v)\n")))
+                    (try (index/build {:root dir :src ["src"] :registry [] :packs {:integrant {:configs ["resources"]}}})
+                         (finally (fs/delete-tree dir)))))
+          with (build true) without (build false)]
+      (check "integrant: a :default init-key builds every key with no method of its own: no key is unbuilt, and the method is read"
+             (and (empty? (problems with :no-init-key))
+                  (empty? (problems with :init-key-without-config))
+                  (not-any? #(re-find #"dispatch value :default" (str (:reason %))) (problems with :pack-form-not-read))
+                  (true? (get-in (index/where with :integrant/default) [:entry :integrant/init-key]))))
+      (check "integrant: without it, a key with no init-key is unbuilt"
+             (= [:app/clock] (map :dev-id (problems without :no-init-key)))))
+
+    ;; ---- integrant: a config not read stops the checks that need all of it
+    (let [build (fn [config-src vars]
+                  (let [dir (str (fs/create-temp-dir))]
+                    (fs/create-dirs (str dir "/src/app"))
+                    (spit (str dir "/src/app/core.clj")
+                          (str "(ns app.core (:require [integrant.core :as ig]))\n"
+                               config-src
+                               "(defn start [env] (ig/init (system env)))\n"
+                               "(defmethod ig/init-key :app/db [_ v] v)\n"
+                               "(defmethod ig/init-key :app/web [_ v] v)\n"
+                               "(defmethod ig/init-key :app/unused [_ v] v)\n"))
+                    (try (index/build {:root dir :src ["src"] :registry []
+                                       :packs {:integrant {:vars vars}}})
+                         (finally (fs/delete-tree dir)))))
+          in-fn (build "(defn system [env] (merge {:app/db {} :app/web {:db (ig/ref :app/db)}} (when env {:app/x {}})))\n"
+                       '[app.core/system])
+          absent (build "(def system {:app/db {} :app/web {:db (ig/ref :app/db)}})\n" '[app.core/sistem])
+          as-map (build "(def system {:app/db {} :app/web {:db (ig/ref :app/db)}})\n" '[app.core/system])]
+      (check "integrant: a config var not read (a fn) concludes nothing about what no config defines, and says which checks didn't run"
+             (and (empty? (problems in-fn :init-key-without-config))
+                  (= [{:reason "the config var's value is not a map" :file "src/app/core.clj" :line 2}]
+                     (:because (first (problems in-fn :checks-not-run))))))
+      (check "integrant: a config var :vars names that isn't there is a warning, and stops those checks too"
+             (and (= ['app.core/sistem] (map :var (problems absent :config-var-not-found)))
+                  (empty? (problems absent :init-key-without-config))
+                  (seq (problems absent :checks-not-run))))
+      (check "integrant: with the config read, the checks run (control)"
+             (and (= [:app/unused] (map :dev-id (problems as-map :init-key-without-config)))
+                  (empty? (problems as-map :checks-not-run)))))
+
+    ;; ---- (comment ...) blocks are REPL scratch: no pack reads a form inside one
+    (let [dir (str (fs/create-temp-dir))]
+      (fs/create-dirs (str dir "/src/app"))
+      (spit (str dir "/src/app/core.clj")
+            (str "(ns app.core (:require [integrant.core :as ig]))\n"
+                 "(defmethod ig/init-key :app/db [_ v] v)\n"
+                 "(comment\n  (defmethod ig/init-key :app/scratch [_ v] v))\n"))
+      (let [idx (try (index/build {:root dir :src ["src"] :registry [] :packs {:integrant {}}})
+                     (finally (fs/delete-tree dir)))]
+        (check "a form inside (comment ...) isn't read by any pack; one outside is"
+               (and (index/where idx :app/db) (nil? (index/where idx :app/scratch))))))
+
+    ;; ---- grain: the event model, from the def sites and defeventmodel
+    (let [dir (str (fs/create-temp-dir))
+          files {"src/app/commands.clj"
+                 (str "(ns app.commands (:require [ai.obney.grain.command-processor-v2.interface :refer [defcommand]]))\n"
+                      "(defcommand :shop place-order\n"
+                      "  {:authorized? (constantly true)\n"
+                      "   :grain.event-model/produces #{:shop/order-placed :shop/order-logged}\n"
+                      "   :grain.event-model/reads #{:shop/orders :shop/stock}}\n"
+                      "  \"Places an order.\"\n"
+                      "  [ctx] {})\n")
+                 "src/app/read_models.clj"
+                 (str "(ns app.read-models (:require [ai.obney.grain.read-model-processor-v2.interface :refer [defreadmodel]]\n"
+                      "                              [ai.obney.grain.query-processor.interface :refer [defquery]]))\n"
+                      "(defreadmodel :shop orders {:events #{:shop/order-placed} :version 1} \"Orders.\" [state event] state)\n"
+                      "(defquery :shop orders {:grain.event-model/reads #{:shop/orders}} \"All orders.\" [ctx] {})\n")
+                 "src/app/events.clj"
+                 (str "(ns app.events (:require [ai.obney.grain.event-store-v3.interface :as es]\n"
+                      "                         [ai.obney.grain.schema-util.interface :refer [defschemas]]))\n"
+                      "(def audit-type :shop/audited)\n"
+                      "(es/defevent :shop/order-placed \"An order was placed.\" {:schema [:map [:id :uuid]]})\n"
+                      "(es/defevent :shop/order-logged \"An order was logged.\" {:schema [:map]})\n"
+                      "(es/defevent audit-type \"Audited.\" {:schema [:map]})\n"
+                      "(comment\n  (defschemas scratch {:shop/order-placed [:map]}))\n")
+                 "src/app/model.clj"
+                 (str "(ns app.model (:require [ai.obney.grain.event-model.interface :refer [defeventmodel]]))\n"
+                      "(defeventmodel :shop\n"
+                      "  {:commands {:shop/place-order {:produces #{:shop/order-placed :shop/order-logged} :reads #{:shop/orders :shop/stock}}}\n"
+                      "   :read-models {:shop/orders {:consumes #{:shop/order-placed} :version 2}}\n"
+                      "   :queries {:shop/orders {:reads #{:shop/orders}}}\n"
+                      "   :events {:shop/order-placed {:schema [:map [:id :uuid]]}}})\n")}]
+      (doseq [[p text] files] (fs/create-dirs (fs/parent (str dir "/" p))) (spit (str dir "/" p) text))
+      (let [idx (try (index/build {:root dir :src ["src"] :registry [] :packs {:grain {}}})
+                     (finally (fs/delete-tree dir)))
+            entry #(:entry (index/where idx %))
+            ps (index/check idx)
+            of #(filter (fn [p] (= % (:problem p))) ps)]
+        (check "grain: blocks are entities under kind-prefixed ids, references resolved to them, code options dropped"
+               (and (= :command (:grain/type (entry :command.shop/place-order)))
+                    (= #{:read-model.shop/orders :read-model.shop/stock} (:grain/reads (entry :command.shop/place-order)))
+                    (= #{:event.shop/order-placed} (:grain/consumes (entry :read-model.shop/orders)))
+                    (= :query (:grain/type (entry :query.shop/orders)))
+                    (not (contains? (entry :command.shop/place-order) :authorized?))))
+        (check "grain: where a block's options and the event model disagree, the values conflict"
+               (some #(and (= :read-model.shop/orders (:dev-id %)) (= :grain/version (:key %)))
+                     (concat (of :conflicting-values) (:read-problems idx))))
+        (check "grain: a read model nothing defines, and an event nothing consumes"
+               (and (= [[:read-model.shop/stock]] (map :keys (of :grain-reads-undefined)))
+                    (= [:event.shop/order-logged] (map :dev-id (of :grain-event-not-consumed)))))
+        (check "grain: an event named by a var isn't read; only the checks needing every event stand down, and say so"
+               (and (= [:grain-model-only] (:checks (first (of :checks-not-run))))
+                    (= [:event] (map :type (:because (first (of :checks-not-run)))))))
+        (check "grain: a form inside (comment ...) isn't read"
+               (nil? (index/where idx :shop/order-placed)))))
+
+    ;; ---- grain: an area that declares no producers is one finding, not one per event
+    (let [dir (str (fs/create-temp-dir))]
+      (fs/create-dirs (str dir "/src/app"))
+      (spit (str dir "/src/app/blocks.clj")
+            (str "(ns app.blocks (:require [ai.obney.grain.command-processor-v2.interface :refer [defcommand]]\n"
+                 "                         [ai.obney.grain.read-model-processor-v2.interface :refer [defreadmodel]]))\n"
+                 "(defcommand :crm add-lead {:authorized? (constantly true)} \"Adds a lead.\" [ctx] {})\n"
+                 "(defcommand :crm drop-lead {} \"Drops a lead.\" [ctx] {})\n"
+                 "(defreadmodel :crm leads {:events #{:crm/lead-added :crm/lead-dropped :ext/synced}} \"Leads.\" [s e] s)\n"))
+      (let [ps (try (index/check (index/build {:root dir :src ["src"] :registry [] :packs {:grain {}}}))
+                    (finally (fs/delete-tree dir)))
+            of #(filter (fn [p] (= % (:problem p))) ps)]
+        (check "grain: an area none of whose producers declares :produces is one finding, with its events; others stay per event"
+               (and (= [[:crm 2 [:event.crm/lead-added :event.crm/lead-dropped]]]
+                       (map (juxt :dev-id :blocks :events) (of :grain-area-declares-no-producers)))
+                    (= [:event.ext/synced] (map :dev-id (of :grain-event-not-produced)))))))
+
+    ;; ---- what the index doesn't cover: other languages, libraries no pack reads
+    (let [build (fn [files packs]
+                  (let [dir (str (fs/create-temp-dir))]
+                    (doseq [[p text] files] (fs/create-dirs (fs/parent (str dir "/" p))) (spit (str dir "/" p) text))
+                    (try (index/build {:root dir :src ["src"] :registry [] :packs packs})
+                         (finally (fs/delete-tree dir)))))
+          files {"src/app/web.clj" (str "(ns app.web (:require [io.pedestal.http.route :as route]))\n"
+                                        "(def routes (route/expand-routes #{[\"/\" :get (fn [_] {}) :route-name ::home]}))\n")
+                 "core/src/main/kotlin/app/Node.kt" "class Node\n"
+                 "core/src/main/kotlin/app/Base.kt" "class Base\n"
+                 "web/node_modules/lib/index.js" "module.exports = 1\n"
+                 "target/classes/Gen.java" "class Gen {}\n"}
+          idx (build files {})
+          nc (problems idx :not-covered)
+          plain (problems (build {"src/app/core.clj" "(ns app.core)\n(defn f [] 1)\n"} {}) :not-covered)
+          own-pack (problems (build files {'smoke/pedestal-pack {}}) :not-covered)
+          stated (let [dir (str (fs/create-temp-dir))]
+                   (doseq [[p text] files] (fs/create-dirs (fs/parent (str dir "/" p))) (spit (str dir "/" p) text))
+                   (try (problems (index/build {:root dir :src ["src"] :registry [] :packs {}
+                                                :not-covered {:languages ["Kotlin"] :libraries ["Pedestal"]}})
+                                  :not-covered)
+                        (finally (fs/delete-tree dir))))]
+      (check "not covered: the project's sources in another language, outside dependencies and build output, are said"
+             (= [{:language "Kotlin" :files 2 :dirs ["core/src"]}]
+                (map #(select-keys % [:language :files :dirs]) (filter :language nc))))
+      (check "not covered: a library declaring routes that no pack reads, with the files calling it"
+             (= [{:library "Pedestal" :files ["src/app/web.clj"]}]
+                (map #(select-keys % [:library :files]) (filter :library nc))))
+      (check "not covered: nothing to say on a Clojure-only project calling no such library (control)"
+             (empty? plain))
+      (check "not covered: a library an enabled pack covers (:pack/covers) isn't said"
+             (empty? (filter :library own-pack)))
+      (check "not covered: what meta-source.edn's :not-covered states the project knows isn't said again"
+             (empty? stated)))
+
+    ;; ---- integrant: config shapes from real systems that read as refs to nothing
     (let [ig-check (fn [files]
                      (let [dir (str (fs/create-temp-dir))]
                        (doseq [[p text] files] (fs/create-dirs (fs/parent (str dir "/" p))) (spit (str dir "/" p) text))

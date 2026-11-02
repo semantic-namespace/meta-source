@@ -194,9 +194,11 @@ two readers, and where each piece lives.
   unique), **tilakone** (state machines, their states and transitions, a
   transition to no state), **Overarch** (an architecture model's elements,
   relations and views, and where the model and the system disagree),
-  **namespaces** (your own namespaces as entities, by a naming convention
-  you state, and what each requires: rules on which may require which), and
-  **your own**: a pack is one map.
+  **grain** (a grain app's event model: commands, queries, read models,
+  processors, events, what each reads, produces and consumes, where the def
+  sites and the event model disagree), **namespaces** (your own namespaces as
+  entities, by a naming convention you state, and what each requires: rules
+  on which may require which), and **your own**: a pack is one map.
   [docs/packs.md](docs/packs.md)
 - **Facts merge per keyword.** A file says things about an id; it doesn't
   own it. An EDN file can add `:data/privacy :pii` to a key a spec defines.

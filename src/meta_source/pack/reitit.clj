@@ -8,7 +8,7 @@
 
    A route tree is read where it is written: the first argument of a
    reitit router call (reitit.core, reitit.ring, reitit.http,
-   reitit.frontend), and any def or defn holding route data (a vector
+   reitit.frontend, reitit.middleware, reitit.interceptor), and any def or defn holding route data (a vector
    whose first element is a path, with route keys in it), since a tree is
    often assembled from routes defined in namespaces that never require
    reitit. A child written as a symbol naming a route def in the same file
@@ -45,7 +45,7 @@
 
 (def kind :reitit)
 
-(def ^:private router-nses '#{reitit.core reitit.ring reitit.http reitit.frontend})
+(def ^:private router-nses '#{reitit.core reitit.ring reitit.http reitit.frontend reitit.middleware reitit.interceptor})
 (def ^:private link-fns '{reitit.frontend.easy #{href push-state replace-state}
                           reitit.core #{match-by-name match-by-name!}
                           reitit.frontend #{match-by-name}})

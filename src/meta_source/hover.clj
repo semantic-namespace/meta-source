@@ -181,6 +181,8 @@
    (filter :file (:vars p))
    (filter :file (:definitions p))
    (filter :file (:given-at p))
+   ;; what a check couldn't run on: the config not read
+   (filter :file (:because p))
    (for [v (:values p) s (:sources v) :when (:file s)] s)))
 
 (defn- token-at
@@ -244,6 +246,10 @@
            :input-without-producer (str "nothing produces " ks)
            :operation-option-not-read (str id ": " (str/join ", " (map name (:options p))) " written as code, not read")
            :pack-form-not-read (str (some-> (:pack p) name) " form not read: " (:reason p))
+           :checks-not-run (str (some-> (:pack p) name) " checks not run, a config wasn't read: "
+                                (str/join ", " (map name (:checks p))))
+           :config-var-not-found (str (:var p) ", a config var the options name: " (:reason p))
+           :not-covered (:reason p)
            :register-call-not-read (str "register! call not read: " (:reason p))
            :id-in-several-packs (str id " is declared by several packs: " (str/join ", " (map name (:packs p))))
            :runtime-disagrees (str id " differs from the running process"
@@ -308,6 +314,13 @@
            :element-in-no-view (str "no view shows " id)
            :model-relation-not-declared (str "the model relates " id " to " (pr-str (:to p)) ", and nothing else describing " id " names " (pr-str (:to p)))
            :relation-missing-from-model (str id " names " (pr-str (:to p)) ", and the model draws no relation from it to " (pr-str (:to p)))
+           :grain-not-in-model (str id " is defined, and its area's event model doesn't list it")
+           :grain-model-only (str id ": the event model lists it, and no def site defines it")
+           :grain-reads-undefined (str id " reads " ks ", which no read model defines")
+           :grain-event-not-produced (str id " is consumed, and no block declares producing it")
+           :grain-area-declares-no-producers (str "area " id ": no command, processor or periodic task declares what it produces ("
+                                                  (count (:events p)) " consumed events)")
+           :grain-event-not-consumed (str id " is produced, and no read model or processor consumes it")
            (str (name (:problem p)) (when id (str " " id)) (when (seq (:keys p)) (str " " ks))
                 (when (:reason p) (str ": " (:reason p))) (when (:message p) (str ": " (:message p))))))))
 

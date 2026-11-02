@@ -33,8 +33,10 @@
                                in (a route's component), or what it so builds:
                                {:all cond}, {:some cond} or {:none cond}
      :reaches {q cond}         everything it depends on, transitively, through
-                               :deps, :calls and :provided-by (or the ones
-                               :via names): {:reaches {:none {:id :infra/db}}},
+                               declared relations: :deps, :calls and
+                               :provided-by (or the ones :via names), not
+                               data (reading a key doesn't reach its
+                               producer): {:reaches {:none {:id :infra/db}}},
                                {:reaches {:via #{:deps} :some {:kind :spec}}};
                                a violation names the path to each offender
      :reached-by {q cond}      everything that depends on it, transitively, the

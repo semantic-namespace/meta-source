@@ -4,4 +4,6 @@
 {:src ["src"]
  :registry []
  :packs {:namespaces {:roots {meta-source meta-source} :pattern true}}
- :rules ["rules"]}
+ :rules ["rules"]
+ ;; read by meta-source's JavaScript reader (js/), not by this index
+ :not-covered {:languages ["JavaScript" "TypeScript"]}}

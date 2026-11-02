@@ -15,6 +15,7 @@ carry data. Then it describes the built-in packs:
 - [Routes: the reitit pack](#routes-the-reitit-pack)
 - [A database's attributes: the Datascript pack](#a-databases-attributes-the-datascript-pack)
 - [State machines: the tilakone pack](#state-machines-the-tilakone-pack)
+- [An event model: the grain pack](#an-event-model-the-grain-pack)
 
 For how packs fit into meta-source (the build each pack takes part in, and
 what the index does for every pack), see [architecture.md](architecture.md#packs-one-contract-shared-machinery).
@@ -94,7 +95,34 @@ never thrown: the index reports those as `:pack-form-not-read` and
 counts each kind's reads in `meta-source summary`. A pack that throws on a
 file is reported the same way, for that file, and one whose `:pack/find`
 throws, at the first file. Two packs giving the same
-`:kind` are refused; a `:refer` in an `ns` form is never handed to a pack. `bb smoke` runs a pack like this one.
+`:kind` are refused; a `:refer` in an `ns` form is never handed to a pack, and
+neither is a form inside a `(comment ...)` block, which is REPL scratch. `bb smoke` runs a pack like this one.
+
+## What the index doesn't cover: `:not-covered`
+
+meta-source reads conventions: what a project declares as data. What it
+doesn't read, it says, rather than passing over it (`:not-covered`, info):
+
+- the project's source files in a language the index doesn't read (Kotlin,
+  Java, TypeScript, JavaScript, …), anywhere under the root except hidden
+  directories, dependencies (`node_modules`) and build output (`target`,
+  `build`, `dist`, `out`), with how many and where most of them are;
+- a library declaring a system's structure that the project calls and no
+  enabled pack reads: Pedestal (routes and interceptors), Compojure, bidi and
+  Ataraxy (routes), Component, mount, donut.system and clip (a system), with
+  the files calling it. A pack that reads one names its namespaces in
+  `:pack/covers`, and it isn't reported.
+
+What the project knows isn't read here, because another tool reads it, it
+states in `meta-source.edn`, and it isn't said again:
+
+```clojure
+:not-covered {:languages ["JavaScript" "TypeScript"]   ; read by our JS tooling
+              :libraries ["Pedestal"]}
+```
+
+A system a function returns is outside the conventions too: the integrant
+pack reports `:checks-not-run` for it and concludes nothing from it.
 
 ## One id, two packs
 
@@ -416,6 +444,15 @@ Each config key becomes a component, in the pack's own vocabulary:
   order them;
 - `:init-key-without-config` (info): an `init-key` for a key nothing configures
   or derives from: unused, or configured somewhere not read;
+- `:checks-not-run` (info): a config the pack couldn't read (a file that isn't
+  a map of config keys, a `:vars` var whose value isn't a map, a system a
+  function returns) or a `:vars` var that isn't there. What no config defines
+  can't be told then, so `:init-key-without-config`, `:ref-to-undefined` and
+  `:ref-maybe-from-module` don't run, and this lists why (`:because`, each
+  with its file and line). A system built by calling functions is outside
+  what the pack reads: it says so, and concludes nothing from it;
+- `:config-var-not-found` (warning): a var `:vars` names that the code doesn't
+  define, or whose namespace wasn't read;
 - `:ref-invalid` (warning): an `#ig/ref` or `#ig/refset` to something other
   than a qualified keyword or a vector of them (`#ig/ref :db`): `ig/ref`
   throws reading the config;
@@ -427,7 +464,9 @@ Each config key becomes a component, in the pack's own vocabulary:
   composite (integrant 0.10's default `init-key`): `ig/init` throws
   `::missing-init-key`. Only keys whose every keyword is under the project's
   own namespaces count, since a library's key is built by the library; nor
-  do keys that expand, or that `:provided` names;
+  do keys that expand, or that `:provided` names. A project with
+  `(defmethod ig/init-key :default ...)` builds every key that way, so none
+  is reported (the method is the entity `:integrant/default`);
 - `:removed-method`: a `pre-init-spec` (removed in 0.9, replaced by
   `assert-key`) or `prep-key` (removed in 1.0, replaced by `expand-key`). A
   warning when the project's `deps.edn` or `project.clj` asks for a version
@@ -650,7 +689,8 @@ at runtime, which a snapshot could give, as Pathom's does.
 ```
 
 A route tree is read where it is written: the first argument of a reitit
-`router` call (`reitit.core`, `reitit.ring`, `reitit.http`, `reitit.frontend`),
+`router` call (`reitit.core`, `reitit.ring`, `reitit.http`, `reitit.frontend`,
+`reitit.middleware`, `reitit.interceptor`),
 and any `def` or `defn` holding route data, since trees are often assembled
 from route defs in namespaces that never require reitit. A child that names
 a route def in the same file is read in place; one in another file is read
@@ -932,6 +972,71 @@ components are named that way (`:overarch.domain/model` is
 ```
 
 ![Overarch's own repo in Emacs: its model against its code, a generated id, decisions that concern nothing](images/meta-source-overarch-overview.gif)
+
+## An event model: the grain pack
+
+```clojure
+:grain {}
+```
+
+A [grain](https://github.com/ObneyAI/grain) app declares its event model with
+macros whose options are data: `defcommand`, `defquery`, `defreadmodel`,
+`defprocessor`, `defperiodic`, `defevent` and `defschemas`. Its area's
+`defeventmodel` declares the same model again, and grain's boot guard refuses
+to start when the two disagree. The pack reads both into one entity per block,
+so where they disagree meta-source says so (`:conflicting-values`) before
+anything runs.
+
+Grain keeps a registry per kind, so one name may be a query and a read model.
+A block's id puts its kind before the namespace, as atlas's grain ontology
+names them:
+
+```clojure
+(index/where idx :command.example/create-counter)
+;; :entry #:grain{:type :command :area :example :name :example/create-counter
+;;                :reads #{:read-model.example/counters}
+;;                :produces #{:event.example/counter-created}
+;;                :doc "Creates a new counter. Counter name must be unique."
+;;                :defined true :in-model true}
+```
+
+`:grain/reads`, `:grain/produces` and `:grain/consumes` (a read model's
+`:events`, a processor's `:topics`) are those ids: what a processor produces
+are commands it dispatches; what a command or a periodic task produces,
+events. A schema `defschemas` registers keeps its own name: grain's malli
+registry is one. An option written as code (`:authorized? (constantly true)`)
+is dropped and listed. A form whose name or options aren't literal (an event
+named by a var) is not read, and said so.
+
+Checks:
+
+- `:grain-not-in-model` (warning): a block defined in an area that has an
+  event model, which doesn't list it. Grain requires full coverage;
+- `:grain-model-only` (warning): a block the model lists that no def site
+  defines;
+- `:grain-reads-undefined` (warning): a block reading a read model nothing
+  defines;
+- `:grain-event-not-produced` (info): an event a read model or processor
+  consumes that no block declares producing: undeclared, or appended by code
+  outside a block, as grain's control plane does;
+- `:grain-area-declares-no-producers` (info): an area none of whose commands,
+  processors and periodic tasks declares `:produces`, as in an app written
+  before grain's event model: one finding for the area, with the events its
+  read models and processors consume, instead of one per event;
+- `:grain-event-not-consumed` (info): an event a block declares producing that
+  no read model or processor consumes.
+
+Each runs while every grain form of the kinds it needs was read; otherwise
+`:checks-not-run` says which didn't, and why.
+
+On grain itself (its example service and control plane): 68 entities, the
+def sites and the example's event model agreeing, and one event the example
+produces that nothing consumes (`:example/average-calculated`). On
+[orc](https://github.com/ObneyAI/orc), a grain app, untouched: all 262 blocks
+read (127 commands, 45 queries, 54 read models, 35 processors, a periodic
+task) and 417 schemas, nothing unread; it predates the event model, so four
+areas declare no producers, and 9 events of libraries outside any block are
+consumed with no producer declared.
 
 ## A project's own namespaces: the namespaces pack
 

@@ -108,6 +108,7 @@
              :merge (:merge from-file)
              :rules (:rules from-file)
              :calls-by-id (:calls-by-id from-file)
+             :not-covered (:not-covered from-file)
              :cache (when-not no-cache (str (io/file root ".meta-source" "index.transit")))}
       (:id-key from-file) (assoc :id-key (:id-key from-file)))))
 
