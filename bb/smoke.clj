@@ -70,6 +70,11 @@
    :pack/describe (fn [entry] (when-let [s (:job/schedule entry)] (str "job  " s)))
    :pack/messages {:job-unscheduled (fn [_ id _] (str id " has no schedule"))}})
 
+(def conforms-pack
+  "A project's own pack that only says which calls name a schema."
+  {:pack/id :conforms :pack/kinds #{:conforms} :pack/find (fn [_ _] []) :pack/read (fn [_ _ _] [])
+   :pack/schema-call? (fn [{:keys [to name]} _] (= 'app.core/check (symbol (str to) (str name))))})
+
 (def pathom-again
   "A pack claiming a kind the Pathom pack gives."
   {:pack/id :pathom-again :pack/kinds #{:pathom} :pack/find (fn [_ _] []) :pack/read (fn [_ _ _] [])})
@@ -642,10 +647,25 @@
       (check "a spec named in s/valid? is not a key read; an s/alt tag is not a spec the fn consumes"
              (and (not (contains? outside :shop.checkout/gold?))
                   (nil? (:spec/args-keys (:entry (index/where fc :shop.checkout/gold?))))))
-      (check "a schema named in a call to a fn :schema-fns lists is not a key read"
-             (not (contains? outside :shop.checkout/receipt?)))
       (check "the hover shows the fdef"
              (str/includes? (:eldoc (hover/lookup fc :shop.checkout/total)) "fn  (s/cat :order :shop.checkout/order) → :shop.checkout/receipt")))
+
+;; ---- a call that names a schema: a key written in it, in a key's place, is no key read
+    (let [dir (str (fs/create-temp-dir))
+          outside-of (fn [packs] (into {} (map (juxt :dev-id :keys))
+                                       (problems (index/build {:root dir :src ["src"] :registry ["registry"] :packs packs
+                                                               :dataflow {:consumes [:fn/reads]}})
+                                                 :keys-outside-contract)))]
+      (fs/create-dirs (str dir "/src/app")) (fs/create-dirs (str dir "/registry"))
+      (spit (str dir "/registry/fns.edn") "{:fn/run {:fn/reads []} :fn/other {:fn/reads [:k/a]}}")
+      (spit (str dir "/src/app/core.clj")
+            (str "(ns app.core)\n(defn check [schema x] x)\n"
+                 "(defn ^{:meta-source/id :fn/run} run [m] (check {:k/a :int} m))\n"))
+      (check "a key in a map written in a call is read, unless a pack's :pack/schema-call? or :schema-fns says the call names a schema"
+             (and (= {:fn/run [:k/a]} (outside-of {}))
+                  (= {} (outside-of {'smoke/conforms-pack {}}))
+                  (= {} (outside-of {:malli {:schema-fns '[app.core/check]}}))))
+      (fs/delete-tree dir))
 
     ;; ---- the project's clj-kondo config: test/fixtures/kondo-config, read from here, not its root
     (let [show #(first (filter (comp #{'show} :name) (mapcat :vars (vals (:code %)))))

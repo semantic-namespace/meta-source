@@ -129,7 +129,7 @@ the order they're called (every key is described in
 | **finding** | `:pack/find` | from the analysis of every file, the sites where its forms are: file, row, and the head symbol's position |
 | **reading** | `:pack/read`; `:pack/data-files`, `:pack/read-data` | for one file's sites, each form read as data into `{:row :kind :dev-id :entry}`; for data files, all of them at once |
 | **merging** | `:pack/kinds`, `:pack/merge`, `:pack/data-keys?`, `:pack/describes?`, `:pack/vocabulary` | the kind of its sources, keys it unions, and its role: declaring things, shaping data keys, or describing what others declare |
-| **deriving** | `:pack/dataflow`, `:pack/dataflow-of`, `:pack/rules-of`, `:pack/inline-data-keys` | which entry keys list data read and given (declared, or derived from what was read), rules derived from entries (atlas's invariants), data keys defined inline |
+| **deriving** | `:pack/dataflow`, `:pack/dataflow-of`, `:pack/rules-of`, `:pack/inline-data-keys`, `:pack/schema-call?` | which entry keys list data read and given (declared, or derived from what was read), rules derived from entries (atlas's invariants), data keys defined inline, calls that name a schema rather than read a key |
 | **the running system** | `:pack/runtime-fill`, `:pack/runtime-diff`, `:pack/runtime-kinds` | given its snapshot: what static reading couldn't read, and where code and process disagree |
 | **checking** | `:pack/checks` | its library's problems, given a view of the index |
 | **showing** | `:pack/describe`, `:pack/shape`, `:pack/members`, `:pack/messages` | a hover's one line, a data key's shape, the keys a schema is made of, and what each of its problems says, in a line |

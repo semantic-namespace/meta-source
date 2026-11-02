@@ -211,9 +211,20 @@
              :when (seq missing)]
          {:severity :info :problem :data-key-without-schema :dev-id id :keys missing :definition (loc e)})))))
 
+(def ^:private schema-nses '#{clojure.spec.alpha cljs.spec.alpha malli.core})
+
+(defn- schema-call?
+  "Whether a call names a schema rather than reading a key: a clojure.spec or
+   malli call ((s/valid? ::order x)), or one to a project's own fn that takes
+   a schema, listed under :schema-fns of :spec or :malli."
+  [{:keys [to name]} opts]
+  (or (contains? schema-nses to)
+      (some #(= (symbol (str to) (str name)) %) (mapcat #(get-in opts [% :schema-fns]) [:spec :malli]))))
+
 (def pack
   {:pack/id :schema
    :pack/config-keys #{:spec :malli}
+   :pack/schema-call? schema-call?
    :pack/messages
    {:data-key-without-schema (fn [_ _ ks] (str "no schema shapes " ks))
     :schema-key-without-shape (fn [_ _ ks] (str ks " has no spec of its own"))

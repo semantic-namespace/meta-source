@@ -209,6 +209,9 @@
 ;;                          id (a dispatch): never its primary definition.
 ;;                          One with :var ns/name says that var implements
 ;;                          the id, as the meta key does (an s/fdef's)
+;;   :pack/schema-call?     (fn [call opts]) → true when a call (clj-kondo's
+;;                          var usage: :to its ns, :name) names a schema
+;;                          rather than reads a key: (s/valid? ::order x)
 ;;   :pack/messages         {problem (fn [p id ks])} → the line a problem
 ;;                          of its checks shows in the editor and in check
 ;;                          --brief (meta-source.hover/message); id and ks
@@ -1158,8 +1161,6 @@
           (recur (into seen new) (seq (concat more new))))
         seen))))
 
-(def ^:private schema-nses '#{clojure.spec.alpha cljs.spec.alpha malli.core})
-
 (defn- token-positions
   "{[row col] position} for each token of `text` (1-based, as clj-kondo
    counts): the form it is in (:list :vector :map :set, :rc for a reader
@@ -1256,9 +1257,9 @@
 (defn- keys-outside-contract
   "Data keys a linked var mentions that are neither in what it consumes or
    produces nor in what an entity it names produces, nor (the keys of the
-   schemas among those), leaving out keys written inside a clojure.spec or
-   malli call, or a call to a fn :spec or :malli lists under :schema-fns
-   (a project's own validate), which name a schema rather than read a key,
+   schemas among those), leaving out keys written inside a call a pack's
+   :pack/schema-call? says names a schema rather than reads a key (a
+   clojure.spec or malli call, the schema pack says),
    and keywords passed as values: an argument of a call other than a key
    fn's (fetch cache ::count), a map's value (key-position?). Only keys that appear
    in some entity's contract, or that a pack shapes, count as data keys. A
@@ -1268,8 +1269,11 @@
    has one whose contract a pack read as code (a context built by (into ..))."
   [idx]
   (let [contracts (into {} (for [[id e] (:entities idx)] [id (contract-keys idx (:entry e))]))
-        ;; a project's own fns that take a schema: (schema/validate ::message x)
-        schema-fns (set (mapcat #(get-in idx [:config :packs % :schema-fns]) [:spec :malli]))
+        ;; a call that names a schema rather than reading a key, as the
+        ;; packs that know schemas say: (s/valid? ::order x)
+        schema-call? (let [fs (keep :pack/schema-call? (:packs idx))
+                           opts (pack-opts (:config idx))]
+                       (fn [c] (some #(% c opts) fs)))
         data-keys (-> #{}
                       (into (mapcat (fn [{:keys [consumes produces]}] (concat consumes produces))) (vals contracts))
                       (into (map key) (data-key-entities idx))
@@ -1294,9 +1298,8 @@
                 named (filter qualified-keyword? (tree-seq coll? seq (vals entry)))
                 ;; a schema key in the contract stands for the keys it is made of
                 allowed (into (with-members idx (into (into (:consumes own) (:produces own)) via-deps)) named)
-                ;; (s/valid? ::order x), (m/validate ::order x): a schema named, no key read
-                in-schema-call? (let [cs (filter #(or (schema-nses (:to %)) (schema-fns (symbol (str (:to %)) (str (:name %)))))
-                                                 (get-in idx [:code (:filename v) :calls]))]
+                ;; inside a call naming a schema: no key read
+                in-schema-call? (let [cs (filter schema-call? (get-in idx [:code (:filename v) :calls]))]
                                   (fn [{:keys [row col]}]
                                     (some #(and (:end-row %)
                                                 (neg? (compare [(:row %) (:col %)] [row col]))
