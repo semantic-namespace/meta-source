@@ -110,6 +110,6 @@ As a library, in a process that already hosts sdiff (another module's
 bb test
 ```
 
-A git repository made from `../packs/test/fixtures/shop` and one commit that fixes
+A git repository made from `../test/fixtures/shop` and one commit that fixes
 a finding and introduces another, printed through sdiff; the edges the
 shop fixture and a small re-frame app add to sdiff's graph.

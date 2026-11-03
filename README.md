@@ -257,7 +257,7 @@ in CI.
 
 ## More
 
-- [review/](review/README.md): on [sdiff](https://github.com/semantic-namespace/diff)'s
+- [packs/review/](packs/review/README.md): on [sdiff](https://github.com/semantic-namespace/diff)'s
   review page, the findings a change introduces and those it fixes
 - [docs/reference.md](docs/reference.md): every command, what `check`
   finds, EDN facts and the meta key, the Emacs package

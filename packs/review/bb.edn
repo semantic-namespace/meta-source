@@ -1,8 +1,8 @@
 ;; meta-source's findings on sdiff's review page. EXPERIMENTAL.
 {:paths ["src"]
- :deps {io.github.semantic-namespace/meta-source {:local/root ".."}
+ :deps {io.github.semantic-namespace/meta-source {:local/root "../.."}
         ;; the packs a reviewed repository's meta-source.edn may enable
-        io.github.semantic-namespace/meta-source-packs {:local/root "../packs"}
+        io.github.semantic-namespace/meta-source-packs {:local/root ".."}
         io.github.semantic-namespace/diff {:git/url "https://github.com/semantic-namespace/diff"
                                            :git/sha "0ba2dc8334ba0a6db63636057e0bf5042737e0a3"}}
  :tasks {review {:doc "text <repo> <base> <head> | pr <owner/repo#N> | serve [port] [--host addr]"

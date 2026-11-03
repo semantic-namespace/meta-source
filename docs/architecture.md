@@ -321,5 +321,5 @@ it.
 The rest live beside it, each with its own `bb.edn` and checks, the core
 (`..`) on its classpath: `packs/` (the packs for Clojure libraries, the shop
 fixture, `examples/billing`, the pattern), `corpus/` (real apps, pinned, with
-every pack) and `js/` (the JavaScript reader). `review/` shows findings on
-sdiff's review page.
+every pack) and `js/` (the JavaScript reader). `packs/review/` shows
+findings on sdiff's review page, with every pack.
