@@ -222,7 +222,7 @@ the references read, and the index's entities. The reader does the rest:
 parsing, the merge, locations, `check`, `serve`. A pack named by a module
 is looked up in the project, then next to meta-source, so a library's
 pack runs without being added to the project
-([js/README.md](../js/README.md#packs)).
+([meta-source-js](https://github.com/semantic-namespace/meta-source-js/blob/main/README.md#packs)).
 
 ## Questions and checks
 
@@ -270,7 +270,7 @@ Every answer comes from the same index, so the editor and CI never disagree.
 ## Two readers, one protocol
 
 The **Clojure reader** (`src/`, in babashka with clj-kondo as a pod) and the
-**JavaScript/TypeScript reader** (`js/`, in Node with TypeScript's parser)
+**JavaScript/TypeScript reader** ([meta-source-js](https://github.com/semantic-namespace/meta-source-js/blob/main), in Node with TypeScript's parser)
 share:
 - `meta-source.edn` and the EDN registry files;
 - the questions, with the same answer shapes;
@@ -281,7 +281,8 @@ in its JSDoc (`/** @meta-source/id :fn/x */`). About the registry itself,
 both must answer the same:
 [conformance/](../conformance) holds one registry implemented in both
 languages, and `expected.json`, the Clojure reader's answers. `bb
-conformance` and `npm test` check each reader against it.
+conformance` checks the Clojure reader against it, and meta-source-js's
+`npm test` its copy.
 
 ## Extending it
 
@@ -289,7 +290,7 @@ conformance` and `npm test` check each reader against it.
   qualified symbol in `meta-source.edn`'s `:packs`, with `:deps` to put it
   on the classpath ([packs.md](packs.md#writing-a-pack)). A library of
   packs ships a `meta-source/packs.edn` resource and is enabled by keys,
-  as [meta-source-packs](../packs/docs/packs.md) does; the index requires
+  as [meta-source-packs](https://github.com/semantic-namespace/meta-source-packs/blob/main/docs/packs.md) does; the index requires
   no pack, and finds them on the classpath. Libraries ship their own: atlas's registry is
   `atlas.meta-source/pack`, and its JS module adds an endpoint-call pack.
 - **Rules** are EDN files of `{:when … :require …}` over entities and their
@@ -298,15 +299,15 @@ conformance` and `npm test` check each reader against it.
 
 ## Where things are
 
-| Piece | Clojure | JavaScript |
+| Piece | Clojure | JavaScript ([meta-source-js](https://github.com/semantic-namespace/meta-source-js)) |
 |---|---|---|
-| EDN with each key's line | `meta_source/read.clj` | `js/src/edn.js` |
-| merging sources | `meta_source/merge.clj` | `js/src/merge.js` |
-| the index, questions, checks | `meta_source/index.clj` | `js/src/index.js`, `code.js` |
+| EDN with each key's line | `meta_source/read.clj` | `src/edn.js` |
+| merging sources | `meta_source/merge.clj` | `src/merge.js` |
+| the index, questions, checks | `meta_source/index.clj` | `src/index.js`, `code.js` |
 | rules | `meta_source/rules.clj` | — |
-| hover, diagnostics, editor text | `meta_source/hover.clj` | `js/src/hover.js` |
-| CLI and `serve` | `meta_source/cli.clj` | `js/bin/meta-source-js.js` |
-| packs | `meta_source/pack/namespaces.clj`; the libraries' in `packs/` (meta-source-packs) | modules named in `:js {:packs …}` |
+| hover, diagnostics, editor text | `meta_source/hover.clj` | `src/hover.js` |
+| CLI and `serve` | `meta_source/cli.clj` | `bin/meta-source-js.js` |
+| packs | `meta_source/pack/namespaces.clj`; the libraries' in meta-source-packs | modules named in `:js {:packs …}` |
 | editors | `emacs/meta-source.el` | `vscode/` (both readers) |
 
 meta-source is checked on itself. `meta-source.edn` at the root runs the
@@ -318,8 +319,9 @@ index and what it is built from never reach the CLI or hover; `read`, `merge`
 and `rules` require nothing of meta-source's. CI runs `meta-source check` on
 it.
 
-The rest live beside it, each with its own `bb.edn` and checks, the core
-(`..`) on its classpath: `packs/` (the packs for Clojure libraries, the shop
-fixture, `examples/billing`, the pattern), `corpus/` (real apps, pinned, with
-every pack) and `js/` (the JavaScript reader). `packs/review/` shows
-findings on sdiff's review page, with every pack.
+The rest are repositories of their own, each with its checks, the core at
+a commit on its classpath: [meta-source-packs](https://github.com/semantic-namespace/meta-source-packs/blob/main) (the packs for
+Clojure libraries, the shop fixture, `examples/billing`, the pattern, and
+`review/`, findings on sdiff's review page),
+[meta-source-corpus](https://github.com/semantic-namespace/meta-source-corpus/blob/main) (real apps, pinned, checked with every
+pack) and [meta-source-js](https://github.com/semantic-namespace/meta-source-js/blob/main) (the JavaScript reader).

@@ -70,7 +70,7 @@ directory. No line of code changed.
 
 ### On a re-frame app
 
-![A re-frame app adopting meta-source in Emacs](packs/docs/images/meta-source-re-frame.gif)
+![A re-frame app adopting meta-source in Emacs](docs/images/meta-source-re-frame.gif)
 
 1. **`{:packs {:re-frame {:provided [:http-xhrio]}}}`**: an `:on-failure`
    callback to an event nothing registers, and a subscription with a typo.
@@ -156,7 +156,7 @@ npx github:semantic-namespace/meta-source-js check --brief
 The [VS Code extension](vscode) runs both readers: here a hover on a
 TypeScript function, an EDN id whose implementation the Clojure reader
 finds, go to definition from the EDN to the TypeScript, and an id tagged on
-two declarations. See [js/README.md](js/README.md).
+two declarations. See [meta-source-js](https://github.com/semantic-namespace/meta-source-js/blob/main/README.md).
 
 ![VS Code: one registry, a Clojure and a TypeScript implementation](docs/images/vscode-polyglot.gif)
 
@@ -208,7 +208,7 @@ two readers, and where each piece lives.
   entities, by a naming convention you state, and what each requires: rules
   on which may require which), and **your own**: a pack is one map. The
   namespaces pack is meta-source's; the others are
-  [meta-source-packs](packs/docs/packs.md). Writing one:
+  [meta-source-packs](https://github.com/semantic-namespace/meta-source-packs/blob/main/docs/packs.md). Writing one:
   [docs/packs.md](docs/packs.md)
 - **Facts merge per keyword.** A file says things about an id; it doesn't
   own it. An EDN file can add `:data/privacy :pii` to a key a spec defines.
@@ -257,25 +257,25 @@ in CI.
 
 ## More
 
-- [packs/review/](packs/review/README.md): on [sdiff](https://github.com/semantic-namespace/diff)'s
+- [meta-source-packs/review](https://github.com/semantic-namespace/meta-source-packs/blob/main/review/README.md): on [sdiff](https://github.com/semantic-namespace/diff)'s
   review page, the findings a change introduces and those it fixes
 - [docs/reference.md](docs/reference.md): every command, what `check`
   finds, EDN facts and the meta key, the Emacs package
 - [docs/architecture.md](docs/architecture.md): how it's built, and how the
   pieces fit together
 - [docs/packs.md](docs/packs.md): writing a pack, and the namespaces pack
-- [packs/](packs/docs/packs.md): the packs for Clojure libraries, each one's
-  options; [the pattern](packs/docs/pattern.md) they read exactly
-- [corpus/](corpus/README.md): how often each check is right, on real apps
+- [meta-source-packs](https://github.com/semantic-namespace/meta-source-packs/blob/main/docs/packs.md): the packs for Clojure
+  libraries, each one's options; [the pattern](https://github.com/semantic-namespace/meta-source-packs/blob/main/docs/pattern.md) they
+  read exactly
+- [meta-source-corpus](https://github.com/semantic-namespace/meta-source-corpus/blob/main/README.md): how often each check is right,
+  on real apps
+- [meta-source-js](https://github.com/semantic-namespace/meta-source-js/blob/main/README.md): the JavaScript and TypeScript reader
 
 ```sh
 bb smoke                   # the core's checks, on test/fixtures/core with no library pack
 bb emacs-smoke             # meta-source.el against a real meta-source serve
 bb conformance             # the answers every reader must give (conformance/)
 bb jvm-check               # the core loads on the JVM, and builds babashka's index
-cd packs && bb smoke       # the packs' checks (and bb pathom-snapshot-check, bb system-snapshot-check)
-cd corpus && bb corpus run # every check over the pinned apps
-cd js && npm test          # the JavaScript reader, against the same answers
 ```
 
 meta-source started as `atlas.source` in

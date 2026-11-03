@@ -14,5 +14,8 @@ it, coverage) is left out; each reader's own tests check that.
 ```sh
 bb conformance            # the Clojure reader against expected.json
 bb conformance --write    # regenerate expected.json from it
-npm test                  # the JavaScript reader against expected.json
 ```
+
+The JavaScript reader, [meta-source-js](https://github.com/semantic-namespace/meta-source-js), keeps a copy of this
+directory and runs `npm test` against it: when `expected.json` changes here,
+copy the directory there.

@@ -9,7 +9,7 @@ data. The core has one pack, the reference pack:
 [a project's own namespaces](#a-projects-own-namespaces-the-namespaces-pack).
 The packs for Clojure libraries (clojure.spec and malli, Pathom, integrant,
 aero, re-frame, reitit, Datascript, tilakone, Overarch, grain) are a library
-of their own, [meta-source-packs](../packs/docs/packs.md): name it in
+of their own, [meta-source-packs](https://github.com/semantic-namespace/meta-source-packs/blob/main/docs/packs.md): name it in
 `meta-source.edn`'s `:deps`, and enable its packs under `:packs`.
 
 For how packs fit into meta-source (the build each pack takes part in, and
@@ -99,7 +99,7 @@ The optional keys:
 to place what a form holds at its own line. A result is
 `{:row :kind :dev-id :entry}`, or `{:row :kind :skipped reason}` when the
 form can't be read; a skipped result with `:pattern rule-id` breaks that
-rule of the pack's pattern ([pattern.md](../packs/docs/pattern.md)), reported as
+rule of the pack's pattern ([pattern.md](https://github.com/semantic-namespace/meta-source-packs/blob/main/docs/pattern.md)), reported as
 `:off-pattern` when the pack's options say `:pattern true`. With `:refers true`, it is a place that refers to the
 id (a dispatch, a link), never its primary definition; with `:var ns/name`,
 that var implements the id, as the meta key does. Failures are reported,
