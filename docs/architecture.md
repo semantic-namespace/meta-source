@@ -289,8 +289,8 @@ conformance` and `npm test` check each reader against it.
   qualified symbol in `meta-source.edn`'s `:packs`, with `:deps` to put it
   on the classpath ([packs.md](packs.md#writing-a-pack)). A library of
   packs ships a `meta-source/packs.edn` resource and is enabled by keys,
-  as meta-source's own packs are; the index requires no pack, and finds
-  them on the classpath. Libraries ship their own: atlas's registry is
+  as [meta-source-packs](../packs/docs/packs.md) does; the index requires
+  no pack, and finds them on the classpath. Libraries ship their own: atlas's registry is
   `atlas.meta-source/pack`, and its JS module adds an endpoint-call pack.
 - **Rules** are EDN files of `{:when … :require …}` over entities and their
   relations.
@@ -306,13 +306,20 @@ conformance` and `npm test` check each reader against it.
 | rules | `meta_source/rules.clj` | — |
 | hover, diagnostics, editor text | `meta_source/hover.clj` | `js/src/hover.js` |
 | CLI and `serve` | `meta_source/cli.clj` | `js/bin/meta-source-js.js` |
-| packs | `meta_source/pack/*.clj` | modules named in `:js {:packs …}` |
+| packs | `meta_source/pack/namespaces.clj`; the libraries' in `packs/` (meta-source-packs) | modules named in `:js {:packs …}` |
 | editors | `emacs/meta-source.el` | `vscode/` (both readers) |
 
 meta-source is checked on itself. `meta-source.edn` at the root runs the
-namespaces pack over `src/` (`meta-source.pack.reitit` is
-`:meta-source.pack/reitit`), and `rules/architecture.edn` says how it is put
-together: a pack requires only `read` and other packs, so it stays a map the
-index runs; the index and what it is built from never reach the CLI, hover or
-the corpus; `read`, `merge` and `rules` require nothing of meta-source's. CI
-runs `meta-source check` on it.
+namespaces pack over `src/` (`meta-source.pack.namespaces` is
+`:meta-source.pack/namespaces`), and `rules/architecture.edn` says how it is
+put together: a pack requires only `read` and other packs, so it stays a map
+the index runs; the core never requires a pack but its reference one; the
+index and what it is built from never reach the CLI or hover; `read`, `merge`
+and `rules` require nothing of meta-source's. CI runs `meta-source check` on
+it.
+
+The rest live beside it, each with its own `bb.edn` and checks, the core
+(`..`) on its classpath: `packs/` (the packs for Clojure libraries, the shop
+fixture, `examples/billing`, the pattern), `corpus/` (real apps, pinned, with
+every pack) and `js/` (the JavaScript reader). `review/` shows findings on
+sdiff's review page.

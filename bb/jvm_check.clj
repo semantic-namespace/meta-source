@@ -1,6 +1,6 @@
 (ns jvm-check
   "meta-source as a library on the JVM: every library namespace loads there,
-   and the shop fixture's index is the one babashka builds. babashka ignores
+   and the core fixture's index is the one babashka builds. babashka ignores
    type hints, so a hint naming an unimported class (a ^File) only fails on
    the JVM. Needs the clojure CLI."
   (:require [babashka.process :as p]
@@ -9,15 +9,11 @@
             [meta-source.cli :as cli]
             [meta-source.index :as index]))
 
-;; meta-source.corpus is babashka tooling (babashka.fs, babashka.process)
 (def namespaces
   '[meta-source.read meta-source.merge meta-source.rules meta-source.libs
-    meta-source.pack.aero meta-source.pack.datascript meta-source.pack.fn-schema
-    meta-source.pack.integrant meta-source.pack.pathom meta-source.pack.re-frame
-    meta-source.pack.reitit meta-source.pack.schema meta-source.pack.tilakone
-    meta-source.index meta-source.hover meta-source.cli])
+    meta-source.pack.namespaces meta-source.index meta-source.hover meta-source.cli])
 
-(def fixture "test/fixtures/shop")
+(def fixture "test/fixtures/core")
 
 (defn- summary [idx]
   {:entities (count (:entities idx)) :findings (count (index/check idx))})

@@ -1,0 +1,8 @@
+;; Precision and recall of meta-source's checks over pinned real apps, with
+;; the core (..) and every pack (../packs) on the classpath.
+{:paths ["src"]
+ :deps {io.github.semantic-namespace/meta-source {:local/root ".."}
+        io.github.semantic-namespace/meta-source-packs {:local/root "../packs"}}
+ :tasks {corpus {:doc "fetch | run [app ...] | report | unlabeled [n] | plant | ci (README.md)"
+                 :requires ([meta-source.corpus])
+                 :task (apply meta-source.corpus/-main *command-line-args*)}}}

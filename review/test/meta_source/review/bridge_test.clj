@@ -25,7 +25,7 @@
     root))
 
 (deftest the-shop
-  (let [es (graph-edges "../test/fixtures/shop")]
+  (let [es (graph-edges "../packs/test/fixtures/shop")]
     (testing "a resolver's input on the resolver giving it"
       (is (contains? es ["src/shop/resolvers.clj:22 pco/defresolver user-discount" "src/shop/resolvers.clj:48 pco/defresolver seed"])))
     (testing "what an EDN entry says a function needs, on the form defining it"

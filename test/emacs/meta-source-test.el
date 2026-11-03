@@ -4,7 +4,7 @@
 ;;   emacs --batch -Q -l test/emacs/meta-source-test.el -f ert-run-tests-batch-and-exit
 ;; or `bb emacs-smoke', which puts clojure-mode on the load path when it
 ;; finds it (the hover tests need it, for keyword syntax; they are skipped
-;; without it).  Needs Emacs 27+ and bb.  The fixture is test/fixtures/shop.
+;; without it).  Needs Emacs 27+ and bb.  The fixture is test/fixtures/core.
 
 (require 'ert)
 (require 'cl-lib)
@@ -19,7 +19,7 @@
 (setq meta-source-command (list "bb" "--config" meta-source-bb-config "meta-source"))
 
 (defun meta-source-test--fixture (file)
-  (expand-file-name (concat "test/fixtures/shop/" file) meta-source-test--checkout))
+  (expand-file-name (concat "test/fixtures/core/" file) meta-source-test--checkout))
 
 (defun meta-source-test--report (file &optional edit)
   "What the backend reports for FILE: (:called DIAGNOSTICS) or :not-called.
@@ -55,17 +55,19 @@ a var whose meta key nothing else describes, at the key."
                      (":order/discount" :note
                       "meta-source: :order/discount is used here but is not in :fn/place-order's contract"))))))
 
-(ert-deftest meta-source-flymake-config ()
-  "In an integrant config: the ref no config defines, and the id two packs declare."
-  (let ((marked (mapcar #'meta-source-test--marked (cadr (meta-source-test--report "resources/system.edn")))))
-    (should (member '(":shop/metrics" :warning "meta-source: no config defines :shop/metrics") marked))
-    (should (cl-some (lambda (m) (and (equal (car m) ":shop.resolvers/seed") (eq (cadr m) :warning))) marked))))
+(ert-deftest meta-source-flymake-edn ()
+  "In an EDN source: the entity a rule finds, at its key, at the rule's severity."
+  (let ((marked (mapcar #'meta-source-test--marked (cadr (meta-source-test--report "registry/privacy.edn")))))
+    (should (member '(":user/email" :warning "meta-source: Whatever reads a PII key is audited: :user/email (:fn/register-user)  [:rule/pii-readers-audited]")
+                    marked)))
+  (let ((marked (mapcar #'meta-source-test--marked (cadr (meta-source-test--report "registry/components.edn")))))
+    (should (member '(":shop/metrics" :note "meta-source: A component says whether it stops what it starts: :shop/metrics  [:rule/components-stop]")
+                    marked))))
 
 (ert-deftest meta-source-flymake-destructured ()
   "A key only destructured is underlined at its name in the form."
-  (let ((marked (mapcar #'meta-source-test--marked (cadr (meta-source-test--report "src/shop/resolvers.clj")))))
-    (should (member '("lines" :note "meta-source: nothing produces :order/lines") marked))
-    (should (member '("loyalty-tier" :note "meta-source: no schema shapes :user/loyalty-tier") marked))))
+  (let ((marked (mapcar #'meta-source-test--marked (cadr (meta-source-test--report "src/shop/discounts.clj")))))
+    (should (member '("phone" :note "meta-source: :user/phone is used here but is not in :fn/apply-discount's contract") marked))))
 
 (ert-deftest meta-source-flymake-unsaved ()
   "With unsaved changes the backend doesn't answer: the server reads the disk."
@@ -73,7 +75,7 @@ a var whose meta key nothing else describes, at the key."
 
 (ert-deftest meta-source-flymake-mode ()
   "meta-source-mode turns Flymake on with the backend, and Flymake shows its markers."
-  (with-current-buffer (find-file-noselect (meta-source-test--fixture "src/shop/spec.clj"))
+  (with-current-buffer (find-file-noselect (meta-source-test--fixture "src/shop/discounts.clj"))
     (meta-source-mode 1)
     (should flymake-mode)
     (should (memq #'meta-source-flymake flymake-diagnostic-functions))
@@ -82,7 +84,7 @@ a var whose meta key nothing else describes, at the key."
       (while (and (null (flymake-diagnostics)) (< (float-time) deadline))
         (accept-process-output nil 0.1)))
     (should (equal (mapcar #'meta-source-test--marked (flymake-diagnostics))
-                   '((":user/emial" :note "meta-source: :user/emial has no spec of its own"))))))
+                   '(("phone" :note "meta-source: :user/phone is used here but is not in :fn/apply-discount's contract"))))))
 
 ;; ---- hover, M-., M-? (need clojure-mode, for keyword syntax)
 
@@ -104,14 +106,14 @@ a var whose meta key nothing else describes, at the key."
         #'string<))
 
 (ert-deftest meta-source-hover ()
-  "Eldoc on a component describes it, and on a binding-only var; a symbol
-that isn't a qualified keyword is left to other backends."
+  "Eldoc on an entity says what it is and who uses it, and on a binding-only
+var; a symbol that isn't a qualified keyword is left to other backends."
   (skip-unless (featurep 'clojure-mode))
-  (with-current-buffer (meta-source-test--at "resources/system.edn" ":shop/db ")
-    (should (string-prefix-p ":shop/db  integrant\ncomponent  refs 0" (meta-source-test--eldoc))))
+  (with-current-buffer (meta-source-test--at "registry/components.edn" ":shop/mailer ")
+    (should (string-prefix-p ":shop/mailer  entry\nused by 1" (meta-source-test--eldoc))))
   (with-current-buffer (meta-source-test--at "src/shop/handlers.clj" ":fn/cancel-order")
     (should (string-prefix-p ":fn/cancel-order  binding" (meta-source-test--eldoc))))
-  (with-current-buffer (meta-source-test--at "src/shop/spec.clj" "string?")
+  (with-current-buffer (meta-source-test--at "src/shop/handlers.clj" "random-uuid")
     (should-not (meta-source--keyword-at-point))))
 
 (ert-deftest meta-source-keyword-at-point ()
@@ -128,16 +130,18 @@ an unqualified keyword (a re-frame id) is kept."
       (should (equal (at ":initialize") ":initialize")))))
 
 (ert-deftest meta-source-xref ()
-  "M-. offers the config that declares it and the defmethods that implement
-it (variant configs are listed in the entry, :integrant/config-in); M-? what
-uses it."
+  "M-. offers where it is defined, the EDN entry and the var its meta key
+links; M-? what uses it."
   (skip-unless (featurep 'clojure-mode))
-  (with-current-buffer (meta-source-test--at "resources/system.edn" ":shop/db ")
+  (with-current-buffer (meta-source-test--at "registry/components.edn" ":shop/mailer ")
     (should (eq 'meta-source (meta-source--xref-backend)))
-    (should (equal (meta-source-test--files (xref-backend-definitions 'meta-source ":shop/db"))
-                   '("system.clj" "system.edn")))
-    (should (equal (meta-source-test--files (xref-backend-references 'meta-source ":shop/db"))
-                   '("system.edn")))))
+    (should (equal (meta-source-test--files (xref-backend-definitions 'meta-source ":shop/mailer"))
+                   '("components.edn")))
+    (should (equal (meta-source-test--files (xref-backend-references 'meta-source ":shop/mailer"))
+                   '("functions.edn"))))
+  (with-current-buffer (meta-source-test--at "registry/functions.edn" ":fn/place-order")
+    (should (equal (meta-source-test--files (xref-backend-definitions 'meta-source ":fn/place-order"))
+                   '("functions.edn" "handlers.clj")))))
 
 (ert-deftest meta-source-adopted-after-opening ()
   "Files opened before the project had a meta-source.edn: saving one turns
@@ -151,7 +155,7 @@ the mode on in them, and Flymake shows what it finds."
         (progn
           (copy-directory (meta-source-test--fixture "src") (expand-file-name "src" dir))
           (copy-directory (meta-source-test--fixture "registry") (expand-file-name "registry" dir))
-          (copy-directory (meta-source-test--fixture "resources") (expand-file-name "resources" dir))
+          (copy-directory (meta-source-test--fixture "rules") (expand-file-name "rules" dir))
           (meta-source-setup)
           (let ((handlers (find-file-noselect (expand-file-name "src/shop/handlers.clj" dir))))
             (should-not (buffer-local-value 'meta-source-mode handlers))

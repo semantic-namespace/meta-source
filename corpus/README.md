@@ -2,7 +2,9 @@
 
 How often is a check right? This directory measures it. meta-source runs its
 checks over real apps pinned at fixed commits. A person judges each finding.
-The report gives, per check, how many of its findings were real.
+The report gives, per check, how many of its findings were real. Run it
+from this directory: its `bb.edn` puts the core (`..`) and every pack
+(`../packs`) on the classpath.
 
 ```sh
 bb corpus fetch        # clone the apps at their commits, under .corpus/apps (gitignored)
@@ -219,7 +221,9 @@ meta-source's dependencies:
 
 ```sh
 MS_CORPUS_DIR=<project>/meta-source/corpus \
-  bb -Sdeps '{:deps {io.github.semantic-namespace/meta-source {:git/url "https://github.com/semantic-namespace/meta-source" :git/sha "<sha>"}}}' \
+  bb -Sdeps '{:deps {io.github.semantic-namespace/meta-source {:git/url "https://github.com/semantic-namespace/meta-source" :git/sha "<sha>"}
+                    io.github.semantic-namespace/meta-source-packs {:git/url "https://github.com/semantic-namespace/meta-source" :git/sha "<sha>" :deps/root "packs"}
+                    io.github.semantic-namespace/meta-source-corpus {:git/url "https://github.com/semantic-namespace/meta-source" :git/sha "<sha>" :deps/root "corpus"}}}' \
      -m meta-source.corpus report
 ```
 

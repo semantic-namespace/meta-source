@@ -87,7 +87,7 @@ A plain function says which id it implements with one meta key:
 
 A function with an `s/fdef` or a malli `m/=>` needs neither: the contract it
 already has is read, keyed by its var
-([docs/packs.md](packs.md#function-contracts-sfdef-and-m)).
+([meta-source-packs](../packs/docs/packs.md#function-contracts-sfdef-and-m)).
 
 A var with the meta key and no entry is valid: an entity with its binding
 only, reported as info. `:id-key` in `meta-source.edn` chooses another meta
@@ -187,7 +187,7 @@ The code links come from the packs, with nothing to annotate: an integrant
 `init-key` method is its component's code, and a route defined inside a fn
 (or written in the `init-key` itself) is provided by the component whose
 `init-key` calls that fn. What the route reaches through it is exact when
-the system follows the pattern ([pattern.md](pattern.md), I5 and R4): what
+the system follows the pattern ([pattern.md](../packs/docs/pattern.md), I5 and R4): what
 the route fn's call is handed, as the method's destructuring names it.
 With `(defmethod ig/init-key ::routes [_ {:keys [user-service]}] (->auth-routes user-service))`,
 the route reaches the component `:user-service` refers to, not everything

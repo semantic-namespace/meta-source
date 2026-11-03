@@ -1,0 +1,15 @@
+;; The packs this library has: each pack's var and the keys of a project's
+;; meta-source.edn :packs that enable it. meta-source finds every
+;; meta-source/packs.edn on the classpath once a project's :deps put this
+;; library there, and loads a pack only when the project enables it.
+[{:pack meta-source.pack.schema/pack :config-keys #{:spec :malli}}
+ {:pack meta-source.pack.fn-schema/pack :config-keys #{:spec :malli}}
+ {:pack meta-source.pack.datascript/pack :config-keys #{:datascript}}
+ {:pack meta-source.pack.pathom/pack :config-keys #{:pathom}}
+ {:pack meta-source.pack.integrant/pack :config-keys #{:integrant}}
+ {:pack meta-source.pack.aero/pack :config-keys #{:aero}}
+ {:pack meta-source.pack.re-frame/pack :config-keys #{:re-frame}}
+ {:pack meta-source.pack.reitit/pack :config-keys #{:reitit}}
+ {:pack meta-source.pack.tilakone/pack :config-keys #{:tilakone}}
+ {:pack meta-source.pack.overarch/pack :config-keys #{:overarch}}
+ {:pack meta-source.pack.grain/pack :config-keys #{:grain}}]

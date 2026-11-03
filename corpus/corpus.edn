@@ -122,7 +122,7 @@
 
   ;; ---- this repository's fixture: where defects are planted to measure recall
   ;; its findings are the fixture's own planted problems: never in precision
-  {:id :shop-fixture :path "../test/fixtures/shop" :plants-only true}]
+  {:id :shop-fixture :path "../packs/test/fixtures/shop" :plants-only true}]
 
  ;; problems that say what wasn't read, not that something is wrong: counted,
  ;; never in precision

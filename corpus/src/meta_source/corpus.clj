@@ -1,7 +1,8 @@
 (ns meta-source.corpus
   "The precision corpus: meta-source's checks run over pinned real apps, each
    finding judged by a person, and per check how many of its findings are
-   real. See corpus/README.md.
+   real. See README.md. Run from this directory, whose bb.edn puts the core
+   (..) and every pack (../packs) on the classpath.
 
      bb corpus fetch            clone each app at its commit, under .corpus/apps
      bb corpus run [app ...]    check each app, into .corpus/findings.edn
@@ -16,7 +17,7 @@
    meta-source check), from anywhere, outside the checkout if its bb.edn
    would shadow meta-source's deps:
 
-     MS_CORPUS_DIR=<project>/meta-source/corpus bb -Sdeps '<meta-source as a git dep>' -m meta-source.corpus report
+     MS_CORPUS_DIR=<project>/meta-source/corpus bb -Sdeps '<the corpus, the packs and meta-source as git deps>' -m meta-source.corpus report
 
    An app's :path is relative to the directory holding corpus.edn:
    {:path \"../..\"} from <project>/meta-source/corpus is the project itself,
@@ -32,9 +33,9 @@
             [clojure.walk :as walk]
             [meta-source.index :as index]))
 
-;; the corpus: this repository's (corpus/), or a private one MS_CORPUS_DIR
-;; names (an app that can't be public), whose clones and findings stay in it
-(def corpus-dir (or (System/getenv "MS_CORPUS_DIR") "corpus"))
+;; the corpus: this directory's, or a private one MS_CORPUS_DIR names (an
+;; app that can't be public), whose clones and findings stay in it
+(def corpus-dir (or (System/getenv "MS_CORPUS_DIR") "."))
 (def corpus-file (str corpus-dir "/corpus.edn"))
 (def labels-file (str corpus-dir "/labels.edn"))
 (def plants-file (str corpus-dir "/plants.edn"))

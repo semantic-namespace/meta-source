@@ -26,7 +26,7 @@
    name. Returns [dir base head]."
   []
   (let [dir (fs/create-temp-dir {:prefix "ms-review"})]
-    (fs/copy-tree "../test/fixtures/shop" dir)
+    (fs/copy-tree "../packs/test/fixtures/shop" dir)
     (git! dir "init" "-q")
     (git! dir "add" "-A")
     (git! dir "-c" "user.name=t" "-c" "user.email=t@t" "commit" "-qm" "base")

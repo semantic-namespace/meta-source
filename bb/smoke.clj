@@ -1,34 +1,12 @@
 (ns smoke
-  "The checks, one suite each: core (the index, rules, the editor, the pack
-   contract through packs written here) and one per pack. bb smoke runs them
-   all; bb smoke core reitit, those named."
+  "The core's checks: the index, rules, the editor, the pack contract
+   through packs written here (bb/smoke/packs.clj), on test/fixtures/core
+   with no library pack. The packs' checks are packs/'s bb smoke."
   (:require [smoke.support :as s]
-            [smoke.core]
-            [smoke.shop]
-            [smoke.schema]
-            [smoke.integrant]
-            [smoke.reitit]
-            [smoke.re-frame]
-            [smoke.datascript]
-            [smoke.aero]
-            [smoke.tilakone]
-            [smoke.grain]
-            [smoke.overarch]
-            [smoke.pattern]))
+            [smoke.core]))
 
 (def suites
-  [["core" smoke.core/run]
-   ["shop" smoke.shop/run]
-   ["schema" smoke.schema/run]
-   ["integrant" smoke.integrant/run]
-   ["reitit" smoke.reitit/run]
-   ["re-frame" smoke.re-frame/run]
-   ["datascript" smoke.datascript/run]
-   ["aero" smoke.aero/run]
-   ["tilakone" smoke.tilakone/run]
-   ["grain" smoke.grain/run]
-   ["overarch" smoke.overarch/run]
-   ["pattern" smoke.pattern/run]])
+  [["core" smoke.core/run]])
 
 (defn -main [& names]
   (let [unknown (remove (set (map first suites)) names)]

@@ -45,8 +45,11 @@
            (and (= [:fn/register-user] (map :dev-id (:consumers (index/data-key idx :user/email))))
                 (= [:fn/register-user] (map :dev-id (:producers (index/data-key idx :user/email))))
                 (= [:fn/register-user] (map :dev-id (:referenced-by (index/uses idx :shop/mailer))))))
-    (check "core: code reading a key some contract names, outside its own contract"
-           (= [[:fn/place-order [:order/discount]]] (map (juxt :dev-id :keys) (problems idx :keys-outside-contract))))
+    (check "core: code reading a key some contract names, outside its own contract, or only destructuring it"
+           (= [[:fn/apply-discount [:user/phone]] [:fn/place-order [:order/discount]]]
+              (sort (map (juxt :dev-id :keys) (problems idx :keys-outside-contract)))))
+    (check "core diagnostics: a key only destructured, at its name, within its own form"
+           (contains? (diags idx "src/shop/discounts.clj") [5 40 45 "note" "keys-outside-contract"]))
 
     ;; ---- the meta key, and the merge
     (check "core: a var with the meta key and no entry: a binding-only entity, valid, reported as info"

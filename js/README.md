@@ -28,9 +28,9 @@ run.
 ## Use
 
 ```sh
-npx github:semantic-namespace/meta-source check --brief
-npx github:semantic-namespace/meta-source check --fail-on error   # in CI
-npx github:semantic-namespace/meta-source where :fn/render-receipt
+npx github:semantic-namespace/meta-source-js check --brief
+npx github:semantic-namespace/meta-source-js check --fail-on error   # in CI
+npx github:semantic-namespace/meta-source-js where :fn/render-receipt
 ```
 
 The command is `meta-source-js`, with the Clojure command's commands and
@@ -109,7 +109,7 @@ meta-source is installed, so a pack in another package runs without adding
 either to the project:
 
 ```sh
-npx -p github:semantic-namespace/meta-source -p <the pack's package> meta-source-js check
+npx -p github:semantic-namespace/meta-source-js -p <the pack's package> meta-source-js check
 ```
 
 ## Tests

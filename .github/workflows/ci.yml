@@ -18,11 +18,26 @@ jobs:
           bb: 1.12.212
       - run: bb smoke
       - run: bb conformance
-      - run: bb meta-source check --brief --root examples/billing --fail-on info
       - run: bb meta-source check --brief --fail-on info
+
+  packs:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: packs
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: DeLaGuardo/setup-clojure@6d46099eae24853c33c0482f2bb54edf4f1a4c74 # 13.7.0
+        with:
+          bb: 1.12.212
+      - run: bb smoke
+      - run: bb meta-source check --brief --root examples/billing --fail-on info
 
   js:
     runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: js
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
@@ -43,6 +58,9 @@ jobs:
 
   pathom:
     runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: packs
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
       - uses: actions/setup-java@c5195efecf7bdfc987ee8bae7a71cb8b11521c00 # v4.7.1

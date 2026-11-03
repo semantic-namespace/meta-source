@@ -1,0 +1,4 @@
+;; The precision corpus: real apps, pinned, checked with every pack.
+{:paths ["src"]
+ :deps {io.github.semantic-namespace/meta-source {:local/root ".."}
+        io.github.semantic-namespace/meta-source-packs {:local/root "../packs"}}}
