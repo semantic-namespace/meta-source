@@ -30,9 +30,9 @@
   (if (next (:keys f)) (for [k (:keys f)] (assoc f :keys [k])) [f]))
 
 (defn what
-  "What `finding` says, without where it says it."
+  "What `finding` says, without where it says it, nor its line (::said)."
   [finding]
-  (walk/postwalk #(if (map? %) (apply dissoc % where-keys) %) finding))
+  (walk/postwalk #(if (map? %) (apply dissoc % where-keys) %) (dissoc finding ::said)))
 
 (defn delta
   "`{:introduced [...] :fixed [...]}`: the findings at head that base doesn't
@@ -116,7 +116,14 @@
     (when-let [config (or (own-settings dir) (fallback repo))]
       (index-at dir config))))
 
-(defn- read-with [dir config] (index/check (index-at dir config)))
+(defn- read-with
+  "check's findings at `dir`, each with ::said, its line as the packs read
+   there word it: per key, as the delta compares them."
+  [dir config]
+  (let [idx (index-at dir config)
+        ps (index/check idx)]
+    (with-meta (vec (for [p ps q (per-key p)] (assoc q ::said (hover/message idx q nil))))
+      {:count (count ps)})))
 
 (defonce ^:private computed (atom {}))
 
@@ -136,7 +143,7 @@
             r (when config
                 (let [h (read-with head-dir config) b (read-with base-dir config)]
                   (assoc (delta b h)
-                         :head-count (count h)
+                         :head-count (:count (meta h))
                          :config-changed? (and base-own (not= base-own config)))))]
         (swap! computed assoc k r)
         r))))
@@ -171,7 +178,7 @@
 
 (defn- line-of [p]
   (let [l (first (hover/locations p))
-        msg (subs (hover/message p nil) (count "meta-source: "))]
+        msg (subs (::said p) (count "meta-source: "))]
     [:li [:span.tag (name (:severity p))] " " (when l [:code (str (:file l) ":" (:line l))]) " " msg]))
 
 (defn header [ctx _report]
