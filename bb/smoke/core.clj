@@ -5,9 +5,253 @@
             [meta-source.read]
             [meta-source.index :as index]
             [babashka.fs :as fs]
+            [babashka.process :as p]
+            [cheshire.core :as json]
+            [clojure.edn :as edn]
+            [clojure.java.io :as io]
             [clojure.string :as str]))
 
-(defn run []
+(def ^:private core-packs
+  "What the core repo ships: the namespaces pack, the reference pack."
+  '#{meta-source.pack.namespaces/pack})
+
+(defn- as-core
+  "Runs `f` seeing only the packs a project using meta-source alone has:
+   the core's, and any a library on its :deps brings. A check here that
+   enables another of meta-source's packs fails, as it would in the core
+   repo."
+  [f]
+  (let [available index/available-packs]
+    (with-redefs [index/available-packs
+                  (fn [] (remove #(and (str/starts-with? (namespace (:pack %)) "meta-source.pack.")
+                                       (not (core-packs (:pack %))))
+                                 (available)))]
+      (f))))
+
+(def ^:private core-root "test/fixtures/core")
+
+(defn- fixture-checks
+  "The core fixture (test/fixtures/core): the shop's plain functions, the
+   meta key and its own words, with no library pack."
+  []
+  (let [cfg (assoc (edn/read-string (slurp (str core-root "/meta-source.edn"))) :root core-root)
+        idx (index/build cfg)
+        diags (fn [i f] (set (map (juxt :line :col :end-col :severity :problem) (hover/diagnostics i f))))]
+    (check "core: the index reads EDN sources and linked vars with no pack, and finds no error"
+           (and (= {:binding 1 :edn 6} (:entities-by-source (index/summary idx)))
+                (empty? (:packs (index/summary idx)))
+                (not-any? #(= :error (:severity %)) (index/check idx))))
+    (check "core: a contract in EDN gives its function's data and needs"
+           (and (= [:fn/register-user] (map :dev-id (:consumers (index/data-key idx :user/email))))
+                (= [:fn/register-user] (map :dev-id (:producers (index/data-key idx :user/email))))
+                (= [:fn/register-user] (map :dev-id (:referenced-by (index/uses idx :shop/mailer))))))
+    (check "core: code reading a key some contract names, outside its own contract"
+           (= [[:fn/place-order [:order/discount]]] (map (juxt :dev-id :keys) (problems idx :keys-outside-contract))))
+
+    ;; ---- the meta key, and the merge
+    (check "core: a var with the meta key and no entry: a binding-only entity, valid, reported as info"
+           (and (= {:file "src/shop/handlers.clj" :line 13 :binding true} (:definition (index/where idx :fn/cancel-order)))
+                (= [[:fn/cancel-order :info]] (map (juxt :dev-id :severity) (problems idx :binding-only)))
+                (= "binding" (second (re-find #"^:fn/cancel-order  (\S+)" (:eldoc (hover/lookup idx :fn/cancel-order)))))))
+    (check "core: the meta key is configurable: :id-key"
+           (and (nil? (index/where idx :fn/legacy-report))
+                (= 'shop.legacy/legacy-report
+                   (get-in (index/where (index/build (assoc cfg :id-key :shop/id)) :fn/legacy-report) [:impl :var]))))
+    (check "core: two files giving one key different sets: a conflict, unless :merge says :union"
+           (let [tags (update cfg :registry conj "registry-tags")]
+             (and (= [[:user/email :data/tags]] (map (juxt :dev-id :key) (problems (index/build tags) :conflicting-values)))
+                  (= #{:contact :pii} (get-in (index/where (index/build (assoc tags :merge {:data/tags :union})) :user/email) [:entry :data/tags])))))
+    (check "core: :dataflow in meta-source.edn makes a project's own keys consume data"
+           (= [:fn/register-user :job/nightly-digest]
+              (map :dev-id (:consumers (index/data-key (index/build (-> cfg (update :registry conj "registry-jobs")
+                                                                         (update-in [:dataflow :consumes] conj :job/reads)))
+                                                       :user/email)))))
+
+    ;; ---- diagnostics: what an editor underlines, per file
+    (check "core diagnostics: a key used outside the contract, at the key in the code"
+           (contains? (diags idx "src/shop/handlers.clj") [10 49 64 "note" "keys-outside-contract"]))
+    (check "core diagnostics: an absolute path, as editors send"
+           (= (diags idx "src/shop/handlers.clj")
+              (diags idx (.getCanonicalPath (java.io.File. (str core-root "/src/shop/handlers.clj"))))))
+    (check "core diagnostics: a dev-id at the meta key that names it"
+           (contains? (diags idx "src/shop/handlers.clj") [13 25 41 "note" "binding-only"]))
+    (check "core diagnostics: a file with nothing to report"
+           (empty? (diags idx "src/shop/legacy.clj")))
+
+    ;; ---- the project's own rules: rules/shop.edn, rules-broken/, rules-more/
+    (let [ri (index/build (assoc cfg :rules ["rules"]))
+          by (fn [i rule] (filter #(= rule (:rule %)) (index/check i)))
+          pii (first (by ri :rule/pii-readers-audited))]
+      (check "core rules: a rule over a relation: a PII key's consumers must be audited, naming the ones that aren't"
+             (and (= :warning (:severity pii)) (= :user/email (:dev-id pii))
+                  (= [:fn/register-user] (:offenders pii))
+                  (= {:file "rules/shop.edn" :line 2} (:rule-at pii))))
+      (check "core rules: the editor marks the entity and its offenders, at check's severity"
+             (and (contains? (diags ri "registry/privacy.edn") [2 2 13 "warning" "rule-violated"])
+                  (some #(= ["warning" "rule-violated"] ((juxt :severity :problem) %)) (hover/diagnostics ri "registry/functions.edn"))))
+      (check "core rules: a rule at its own severity; one that holds gives nothing"
+             (and (= [[:shop/metrics :info]] (map (juxt :dev-id :severity) (by ri :rule/components-stop)))
+                  (empty? (by ri :rule/functions-say-what-they-need))))
+      (check "core rules: a rule it can't understand is an error at the rule, saying why"
+             (= [{:problem :rule-not-understood :file "rules-broken/broken.edn" :line 1 :reasons ["unknown condition :kynd"]}]
+                (map #(select-keys % [:problem :file :line :reasons])
+                     (by (index/build (assoc cfg :rules ["rules-broken"])) :rule/misspelled))))
+      (check "core rules: :not, :id-ns, :in, :or, :used-by :some, :deps :none, :producers :some"
+             (= {:more/fns-outside-shop-ns [:fn/apply-discount :fn/place-order :fn/register-user]
+                 :more/components-someone-needs [:shop/metrics]
+                 :more/no-fn-depends-on-pii [:fn/register-user]}
+                (update-vals (group-by :rule (filter :rule (index/check (index/build (assoc cfg :rules ["rules-more"])))))
+                             #(mapv :dev-id %))))
+      (check "core: check lists errors, then warnings, then info"
+             (let [ranks (map #(get {:error 0 :warning 1} (:severity %) 2) (index/check ri))]
+               (and (apply distinct? (dedupe ranks)) (= ranks (sort ranks)))))
+      (check "core: check --brief: severity, file:line, the rule's doc, the entity and the offenders"
+             (some #(re-matches #"warning +registry/privacy\.edn:2 +Whatever reads a PII key is audited: :user/email \(:fn/register-user\)  \[:rule/pii-readers-audited\]" %)
+                   (hover/brief ri))))
+
+    ;; ---- the pack contract, through packs written here (smoke.packs)
+    (let [own (index/build (assoc-in cfg [:packs 'smoke.packs/job-pack] {}))]
+      (check "core: a project's own pack, named by its symbol, reads its own macro; not inside (comment ...)"
+             (and (= {:job/reads [:user/email :order/total] :job/schedule "0 3 * * *"}
+                     (:entry (index/where own :shop.jobs/nightly-digest)))
+                  (nil? (index/where own :shop.notes/scratch))))
+      (check "core: its :pack/dataflow makes the job a consumer next to functions"
+             (= [:fn/register-user :shop.jobs/nightly-digest] (map :dev-id (:consumers (index/data-key own :user/email)))))
+      (check "core: its entities are valid as they are, and it counts its reads; a :refer of its macro is not a form"
+             (and (empty? (problems own :entity-without-type))
+                  (= {:read 1 :not-read 0} (:job (:packs (index/summary own))))
+                  (empty? (problems own :pack-form-not-read))))
+      (check "core: the hover uses its :pack/describe"
+             (str/includes? (:eldoc (hover/lookup own :shop.jobs/nightly-digest)) "job  0 3 * * *"))
+      (check "core: a problem says what its pack's :pack/messages says, while the pack is enabled"
+             (let [p {:problem :job-unscheduled :dev-id :shop.jobs/x :severity :warning}]
+               (and (= "meta-source: :shop.jobs/x has no schedule" (hover/message own p nil))
+                    (= "meta-source: job-unscheduled :shop.jobs/x" (hover/message idx p nil)))))
+      (check "core: a pack describing what another declares shares its ids, and the declaring one stays primary; declaring too, it's a warning"
+             (let [with (fn [p] (index/build (update cfg :packs assoc 'smoke.packs/job-pack {} p {})))
+                   shared #(set (map :dev-id (problems % :id-in-several-packs)))
+                   d (with 'smoke.packs/describing-jobs-pack)]
+               (and (not (contains? (shared d) :shop.jobs/nightly-digest))
+                    (= :job (:pack (:definition (index/where d :shop.jobs/nightly-digest))))
+                    (= "described" (:note/text (:entry (index/where d :shop.jobs/nightly-digest))))
+                    (contains? (shared (with 'smoke.packs/declaring-jobs-pack)) :shop.jobs/nightly-digest)))))
+    (check "core: two packs giving the same kind are refused"
+           (= {:kinds [:job]}
+              (try (index/build (update cfg :packs assoc 'smoke.packs/job-pack {} 'smoke.packs/job-again {})) nil
+                   (catch clojure.lang.ExceptionInfo e (ex-data e)))))
+    ;; ---- a call that names a schema: a key written in it, in a key's place, is no key read
+    (let [dir (str (fs/create-temp-dir))
+          outside-of (fn [packs] (into {} (map (juxt :dev-id :keys))
+                                       (problems (index/build {:root dir :src ["src"] :registry ["registry"] :packs packs
+                                                               :dataflow {:consumes [:fn/reads]}})
+                                                 :keys-outside-contract)))]
+      (fs/create-dirs (str dir "/src/app")) (fs/create-dirs (str dir "/registry"))
+      (spit (str dir "/registry/fns.edn") "{:fn/run {:fn/reads []} :fn/other {:fn/reads [:k/a]}}")
+      (spit (str dir "/src/app/core.clj")
+            (str "(ns app.core)\n(defn check [schema x] x)\n"
+                 "(defn ^{:meta-source/id :fn/run} run [m] (check {:k/a :int} m))\n"))
+      (check "core: a key in a map written in a call is read, unless a pack's :pack/schema-call? says the call names a schema"
+             (and (= {:fn/run [:k/a]} (outside-of {}))
+                  (= {} (outside-of {'smoke.packs/conforms-pack {}}))))
+      (fs/delete-tree dir))
+    (check "core rules: a form after a rules file's map is an error, not ignored"
+             (let [dir (str (fs/create-temp-dir))]
+               (spit (str dir "/r.edn") "{:r/a {:when {:has :x} :require [{:has :y}]}}\n :r/b {:when {:has :x} :require []}}")
+               (try (= [[:unreadable-rules-file "something after the map, at line 2"]]
+                       (for [p (index/check (index/build {:root dir :src [] :registry [] :rules ["r.edn"]}))]
+                         [(:problem p) (:message p)]))
+                    (finally (fs/delete-tree dir)))))
+    (check "core: a :packs key no pack on the classpath is enabled by is an error, naming it"
+           (= [:nope] (:keys (try (index/build (assoc-in cfg [:packs :nope] {})) nil
+                                  (catch clojure.lang.ExceptionInfo e (ex-data e))))))
+    (check "core: a pack that throws costs its files, not the index"
+           (let [b (index/build (assoc-in cfg [:packs 'smoke.packs/broken-pack] {}))]
+             (and (some #(and (= :broken (:pack %)) (str/includes? (:reason %) "boom")) (problems b :pack-form-not-read))
+                  (index/where b :fn/register-user))))
+    (let [d (index/build (assoc-in cfg [:packs 'smoke.packs/component-tier-pack] {}))]
+      (check "core derive: a pack's derived fact fills a key no source gave, listed with :derived-by"
+             (and (= :foundation (get-in d [:entities :shop/mailer :entry :app/tier]))
+                  (some #(= :component-tiers (:derived-by %)) (:sources (index/where d :shop/mailer)))))
+      (check "core derive: never over a source's, and no conflict"
+             (and (= :service (get-in d [:entities :shop/metrics :entry :app/tier]))
+                  (empty? (problems d :conflicting-values)))))))
+
+(defn- calls-checks
+  "Calls between linked vars, by id with :calls-by-id, and rules that
+   follow them: no pack."
+  []
+  (let [dir (str (fs/create-temp-dir))]
+    (fs/create-dirs (str dir "/src/app")) (fs/create-dirs (str dir "/registry")) (fs/create-dirs (str dir "/rules"))
+    (spit (str dir "/registry/fns.edn")
+          (str "{:fn/load {:fn/deps [:db/main]}\n"
+               " :fn/save {:fn/deps []}\n"
+               " :fn/run {:fn/deps [:fn/load]}\n"
+               " :db/main {:db/kind :sql}}\n"))
+    (spit (str dir "/src/app/core.clj")
+          (str "(ns app.core)\n"
+               "(defn exec [k & args] k)\n"
+               "(defn ^{:meta-source/id :fn/load} load-impl [] 1)\n"
+               "(defn ^{:meta-source/id :fn/save} save-impl [] 2)\n"
+               ";; declared, by id; undeclared, by id; and a direct call\n"
+               "(defn ^{:meta-source/id :fn/run} run-impl []\n"
+               "  (exec :fn/load) (exec :fn/save) (save-impl))\n"))
+    (spit (str dir "/rules/r.edn")
+          (str "{:rule/run-off-db {:doc \"Nothing run reaches the database\"\n"
+               "                   :when {:id :fn/run} :require [{:reaches {:none {:id :db/main}}}]}\n"
+               " :rule/run-calls-save {:when {:id :fn/run} :require [{:calls {:some {:id :fn/save}}}]}\n"
+               " :rule/save-called-by-none {:when {:id :fn/save} :require [{:called-by {:none {:id :fn/run}}}]}\n"
+               " :rule/db-reached-by-none {:when {:id :db/main} :require [{:reached-by {:none {:id :fn/run}}}]}}\n"))
+    (try
+      (let [cfg {:root dir :src ["src"] :registry ["registry"] :rules ["rules"]}
+            calls (fn [idx] (set (map (juxt :calls :by-id) (problems idx :undeclared-call))))
+            violated (fn [idx rule] (filter #(= rule (:rule %)) (problems idx :rule-violated)))
+            plain (index/build cfg)
+            by-id (index/build (assoc cfg :calls-by-id '[app.core/exec]))]
+        (check "core calls by id: without :calls-by-id only the direct call is undeclared"
+               (= #{[:fn/save nil]} (calls plain)))
+        (check "core calls by id: with it, (exec :fn/save) is an undeclared call too; (exec :fn/load), declared, isn't"
+               (= #{[:fn/save nil] [:fn/save true]} (calls by-id)))
+        (check "core calls by id: uses lists where it is called by id"
+               (some #(and (:by-id %) (= :fn/run (:dev-id %))) (:called-from (index/uses by-id :fn/load))))
+        (check "core reach: a linked var calling another's is a call between their entities; :calls and :called-by as relations"
+               (and (= #{:fn/save} (get-in (index/edges plain) [:calls :fn/run]))
+                    (empty? (violated plain :rule/run-calls-save))
+                    (= [:fn/save] (map :dev-id (violated plain :rule/save-called-by-none)))))
+        (check "core reach: :reaches follows deps and names the path; reached-by, the other way"
+               (and (= [[:fn/run [:fn/load :db/main]]]
+                       (for [f (violated plain :rule/run-off-db)] [(:dev-id f) (get (:paths f) :db/main)]))
+                    (= [:fn/run :fn/load :db/main]
+                       (:path (first (filter #(= :fn/run (:dev-id %)) (:reached-by (index/reached-by plain :db/main))))))
+                    (= [:db/main] (map :dev-id (violated plain :rule/db-reached-by-none)))))
+        (check "core reach: the brief line shows the path to what is reached"
+               (some #(re-find #"Nothing run reaches the database: :fn/run \(:fn/load → :db/main\)" %) (hover/brief plain))))
+      (finally (fs/delete-tree dir)))))
+
+(defn- serve-checks
+  "serve, what the editor talks to, with meta-source.edn edited while it runs."
+  []
+  (let [dir (fs/create-temp-dir {:prefix "meta-source-serve"})
+        _ (fs/copy-tree core-root dir)
+        conf (str (fs/path dir "meta-source.edn"))
+        proc (p/process ["bb" "--config" "bb.edn" "meta-source" "serve" "--root" (str dir)] {:err :inherit})
+        in (io/writer (:in proc))
+        out (io/reader (:out proc))
+        ask (fn [id file]
+              (.write in (str (json/generate-string {:id id :op "diagnostics" :file file}) "\n"))
+              (.flush in)
+              (set (map :problem (:result (json/parse-string (.readLine out) true)))))]
+    (try
+      (spit conf "{:registry [\"registry\"] :src [\"src\"]}")
+      (let [before (ask 1 "src/shop/jobs.clj")]
+        (spit conf "{:registry [\"registry\"] :src [\"src\"] :packs {smoke.packs/broken-pack {}}}")
+        (.setLastModified (fs/file conf) (+ 2000 (System/currentTimeMillis)))
+        (let [after (ask 2 "src/shop/jobs.clj")]
+          (check "core serve: reads meta-source.edn again when it changes: a pack enabled while it runs takes effect"
+                 (and (not (contains? before "pack-form-not-read"))
+                      (contains? after "pack-form-not-read")))))
+      (finally (.close in) (p/destroy proc) (fs/delete-tree dir)))))
+
+(defn- checks []
   ;; ---- packs from a library: its meta-source/packs.edn, on the classpath through :deps
   (let [dir (str (fs/create-temp-dir))
         pack (fn [id ks] (str "{:pack/id " id " :pack/kinds #{" id "} :pack/config-keys " ks
@@ -333,3 +577,5 @@
              (and (= [:x/bare] (map :dev-id (problems ti :tagged-without-entry)))
                   (= [:x/plain] (map :dev-id (problems ti :binding-only))))))
     (fs/delete-tree dir)))
+
+(defn run [] (as-core (fn [] (fixture-checks) (calls-checks) (checks) (serve-checks))))

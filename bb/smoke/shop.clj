@@ -4,9 +4,6 @@
             [meta-source.read]
             [meta-source.index :as index]
             [babashka.fs :as fs]
-            [babashka.process :as p]
-            [cheshire.core :as json]
-            [clojure.java.io :as io]
             [clojure.edn :as edn]
             [clojure.string :as str]))
 
@@ -15,6 +12,10 @@
    an integrant key."
   [entry]
   (into {} (filter #(= "pathom" (namespace (key %)))) entry))
+
+(def pathom-again
+  "A pack claiming a kind the Pathom pack gives."
+  {:pack/id :pathom-again :pack/kinds #{:pathom} :pack/find (fn [_ _] []) :pack/read (fn [_ _ _] [])})
 
 (defn run []
   (let [{:keys [with-runtime cfg idx email]} @s/shop]
@@ -90,50 +91,20 @@
     (check "hover: a resolver's inputs and outputs"
            (str/includes? (:eldoc (hover/lookup idx :shop.resolvers/order-total))
                           "resolver  [:order/lines] → [:order/total]  (inferred: input, output)"))
-    (check ":dataflow in meta-source.edn makes a project's own keys consume data"
-           (let [own (index/build (-> cfg (update :registry conj "registry-jobs") (update-in [:dataflow :consumes] conj :job/reads)))]
-             (and (= [:fn/register-user :job/nightly-digest :shop.resolvers/user-by-email]
-                     (map :dev-id (:consumers (index/data-key own :user/email))))
-                  (empty? (:consumers (index/data-key idx :order/total))))))
 
-    (let [own (index/build (assoc-in cfg [:packs 'smoke.packs/job-pack] {}))]
-      (check "a project's own pack, named by its symbol, reads its own macro"
-             (= {:job/reads [:user/email :order/total] :job/schedule "0 3 * * *"}
-                (:entry (index/where own :shop.jobs/nightly-digest))))
-      (check "its :pack/dataflow makes the job a consumer next to functions and resolvers"
-             (= [:fn/register-user :shop.jobs/nightly-digest :shop.resolvers/user-by-email]
-                (map :dev-id (:consumers (index/data-key own :user/email)))))
-      (check "its entities are valid as they are, and it counts its reads"
-             (and (empty? (problems own :entity-without-type))
-                  (= {:read 1 :not-read 0} (:job (:packs (index/summary own))))))
-      (check "the hover uses its :pack/describe"
-             (str/includes? (:eldoc (hover/lookup own :shop.jobs/nightly-digest)) "job  0 3 * * *"))
-      (check "a problem says what its pack's :pack/messages says, while the pack is enabled"
-             (let [p {:problem :job-unscheduled :dev-id :shop.jobs/x :severity :warning}]
-               (and (= "meta-source: :shop.jobs/x has no schedule" (hover/message own p nil))
-                    (= "meta-source: job-unscheduled :shop.jobs/x" (hover/message idx p nil))))))
     (check "two packs giving the same kind are refused"
            (= {:kinds [:pathom]}
-              (try (index/build (assoc-in cfg [:packs 'smoke.packs/pathom-again] {})) nil
+              (try (index/build (assoc-in cfg [:packs 'smoke.shop/pathom-again] {})) nil
                    (catch clojure.lang.ExceptionInfo e (ex-data e)))))
 
-    (check "a :packs key no pack on the classpath is enabled by is an error, naming it"
-           (= [:nope] (:keys (try (index/build (assoc-in cfg [:packs :nope] {})) nil
-                                  (catch clojure.lang.ExceptionInfo e (ex-data e))))))
 
     (check "a :refer of a pack's macro is not read as a form"
            (not-any? #(= "src/shop/resolvers.clj" (:file %)) (problems idx :pack-form-not-read)))
-    (check "a pack that throws costs its files, not the index"
-           (let [b (index/build (assoc-in cfg [:packs 'smoke.packs/broken-pack] {}))]
-             (some #(and (= :broken (:pack %)) (str/includes? (:reason %) "boom")) (problems b :pack-form-not-read))))
 
     ;; ---- diagnostics: what an editor underlines, per file
     (let [diags #(set (map (juxt :line :col :end-col :severity :problem) (hover/diagnostics idx %)))]
       (check "diagnostics: a key used outside the contract, at the key in the code"
              (contains? (diags "src/shop/handlers.clj") [10 49 64 "note" "keys-outside-contract"]))
-      (check "diagnostics: an absolute path, as editors send"
-             (= (diags "src/shop/handlers.clj")
-                (diags (.getCanonicalPath (java.io.File. (str root "/src/shop/handlers.clj"))))))
       (check "diagnostics: a key only destructured, at its name, within its own form (seed's output from the Pathom snapshot)"
              (contains? (set (map (juxt :line :col :end-col :severity :problem)
                                   (hover/diagnostics (index/build with-runtime) "src/shop/resolvers.clj")))
@@ -142,29 +113,13 @@
              (contains? (diags "src/shop/resolvers.clj") [48 18 22 "warning" "id-in-several-packs"]))
       (check "diagnostics: severities follow check's"
              (contains? (diags "resources/system.edn") [10 84 97 "warning" "ref-to-undefined"]))
-      (check "diagnostics: a file with nothing to report"
-             (empty? (diags "src/shop/order.cljc"))))
+)
 
     ;; ---- check: most severe first; --brief, one line each
-    (check "check lists errors, then warnings, then info"
-           (let [ranks (map #(get {:error 0 :warning 1} (:severity %) 2) (index/check idx))]
-             (= ranks (sort ranks))))
     (check "check --brief: severity, file:line, and the editor's message"
            (some #(re-matches #"warning +resources/system\.edn:10 +no config defines :shop/metrics" %) (hover/brief idx)))
 
     ;; ---- the meta key, and the merge
-    (check "a var with the meta key and no entry: a binding-only entity, valid, reported as info"
-           (and (= {:file "src/shop/handlers.clj" :line 13 :binding true} (:definition (index/where idx :fn/cancel-order)))
-                (= [[:fn/cancel-order :info]] (map (juxt :dev-id :severity) (problems idx :binding-only)))
-                (= "binding" (second (re-find #"^:fn/cancel-order  (\S+)" (:eldoc (hover/lookup idx :fn/cancel-order)))))))
-    (check "the meta key is configurable: :id-key"
-           (and (nil? (index/where idx :fn/legacy-report))
-                (= 'shop.legacy/legacy-report
-                   (get-in (index/where (index/build (assoc cfg :id-key :shop/id)) :fn/legacy-report) [:impl :var]))))
-    (check "two files giving one key different sets: a conflict, unless :merge says :union"
-           (let [tags (update cfg :registry conj "registry-tags")]
-             (and (= [[:user/email :data/tags]] (map (juxt :dev-id :key) (problems (index/build tags) :conflicting-values)))
-                  (= #{:contact :pii} (get-in (index/where (index/build (assoc tags :merge {:data/tags :union})) :user/email) [:entry :data/tags])))))
 
     (check "data keys are not dependencies"
            (empty? (:depends-on (index/dependencies idx :fn/place-order))))
@@ -265,44 +220,13 @@
                 (set (map :dev-id (filter #(= :info (:severity %)) (by ri :rule/components-halt))))))
       (check "a rule that holds gives nothing"
              (empty? (by ri :rule/functions-say-what-they-need)))
-      (check "a rule it can't understand is an error at the rule, saying why"
-             (= [{:problem :rule-not-understood :file "rules-broken/broken.edn" :line 1 :reasons ["unknown condition :kynd"]}]
-                (map #(select-keys % [:problem :file :line :reasons])
-                     (by (index/build (assoc cfg :rules ["rules-broken"])) :rule/misspelled))))
       (check ":not, :id-ns, :in, :or, :used-by :some, :deps :none, :producers :some with a set of kinds"
              (= {:more/resolvers-outside-their-ns [:shop.resolvers2/product-name :shop.wrapped/product-price]
                  :more/components-someone-refers-to [:shop/base-path :shop/cache :shop.resolvers/seed]}
                 (update-vals (group-by :rule (filter :rule (index/check (index/build (assoc cfg :rules ["rules-more"])))))
                              #(mapv :dev-id %))))
-      (check "a form after a rules file's map is an error, not ignored"
-             (let [dir (str (fs/create-temp-dir))]
-               (spit (str dir "/r.edn") "{:r/a {:when {:has :x} :require [{:has :y}]}}\n :r/b {:when {:has :x} :require []}}")
-               (try (= [[:unreadable-rules-file "something after the map, at line 2"]]
-                       (for [p (index/check (index/build {:root dir :src [] :registry [] :rules ["r.edn"]}))]
-                         [(:problem p) (:message p)]))
-                    (finally (fs/delete-tree dir)))))
       (check "the brief line names the rule's doc, the entity and the offenders"
              (some #(str/includes? % "Whatever reads a PII key is audited: :user/email (:fn/register-user :shop.resolvers/user-by-email)")
                    (hover/brief ri))))
 
-    ;; ---- serve: what the editor talks to, with meta-source.edn edited while it runs
-    (let [dir (fs/create-temp-dir {:prefix "meta-source-serve"})
-          _ (fs/copy-tree root dir)
-          conf (str (fs/path dir "meta-source.edn"))
-          proc (p/process ["bb" "--config" "bb.edn" "meta-source" "serve" "--root" (str dir)] {:err :inherit})
-          in (io/writer (:in proc))
-          out (io/reader (:out proc))
-          ask (fn [id file]
-                (.write in (str (json/generate-string {:id id :op "diagnostics" :file file}) "\n"))
-                (.flush in)
-                (set (map :problem (:result (json/parse-string (.readLine out) true)))))]
-      (try
-        (spit conf "{:packs {:integrant {:configs [\"resources\"]}}}")
-        (let [before (ask 1 "src/shop/resolvers.clj")]
-          (spit conf "{:packs {:integrant {:configs [\"resources\"]} :pathom {}}}")
-          (.setLastModified (fs/file conf) (+ 2000 (System/currentTimeMillis)))
-          (let [after (ask 2 "src/shop/resolvers.clj")]
-            (check "serve reads meta-source.edn again when it changes: a pack enabled while it runs takes effect"
-                   (and (not (contains? before "id-in-several-packs"))
-                        (contains? after "id-in-several-packs")))))
-        (finally (.close in) (p/destroy proc) (fs/delete-tree dir))))))
+))

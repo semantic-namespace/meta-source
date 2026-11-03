@@ -24,15 +24,6 @@
                                 :impl-range {:row row :end-row end-row}}
                          (seq code) (assoc :dropped code)))))})
 
-(def derive-pack
-  "A pack deriving a fact from what other packs read: each integrant
-   component a :tier, unless a source says one."
-  {:pack/id :tiers
-   :pack/kinds #{:tiers}
-   :pack/find (fn [_ _] [])
-   :pack/read (fn [_ _ _] [])
-   :pack/derive (fn [entities _opts]
-                  (into {} (for [[id {:keys [kinds]}] entities :when (kinds :integrant)] [id {:app/tier :foundation}])))})
 
 (def job-pack
   "A project's own pack: the shop's defjob registry. Enabled by its
@@ -58,9 +49,6 @@
    :pack/schema-call? (fn [{:keys [to name]} _] (= 'app.core/check (symbol (str to) (str name))))})
 
 
-(def pathom-again
-  "A pack claiming a kind the Pathom pack gives."
-  {:pack/id :pathom-again :pack/kinds #{:pathom} :pack/find (fn [_ _] []) :pack/read (fn [_ _ _] [])})
 
 
 (def broken-pack
@@ -81,19 +69,33 @@
                     {:severity :error :problem :tagged-without-entry :dev-id id :impl (impl id) :definition (loc e)}))})
 
 (defn- notes-pack
-  "A pack giving a note on every key the shop's system config has, as
-   atlas's registry describes components: describing, or not."
-  [describes?]
+  "A pack giving a note on every key a data file has, as atlas's registry
+   describes integrant's components: describing, or not."
+  [describes? file]
   {:pack/id :notes :pack/kinds #{:note} :pack/describes? describes?
-   :pack/data-files (fn [_] ["resources/system.edn"])
+   :pack/data-files (fn [_] [file])
    :pack/read-data (fn [files _]
                      (vec (for [{:keys [file text]} files
                                 [k _ line] (meta-source.read/keyed-lines text {:tags :keep})
                                 :when (qualified-keyword? k)]
                             {:file file :row line :kind :note :dev-id k :entry {:note/text "described"}})))})
 
-(def describing-pack (notes-pack true))
-(def declaring-pack (notes-pack false))
+(def describing-jobs-pack (notes-pack true "notes/jobs.edn"))
+(def declaring-jobs-pack (notes-pack false "notes/jobs.edn"))
+
+(def job-again
+  "A pack claiming the kind the job pack gives."
+  {:pack/id :job-again :pack/kinds #{:job} :pack/find (fn [_ _] []) :pack/read (fn [_ _ _] [])})
+
+(def component-tier-pack
+  "A pack deriving a fact from what was read: each component the shop
+   names in EDN (:component/kind) a :tier, unless a source says one."
+  {:pack/id :component-tiers
+   :pack/kinds #{:component-tiers}
+   :pack/find (fn [_ _] [])
+   :pack/read (fn [_ _ _] [])
+   :pack/derive (fn [entities _opts]
+                  (into {} (for [[id {:keys [entry]}] entities :when (:component/kind entry)] [id {:app/tier :foundation}])))})
 
 (def flow-pack
   "A pack deriving dataflow from what was read: an entry with :flow/in-key

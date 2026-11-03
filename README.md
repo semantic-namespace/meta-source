@@ -256,7 +256,8 @@ in CI.
 - [docs/packs.md](docs/packs.md): each pack's options, and writing your own
 
 ```sh
-bb smoke                   # the index, packs and diagnostics on test/fixtures/shop
+bb smoke                   # every suite (bb/smoke/): core on test/fixtures/core, each pack
+bb smoke core              # the index alone, with no library pack, as the core repo has it
 bb emacs-smoke             # meta-source.el against a real meta-source serve
 bb pathom-snapshot-check   # the fixture's Pathom snapshot, rebuilt from real Pathom
 bb conformance             # the answers every reader must give (conformance/)

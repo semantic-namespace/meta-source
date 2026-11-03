@@ -326,30 +326,5 @@
         (check "integrant: duct's merge metadata on a tag (^:replace #ig/ref) reads"
                (and (zero? (or (:not-read r) 0)) (empty? (:refs r))))))
 
-    ;; ---- :pack/derive: facts a pack derives from what the others read
-    (let [dir (str (fs/create-temp-dir))]
-      (fs/create-dirs (str dir "/resources")) (fs/create-dirs (str dir "/registry"))
-      (spit (str dir "/resources/config.edn") "{:app/db {}\n :app/billing {:db #ig/ref :app/db}}\n")
-      (spit (str dir "/registry/facts.edn") "{:app/billing {:app/tier :service}}\n")
-      (let [idx (index/build {:root dir :src [] :registry ["registry"]
-                              :packs {:integrant {:configs ["resources"]} 'smoke.packs/derive-pack {}}})]
-        (check "derive: a pack's derived fact fills a key no source gave, listed with :derived-by"
-               (and (= :foundation (get-in idx [:entities :app/db :entry :app/tier]))
-                    (some #(= :tiers (:derived-by %)) (:sources (index/where idx :app/db)))))
-        (check "derive: never over a source's, and no conflict"
-               (and (= :service (get-in idx [:entities :app/billing :entry :app/tier]))
-                    (empty? (problems idx :conflicting-values))
-                    (empty? (problems idx :id-in-several-packs)))))
-      (fs/delete-tree dir))
 
-    ;; ---- a pack that describes what others declare
-    (let [ig-only {:integrant {:configs ["resources"]}}
-          with (fn [p] (index/build (assoc cfg :packs (assoc ig-only p {}))))
-          shared #(set (map :dev-id (problems % :id-in-several-packs)))]
-      (check "a pack describing integrant's components under their keys: no :id-in-several-packs, integrant stays primary"
-             (let [d (with 'smoke.packs/describing-pack)]
-               (and (not (contains? (shared d) :shop/db))
-                    (= :integrant (:pack (:definition (index/where d :shop/db))))
-                    (= "described" (:note/text (:entry (index/where d :shop/db)))))))
-      (check "the same pack, declaring: one id in two packs is a warning"
-             (contains? (shared (with 'smoke.packs/declaring-pack)) :shop/db)))))
+))

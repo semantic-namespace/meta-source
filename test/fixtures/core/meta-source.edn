@@ -1,0 +1,6 @@
+;; The shop with no library: plain functions with the meta key, described in
+;; the shop's own words (registry/), a component the functions need, and the
+;; shop's rules. What the core reads with no pack enabled.
+{:registry ["registry"]
+ :src ["src"]
+ :dataflow {:consumes [:fn/reads] :produces [:fn/returns]}}

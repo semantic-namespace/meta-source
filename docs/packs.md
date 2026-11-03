@@ -113,7 +113,7 @@ counts each kind's reads in `meta-source summary`. A pack that throws on a
 file is reported the same way, for that file, and one whose `:pack/find`
 throws, at the first file. Two packs giving the same
 `:kind` are refused; a `:refer` in an `ns` form is never handed to a pack, and
-neither is a form inside a `(comment ...)` block, which is REPL scratch. `bb smoke` runs a pack like this one.
+neither is a form inside a `(comment ...)` block, which is REPL scratch. `bb smoke core` runs packs like this one (`bb/smoke/packs.clj`) over `test/fixtures/core`.
 
 ## What the index doesn't cover: `:not-covered`
 

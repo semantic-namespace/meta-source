@@ -52,9 +52,8 @@
     (spit (str dir "/src/app/core.clj")
           (str "(ns app.core)\n(defn check [schema x] x)\n"
                "(defn ^{:meta-source/id :fn/run} run [m] (check {:k/a :int} m))\n"))
-    (check "a key in a map written in a call is read, unless a pack's :pack/schema-call? or :schema-fns says the call names a schema"
+    (check "a key in a map written in a call is read, unless :schema-fns says the call names a schema"
            (and (= {:fn/run [:k/a]} (outside-of {}))
-                (= {} (outside-of {'smoke.packs/conforms-pack {}}))
                 (= {} (outside-of {:malli {:schema-fns '[app.core/check]}}))))
     (fs/delete-tree dir))
 
