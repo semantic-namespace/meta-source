@@ -4,9 +4,9 @@
  :tasks {meta-source {:doc "meta-source <where|uses|deps|data|check|diagnostics|summary|hover|serve> [arg] [--root dir]: answers from the project's files, nothing loaded"
                       :requires ([meta-source.cli])
                       :task (apply meta-source.cli/-main *command-line-args*)}
-         smoke {:doc "The index, its packs and diagnostics over the shop fixture (test/fixtures/shop)"
+         smoke {:doc "The checks, one suite each (bb/smoke/): core, the shop fixture, one per pack. bb smoke [suite ...]"
                 :requires ([smoke])
-                :task (smoke/-main)}
+                :task (apply smoke/-main *command-line-args*)}
          emacs-smoke {:doc "meta-source.el against a real meta-source serve on the shop fixture. Needs Emacs 27+ ($EMACS) and clojure-mode for the hover tests."
                       :requires ([emacs-smoke])
                       :task (emacs-smoke/-main)}
