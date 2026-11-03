@@ -32,58 +32,14 @@ and a babashka command. In Emacs, the findings are underlined where they are.
 
 > **Experimental.** The file format, the pack interface and the CLI may change.
 
-## Adopting it in an existing app
+## Adopting it
 
-![Adopting meta-source in an existing app, in Emacs, one pack at a time](docs/images/meta-source-adoption.gif)
+The [meta-source-packs README](https://github.com/semantic-namespace/meta-source-packs#readme) shows it adopted, one pack
+at a time, in Emacs: on an app with an integrant system, specs and Pathom
+resolvers, and on a re-frame app. What it costs, by `git status`: a
+`meta-source.edn` and a `registry/` directory.
 
-An app with an integrant system, specs and Pathom resolvers, open in Emacs,
-adopting meta-source one line at a time (every edit is typed in the
-recording):
-
-1. **`{:packs {:integrant {:configs ["resources"]}}}`**: a ref to a
-   component no config defines, underlined in `system.edn`.
-2. **`:pathom {}`**: resolver inputs nothing produces.
-3. **`:spec {}`, and one fact in EDN, `{:user/email {:data/privacy :pii}}`**:
-   `C-c .` on `:user/email` puts three sources together:
-
-   ```
-   :user/email    data key
-
-   spec       (s/and string? #(re-find #"@" %1))    src/shop/spec.clj:5
-   :data/privacy  :pii
-   member of
-     :shop.spec/user    src/shop/spec.clj:12
-
-   produced by
-     :shop.resolvers/user-by-id    src/shop/resolvers.clj:11
-
-   consumed by
-     :shop.resolvers/user-by-email    src/shop/resolvers.clj:4
-   ```
-4. **Nothing**: the `s/fdef` the app already has for `place-order` is its
-   contract, so the code reading `:order/discount`, which the fdef doesn't
-   declare, is underlined. A function with no fdef can opt in with a meta
-   key and a contract in EDN.
-
-What it cost, by `git status`: a `meta-source.edn` and a `registry/`
-directory. No line of code changed.
-
-### On a re-frame app
-
-![A re-frame app adopting meta-source in Emacs](docs/images/meta-source-re-frame.gif)
-
-1. **`{:packs {:re-frame {:provided [:http-xhrio]}}}`**: an `:on-failure`
-   callback to an event nothing registers, and a subscription with a typo.
-   re-frame would only log them, when they run.
-2. **`C-c .` on `::events/checkout`**: where it is registered and
-   dispatched from, what it dispatches, the effects it returns, the keys it
-   writes.
-3. **`:spec {}` and `{:user/email {:data/privacy :pii}}`**: `C-c .` on
-   `:user/email` gives its spec, that it is PII, the event that writes it and
-   the subscription that reads it.
-4. **The typo fixed**: the underline goes.
-
-### Your own rules
+## Your own rules
 
 ![A team writes its own rules as data, in Emacs](docs/images/meta-source-rules.gif)
 
@@ -143,20 +99,9 @@ underlines what `check` finds.
 
 ## JavaScript and TypeScript
 
-EXPERIMENTAL. A second reader, for JavaScript and TypeScript code, shares
-the registry, `meta-source.edn`, the questions and the editor protocol. A
-declaration names the id it implements in its JSDoc,
-`/** @meta-source/id :fn/render-receipt */`, and a repo in both languages
-has one registry, each reader indexing its own language's code:
-
-```sh
-npx github:semantic-namespace/meta-source-js check --brief
-```
-
-The [VS Code extension](vscode) runs both readers: here a hover on a
-TypeScript function, an EDN id whose implementation the Clojure reader
-finds, go to definition from the EDN to the TypeScript, and an id tagged on
-two declarations. See [meta-source-js](https://github.com/semantic-namespace/meta-source-js/blob/main/README.md).
+EXPERIMENTAL. [meta-source-js](https://github.com/semantic-namespace/meta-source-js#readme) reads JavaScript and
+TypeScript code against the same registry, `meta-source.edn` and questions.
+The [VS Code extension](vscode) runs both readers:
 
 ![VS Code: one registry, a Clojure and a TypeScript implementation](docs/images/vscode-polyglot.gif)
 
@@ -187,29 +132,13 @@ two readers, and where each piece lives.
 
 ## What it reads
 
-- **Packs** read one library's registry each: **aero** (the environment
-  variables a config needs and which deployment sets them, includes,
-  profiles, tags with no reader), **integrant** (components,
-  refs, composite keys, `#env`, variant configs, duct profiles,
-  `defmethod`s, `derive`), **clojure.spec and malli** (data keys and their
-  shapes), **Pathom 3 and 2** (resolvers and mutations, inputs and outputs,
-  declared or inferred, through your wrapper macros), **re-frame** (events,
-  subscriptions, effects and coeffects, what dispatches and subscribes to
-  them, the keys handlers read and write), **reitit** (routes, their
-  handlers, inherited middleware, the keys their parameters take, links to
-  route names), **Datascript** (attributes from schemas and Datomic-style
-  schema files, the pulls and lookup refs that need them to be refs or
-  unique), **tilakone** (state machines, their states and transitions, a
-  transition to no state), **Overarch** (an architecture model's elements,
-  relations and views, and where the model and the system disagree),
-  **grain** (a grain app's event model: commands, queries, read models,
-  processors, events, what each reads, produces and consumes, where the def
-  sites and the event model disagree), **namespaces** (your own namespaces as
-  entities, by a naming convention you state, and what each requires: rules
-  on which may require which), and **your own**: a pack is one map. The
-  namespaces pack is meta-source's; the others are
-  [meta-source-packs](https://github.com/semantic-namespace/meta-source-packs/blob/main/docs/packs.md). Writing one:
-  [docs/packs.md](docs/packs.md)
+- **Packs** read one library's registry each. meta-source has one,
+  **namespaces**: your own namespaces as entities, by a naming convention you
+  state, and what each requires, so rules can say which may require which.
+  The packs for aero, integrant, clojure.spec and malli, Pathom, re-frame,
+  reitit, Datascript, tilakone, Overarch and grain are
+  [meta-source-packs](https://github.com/semantic-namespace/meta-source-packs#readme). A pack of your own is one map:
+  [docs/packs.md](docs/packs.md).
 - **Facts merge per keyword.** A file says things about an id; it doesn't
   own it. An EDN file can add `:data/privacy :pii` to a key a spec defines.
   Two sources giving one key different values is a conflict, named with both
@@ -248,28 +177,25 @@ cross-reference, and it keeps the cross-reference true.
 
 ## Status
 
-Working today: the integrant, aero, spec/malli (with `s/fdef` and `m/=>`),
-Pathom, re-frame, reitit, Datascript, tilakone and Overarch packs, `check`, the queries, the Emacs
-package, a project's own packs, and a project's own rules. New and
-experimental: the JavaScript/TypeScript reader and the VS Code extension. Next: snapshots of
-the running system for every pack, and a pinned corpus of real apps checked
-in CI.
+Working today: the index, `check` and the queries, rules, the Emacs package,
+a project's own packs, and the [packs](https://github.com/semantic-namespace/meta-source-packs#readme) for Clojure
+libraries. New and experimental: the [JavaScript/TypeScript reader](https://github.com/semantic-namespace/meta-source-js#readme)
+and the VS Code extension. How often each check is right on real apps is
+measured in [meta-source-corpus](https://github.com/semantic-namespace/meta-source-corpus#readme).
 
 ## More
 
-- [meta-source-packs/review](https://github.com/semantic-namespace/meta-source-packs/blob/main/review/README.md): on [sdiff](https://github.com/semantic-namespace/diff)'s
-  review page, the findings a change introduces and those it fixes
 - [docs/reference.md](docs/reference.md): every command, what `check`
   finds, EDN facts and the meta key, the Emacs package
 - [docs/architecture.md](docs/architecture.md): how it's built, and how the
   pieces fit together
 - [docs/packs.md](docs/packs.md): writing a pack, and the namespaces pack
-- [meta-source-packs](https://github.com/semantic-namespace/meta-source-packs/blob/main/docs/packs.md): the packs for Clojure
-  libraries, each one's options; [the pattern](https://github.com/semantic-namespace/meta-source-packs/blob/main/docs/pattern.md) they
-  read exactly
-- [meta-source-corpus](https://github.com/semantic-namespace/meta-source-corpus/blob/main/README.md): how often each check is right,
+- [meta-source-packs](https://github.com/semantic-namespace/meta-source-packs#readme): the packs for Clojure libraries,
+  and findings on [sdiff](https://github.com/semantic-namespace/diff)'s
+  review page
+- [meta-source-js](https://github.com/semantic-namespace/meta-source-js#readme): the JavaScript and TypeScript reader
+- [meta-source-corpus](https://github.com/semantic-namespace/meta-source-corpus#readme): how often each check is right,
   on real apps
-- [meta-source-js](https://github.com/semantic-namespace/meta-source-js/blob/main/README.md): the JavaScript and TypeScript reader
 
 ```sh
 bb smoke                   # the core's checks, on test/fixtures/core with no library pack
