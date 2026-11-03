@@ -75,6 +75,12 @@
   {:pack/id :conforms :pack/kinds #{:conforms} :pack/find (fn [_ _] []) :pack/read (fn [_ _ _] [])
    :pack/schema-call? (fn [{:keys [to name]} _] (= 'app.core/check (symbol (str to) (str name))))})
 
+(def reitit-unnamed
+  "The Reitit pack, naming none of the edges it is involved in."
+  (-> @(requiring-resolve 'meta-source.pack.reitit/pack)
+      (dissoc :pack/inexact)
+      (assoc :pack/id :reitit-unnamed)))
+
 (def pathom-again
   "A pack claiming a kind the Pathom pack gives."
   {:pack/id :pathom-again :pack/kinds #{:pathom} :pack/find (fn [_ _] []) :pack/read (fn [_ _ _] [])})
@@ -1456,18 +1462,21 @@
 
     ;; ---- the pattern, R4: components reach routes only through route fns; what
     ;; wraps them otherwise is off the pattern, said, never guessed nor passed
-    (let [reach-of (fn [files]
+    (let [reach-of (fn reach-of
+                     ([files] (reach-of files {:integrant {:configs ["resources"] :pattern true} :reitit {}}))
+                     ([files packs]
                      (let [dir (str (fs/create-temp-dir))]
                        (doseq [[p text] files] (fs/create-dirs (fs/parent (str dir "/" p))) (spit (str dir "/" p) text))
                        (try (let [idx (index/build {:root dir :src ["src"] :registry [] :rules ["rules"]
-                                                    :packs {:integrant {:configs ["resources"] :pattern true} :reitit {}}})]
+                                                    :packs packs})]
                               {:reach (fn [id] (let [r (index/reach idx id)]
                                                  {:claimed (set (map :dev-id (:reaches r)))
                                                   :not-exact (set (map (juxt :pattern :at) (:not-exact r)))}))
                                :off (set (map (juxt :pattern :dev-id) (problems idx :off-pattern)))
                                :unverifiable (set (map (juxt :rule :dev-id) (problems idx :rule-unverifiable)))
-                               :violated (set (map (juxt :rule :dev-id) (problems idx :rule-violated)))})
-                            (finally (fs/delete-tree dir)))))
+                               :violated (set (map (juxt :rule :dev-id) (problems idx :rule-violated)))
+                               :lost (into {} (map (juxt (juxt :pattern :dev-id) :lost)) (problems idx :off-pattern))})
+                            (finally (fs/delete-tree dir))))))
           ;; a policy over the routes: never passed for a route it can't check
           off-db {"rules/policy.edn" "{:rule/off-db {:when {:kind :reitit} :require [{:reaches {:none {:id :svc/db}}}]}}\n"}
           builders {"src/app/auth.clj" "(ns app.auth)\n(defn ->auth-routes [svc]\n  [[\"/login\" {:name :auth/login :get {:handler (fn [_] (svc))}}]])\n"
@@ -1476,7 +1485,7 @@
       ;; conduit: a router component takes every route (a refset on a key the
       ;; route component derives from) and wraps them with middleware built
       ;; from its own deps
-      (let [{:keys [reach off unverifiable]} (reach-of (merge builders off-db
+      (let [conduit (merge builders off-db
                                    {"resources/system.edn"
                                     (str "{:app.routes/drivers {:user-service #ig/ref :svc/user :article-service #ig/ref :svc/article}\n"
                                          " :infra.router/core {:routes #ig/refset :app/routes :session-store #ig/ref :svc/session}\n"
@@ -1490,14 +1499,21 @@
                                     (str "(ns app.router (:require [integrant.core :as ig] [reitit.ring :as ring]))\n"
                                          "(defn wrap-session [store] (fn [h] h))\n"
                                          "(defmethod ig/init-key :infra.router/core [_ {:keys [routes session-store]}]\n"
-                                         "  (ring/router routes {:data {:middleware [(wrap-session session-store)]}}))\n")}))]
+                                         "  (ring/router routes {:data {:middleware [(wrap-session session-store)]}}))\n")})
+            {:keys [reach off unverifiable]} (reach-of conduit)
+            unnamed (reach-of conduit {:integrant {:configs ["resources"] :pattern true} 'smoke/reitit-unnamed {}})]
         (check "pattern R4b: a component taking routes and holding another (a middleware's) is off the pattern"
                (contains? off [:pattern/reitit-router-holds-routes :infra.router/core]))
         (check "pattern R4b: its routes claim what their route fn is handed, and say what isn't exact"
                (and (= {:claimed #{} :not-exact #{[:pattern/reitit-router-holds-routes :infra.router/core]}} (reach :home/get))
                     (= #{:svc/user} (:claimed (reach :auth/login)))))
         (check "pattern R4b: a policy over those routes is unverifiable, not passed"
-               (= #{[:rule/off-db :home/get] [:rule/off-db :auth/login] [:rule/off-db :art/list]} unverifiable)))
+               (= #{[:rule/off-db :home/get] [:rule/off-db :auth/login] [:rule/off-db :art/list]} unverifiable))
+        (check "an edge no pack names (:pack/inexact) is still off the pattern, under its reason, saying what is lost"
+               (and (contains? (:off unnamed) [:inexact/holder-wraps :infra.router/core])
+                    (= #{[:inexact/holder-wraps :infra.router/core]} (:not-exact ((:reach unnamed) :home/get)))
+                    (str/includes? (get (:lost unnamed) [:inexact/holder-wraps :infra.router/core]) "may wrap it")
+                    (= #{[:rule/off-db :home/get] [:rule/off-db :auth/login] [:rule/off-db :art/list]} (:unverifiable unnamed)))))
       ;; tubo: the builder's own init-key uses its config outside the
       ;; builder's call, in a middleware: every route it builds may get it
       (let [{:keys [reach off unverifiable]} (reach-of (merge builders off-db

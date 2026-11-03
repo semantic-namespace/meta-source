@@ -82,6 +82,7 @@ The optional keys:
 | `:pack/checks` | `(fn [view])` → problems; `view` has `:entities`, `:of-kinds`, `:data-key?`, `:loc`, `:flow`, `:opts`, `:var-defined?` (a qualified symbol: true, false, or nil when its namespace wasn't read), `:not-read` (a kind: how many forms couldn't be read), `:impl` (an id: where its var is, or nil) and `:linked-by` (an id: the pack whose `:pack/id-key` linked its var, or nil) and `:namespaces` (the names of the namespaces the analysis read) |
 | `:pack/schema-call?` | `(fn [call opts])` → true when a call (clj-kondo's var usage: `:to` its namespace, `:name`) names a schema rather than reads a key; keywords inside it aren't key reads for `:keys-outside-contract`. The schema pack says it of clojure.spec and malli calls and of `:schema-fns` |
 | `:pack/messages` | `{problem (fn [problem id keys])}` → the line the editor and `check --brief` show for each problem its checks give; `id` is the problem's `:dev-id` and `keys` its `:keys` (or the one key a diagnostic is about), both as written. A problem with none falls back to its name, id, keys and `:reason` |
+| `:pack/inexact` | `{reason {:pattern rule-id :lost "..."}}`: how it names an edge through code that isn't exact, when its entities are involved (the built entity, or the component at fault): the rule of its pattern broken and what is lost, reported as `:off-pattern` when a pack involved has `:pattern true`. The reasons are the index's: `:inexact/hands-unknown` (what a builder hands isn't known), `:inexact/config-outside-builds` (a builder uses its config beside the calls that build), `:inexact/inline-uses-config` (an entity written in a component that uses its config), `:inexact/holder-wraps` (what takes the built entity holds other components). Integrant names the first (`:pattern/integrant-destructure`), Reitit the rest. One no pack names is reported under the reason itself |
 | `:pack/inline-data-keys` | `(fn [entities])` → data keys its entities define with no entity of their own |
 | `:pack/shape`, `:pack/members` | a data key's shape as text, and the keys a schema is made of |
 | `:pack/describe` | one line for the hover |
@@ -761,6 +762,12 @@ routes leave [the pattern](pattern.md), saying what is no longer exact there:
   keyed by its path, so links can't name it;
 - `:pattern/reitit-handler-var`: a handler written as a fn there. A handler
   built by a call, `(users/get-user db)`, follows the pattern.
+
+Routes a component builds are named by this pack too (`:pack/inexact`), when
+the routes' reach through code isn't exact; with `:pattern true` here or in
+the Integrant pack's options: `:pattern/reitit-hands-route-fns`,
+`:pattern/reitit-router-holds-routes` and
+`:pattern/reitit-routes-in-route-fns` (R4 in [the pattern](pattern.md)).
 
 On open-source apps (read, never run):
 

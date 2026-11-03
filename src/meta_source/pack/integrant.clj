@@ -785,6 +785,10 @@
 (def pack
   {:pack/id :integrant
    :pack/config-keys #{:integrant}
+   :pack/inexact
+   {:inexact/hands-unknown
+    {:pattern :pattern/integrant-destructure
+     :lost "its config isn't destructured, or the whole config or a value bound in the body is handed to a route fn: what the routes it builds reach isn't in the graph"}}
    :pack/messages
    {:ref-to-undefined (fn [_ _ ks] (str "no config defines " ks))
     :init-key-without-config (fn [_ id _] (str "init-key for " id ", which no config defines"))

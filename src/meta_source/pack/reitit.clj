@@ -446,6 +446,16 @@
 (def pack
   {:pack/id :reitit
    :pack/config-keys #{:reitit}
+   :pack/inexact
+   {:inexact/inline-uses-config
+    {:pattern :pattern/reitit-routes-in-route-fns
+     :lost "its init-key writes routes itself and uses its config: an inline handler may close over any of it, so what those routes reach isn't in the graph"}
+    :inexact/config-outside-builds
+    {:pattern :pattern/reitit-hands-route-fns
+     :lost "its init-key uses its config outside the route fns' calls (a middleware, an option): what the routes it builds reach isn't in the graph"}
+    :inexact/holder-wraps
+    {:pattern :pattern/reitit-router-holds-routes
+     :lost "it takes routes and holds components that build none of them (a middleware's, or routes not written in a route fn), which may wrap them: what those routes reach isn't in the graph"}}
    :pack/messages
    {:route-not-defined (fn [_ id _] (str "no route is named " id))
     :handler-not-found (fn [p id _] (str id "'s handler " (:calls p) " is not defined"))}

@@ -240,6 +240,12 @@
 ;;                          what the entity's code hands each fn it calls
 ;;                          (callee "ns/name" or a bare name, "*" for any
 ;;                          other), {} for nothing, nil when not known
+;;   :pack/inexact          {reason {:pattern rule-id :lost "..."}}: how it
+;;                          names an edge that isn't exact (edges: :inexact/
+;;                          hands-unknown, config-outside-builds,
+;;                          inline-uses-config, holder-wraps) when its entities
+;;                          are involved, the rule of its pattern broken and
+;;                          what is lost; reported as :off-pattern
 ;;   :pack/merge            {key :union}: keys whose values it unions across
 ;;                          sources (a set of tags); others conflict
 ;;   :pack/covers           #{ns ...}: library namespaces whose structure the
@@ -835,6 +841,23 @@
                    :when (seq ds)]
                [id (disj ds id)]))))
 
+
+(def ^:private inexact-fallback
+  {:inexact/hands-unknown "what its builder hands it isn't known: what it reaches isn't in the graph"
+   :inexact/config-outside-builds "its builder uses its config outside the calls that build it: what it reaches isn't in the graph"
+   :inexact/inline-uses-config "it is written in a component that uses its config, which it may close over: what it reaches isn't in the graph"
+   :inexact/holder-wraps "a component that takes it holds others, which may wrap it: what it reaches isn't in the graph"})
+
+(defn- inexact-pattern
+  "How the packs name `reason`, an edge that isn't exact, for the entities
+   `ids` involved: {:pattern :lost}, from the :pack/inexact of the first of
+   their packs that names it, else of any pack. No pack naming it, the reason
+   itself and a line saying what is lost."
+  [idx reason ids]
+  (let [own (for [id ids d (get-in idx [:entities id :definitions])
+                  :let [p (pack-of idx (:kind d))] :when p] p)]
+    (or (some #(get-in % [:pack/inexact reason]) (concat own (:packs idx)))
+        {:pattern reason :lost (inexact-fallback reason)})))
 (defn edges
   "What the entities' code says they depend on, beyond what their entries
    name: {:calls :provided-by :given :inexact}.
@@ -849,14 +872,16 @@
      builder follows the pattern (docs/pattern.md): the components behind the
      config keys its init-key destructures and passes to the call building it.
    - :inexact {id #{{:pattern :at ...}}}: an entity whose reach isn't exact,
-     and the pattern rule broken that makes it so. Nothing is guessed for it:
-     I5, a builder whose config isn't destructured or is used whole or
-     rebound (:pattern/integrant-destructure); R4a, a builder using its
-     config outside the calls that build, in a middleware or an option, which
-     may wrap all it builds (:pattern/reitit-hands-route-fns); R4b, a
-     component taking the routes (depending on their builder, transitively)
-     that holds other components, which may wrap them
-     (:pattern/reitit-router-holds-routes)."
+     and the pattern rule broken that makes it so, as the packs involved name
+     it (inexact-pattern). Nothing is guessed for it. The reasons:
+     :inexact/hands-unknown, what a builder hands isn't known, or the value
+     handed is the whole config or one rebound in the body;
+     :inexact/config-outside-builds, a builder uses its config outside the
+     calls that build, which may wrap all it builds;
+     :inexact/inline-uses-config, an entity written in a component's own rows
+     that uses its config, which the entity may close over;
+     :inexact/holder-wraps, a component taking what was built (depending on
+     its builder, transitively) holds other components, which may wrap it."
   [idx]
   (let [var->id (into {} (for [[id vs] (linked-vars idx) v vs] [[(symbol (str (:ns v))) (symbol (str (:name v)))] id]))
         ranges (group-by (comp :filename second) (concat (:impl-ranges idx) (:body-ranges idx)))
@@ -919,9 +944,9 @@
                                loose (when (sequential? h) (remove (fn [[k callees]] (or (= :rebound k) (some builders callees))) h))]
                            (cond
                              (or (not (sequential? h)) (some #(#{:unknown :rebound} (first %)) mine))
-                             (update-in acc [:inexact r] (fnil conj #{}) {:pattern :pattern/integrant-destructure :at from})
+                             (update-in acc [:inexact r] (fnil conj #{}) {:reason :inexact/hands-unknown :at from})
                              (seq loose)
-                             (update-in acc [:inexact r] (fnil conj #{}) {:pattern :pattern/reitit-hands-route-fns :at from})
+                             (update-in acc [:inexact r] (fnil conj #{}) {:reason :inexact/config-outside-builds :at from})
                              :else (reduce #(update %1 :given add r %2) acc (mapcat first mine)))))
                        {:given {} :inexact {}}
                        builds)
@@ -931,8 +956,8 @@
                          (let [h (hands c)]
                            (cond
                              (and (sequential? h) (empty? h)) acc
-                             (not (sequential? h)) (update-in acc [:inexact r] (fnil conj #{}) {:pattern :pattern/integrant-destructure :at c})
-                             :else (update-in acc [:inexact r] (fnil conj #{}) {:pattern :pattern/reitit-routes-in-route-fns :at c}))))
+                             (not (sequential? h)) (update-in acc [:inexact r] (fnil conj #{}) {:reason :inexact/hands-unknown :at c})
+                             :else (update-in acc [:inexact r] (fnil conj #{}) {:reason :inexact/inline-uses-config :at c}))))
                        handed
                        (for [[c ids] defined-inline r ids] [c r]))
         ;; what takes the routes and holds anything else may wrap them
@@ -950,12 +975,17 @@
                            (reduce (fn [acc k]
                                      (let [held (sort (remove #(or (route-chain %) (builder-ids %)) (deps k)))]
                                        (if (seq held)
-                                         (update-in acc [:inexact r] (fnil conj #{}) {:pattern :pattern/reitit-router-holds-routes :at k :holds (vec held)})
+                                         (update-in acc [:inexact r] (fnil conj #{}) {:reason :inexact/holder-wraps :at k :holds (vec held)})
                                          acc)))
                                    acc ks)))
                        handed
-                       (for [[r froms] provided-by from froms] [r from]))]
-    (merge {:calls calls :provided-by provided-by} handed)))
+                       (for [[r froms] provided-by from froms] [r from]))
+        ;; each reason as the packs of the entities involved name it
+        named (into {} (for [[r xs] (:inexact handed)]
+                         [r (set (for [{:keys [reason at] :as x} xs]
+                                   (-> x (dissoc :reason)
+                                       (assoc :pattern (:pattern (inexact-pattern idx reason [r at]))))))]))]
+    (merge {:calls calls :provided-by provided-by} (assoc handed :inexact named))))
 
 (defn- impl-of
   "Where `id` is implemented: its var, or the rows a pack located."
@@ -1434,23 +1464,25 @@
           :file (relative (:root idx) file) :line row}))
      (identity-problems idx)
      (runtime-problems idx)
-     ;; the pattern across packs (docs/pattern.md, I5 and R4): what builds
-     ;; or takes routes hands components to them only through route fns'
-     ;; destructured parameters, when the project asks
-     (when (some #(get-in (:config idx) [:packs % :pattern]) [:integrant :reitit])
+     ;; the pattern across packs (docs/pattern.md, I5 and R4): an edge that
+     ;; isn't exact, as the packs involved name it (:pack/inexact), when one
+     ;; of them is asked for its pattern
+     (when (some #(get-in (:config idx) [:packs % :pattern]) (mapcat :pack/config-keys (:packs idx)))
        (let [{:keys [inexact]} (edges idx)
-             by (group-by (juxt :pattern :at) (for [[r rs] inexact x rs] (assoc x :route r)))]
-         (for [[[pattern at] xs] (sort-by (comp pr-str key) by)]
+             by (group-by (juxt :pattern :at) (for [[r rs] inexact x rs] (assoc x :route r)))
+             named (into {} (for [p (:packs idx) [_ n] (:pack/inexact p)] [(:pattern n) n]))
+             asked? (fn [ids] (some #(get-in (:config idx) [:packs % :pattern])
+                                    (for [id ids d (get-in idx [:entities id :definitions])
+                                          k (:pack/config-keys (pack-of idx (:kind d)))]
+                                      k)))]
+         (for [[[pattern at] xs] (sort-by (comp pr-str key) by)
+               :let [routes (vec (sort (distinct (map :route xs))))]
+               :when (asked? (cons at routes))]
            (cond-> {:severity :info :problem :off-pattern :pattern pattern :dev-id at
-                    :routes (vec (sort (distinct (map :route xs))))
-                    :lost (case pattern
-                            :pattern/integrant-destructure "its config isn't destructured, or the whole config or a value bound in the body is handed to a route fn: what the routes it builds reach isn't in the graph"
-                            :pattern/reitit-routes-in-route-fns "its init-key writes routes itself and uses its config: an inline handler may close over any of it, so what those routes reach isn't in the graph"
-                            :pattern/reitit-hands-route-fns "its init-key uses its config outside the route fns' calls (a middleware, an option): what the routes it builds reach isn't in the graph"
-                            :pattern/reitit-router-holds-routes "it takes routes and holds components that build none of them (a middleware's, or routes not written in a route fn), which may wrap them: what those routes reach isn't in the graph")
+                    :routes routes
+                    :lost (:lost (or (named pattern) {:lost (inexact-fallback pattern)}))
                     :definition (loc idx (get-in idx [:entities at]))}
              (:holds (first xs)) (assoc :holds (:holds (first xs))))))))))
-
 (defn- relations-view
   "The relations rules and queries follow, each once for the whole index."
   [idx]
