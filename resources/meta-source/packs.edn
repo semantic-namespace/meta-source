@@ -1,0 +1,6 @@
+;; The packs this library has: each pack's var and the keys of a project's
+;; meta-source.edn :packs that enable it. meta-source finds every
+;; meta-source/packs.edn on the classpath, and loads a pack only when a
+;; project enables it. The core has one, the reference pack; a library's
+;; (meta-source-packs, a project's own) are found the same way.
+[{:pack meta-source.pack.namespaces/pack :config-keys #{:namespaces}}]

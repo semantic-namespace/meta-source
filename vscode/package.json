@@ -18,7 +18,7 @@
         "metaSource.clojure.command": { "type": "array", "items": { "type": "string" }, "default": ["meta-source"],
                                         "description": "The Clojure reader's command, before `serve` (bbin install io.github.semantic-namespace/meta-source)" },
         "metaSource.javascript.enabled": { "type": "boolean", "default": true, "description": "Run the JavaScript reader (meta-source-js serve)" },
-        "metaSource.javascript.command": { "type": "array", "items": { "type": "string" }, "default": ["npx", "--yes", "github:semantic-namespace/meta-source"],
+        "metaSource.javascript.command": { "type": "array", "items": { "type": "string" }, "default": ["npx", "--yes", "github:semantic-namespace/meta-source-js"],
                                            "description": "The JavaScript reader's command, before `serve`" }
       }
     }

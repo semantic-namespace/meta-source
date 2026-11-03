@@ -1,9 +1,9 @@
 ;; meta-source on its own source: each namespace under meta-source is an
-;; entity (meta-source.pack.reitit is :meta-source.pack/reitit), and
+;; entity (meta-source.pack.namespaces is :meta-source.pack/namespaces), and
 ;; rules/architecture.edn says which may require which.
 {:src ["src"]
  :registry []
  :packs {:namespaces {:roots {meta-source meta-source} :pattern true}}
  :rules ["rules"]
- ;; read by meta-source's JavaScript reader (js/), not by this index
+ ;; read by meta-source's JavaScript reader (meta-source-js), not by this index
  :not-covered {:languages ["JavaScript" "TypeScript"]}}

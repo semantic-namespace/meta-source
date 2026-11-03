@@ -124,15 +124,15 @@ the order they're called (every key is described in
 
 | When | Keys | What the pack gives |
 |---|---|---|
-| **enabling** | `:pack/config-keys` | for a built-in pack, the `:packs` keys that turn it on; a project's pack is turned on by its symbol |
+| **enabling** | `:pack/config-keys` | for a pack a library lists in its `meta-source/packs.edn` resource, the `:packs` keys that turn it on; a project's pack is turned on by its symbol |
 | **analysis** | `:pack/kondo-config`, `:pack/var-meta`, `:pack/id-key` | clj-kondo config its library would export (`:lint-as`), meta keys to keep on var definitions, and its own meta key linking a var to an id (atlas's `:atlas.source/id`) |
 | **finding** | `:pack/find` | from the analysis of every file, the sites where its forms are: file, row, and the head symbol's position |
 | **reading** | `:pack/read`; `:pack/data-files`, `:pack/read-data` | for one file's sites, each form read as data into `{:row :kind :dev-id :entry}`; for data files, all of them at once |
 | **merging** | `:pack/kinds`, `:pack/merge`, `:pack/data-keys?`, `:pack/describes?`, `:pack/vocabulary` | the kind of its sources, keys it unions, and its role: declaring things, shaping data keys, or describing what others declare |
-| **deriving** | `:pack/dataflow`, `:pack/dataflow-of`, `:pack/rules-of`, `:pack/inline-data-keys` | which entry keys list data read and given (declared, or derived from what was read), rules derived from entries (atlas's invariants), data keys defined inline |
+| **deriving** | `:pack/dataflow`, `:pack/dataflow-of`, `:pack/rules-of`, `:pack/inline-data-keys`, `:pack/schema-call?` | which entry keys list data read and given (declared, or derived from what was read), rules derived from entries (atlas's invariants), data keys defined inline, calls that name a schema rather than read a key |
 | **the running system** | `:pack/runtime-fill`, `:pack/runtime-diff`, `:pack/runtime-kinds` | given its snapshot: what static reading couldn't read, and where code and process disagree |
 | **checking** | `:pack/checks` | its library's problems, given a view of the index |
-| **showing** | `:pack/describe`, `:pack/shape`, `:pack/members` | a hover's one line, a data key's shape, the keys a schema is made of |
+| **showing** | `:pack/describe`, `:pack/shape`, `:pack/members`, `:pack/messages`, `:pack/inexact` | a hover's one line, a data key's shape, the keys a schema is made of, what each of its problems says, in a line, and the name of its pattern's rule an edge through code breaks |
 
 ### What meta-source does for every pack
 
@@ -222,7 +222,7 @@ the references read, and the index's entities. The reader does the rest:
 parsing, the merge, locations, `check`, `serve`. A pack named by a module
 is looked up in the project, then next to meta-source, so a library's
 pack runs without being added to the project
-([js/README.md](../js/README.md#packs)).
+([meta-source-js](https://github.com/semantic-namespace/meta-source-js/blob/main/README.md#packs)).
 
 ## Questions and checks
 
@@ -270,7 +270,7 @@ Every answer comes from the same index, so the editor and CI never disagree.
 ## Two readers, one protocol
 
 The **Clojure reader** (`src/`, in babashka with clj-kondo as a pod) and the
-**JavaScript/TypeScript reader** (`js/`, in Node with TypeScript's parser)
+**JavaScript/TypeScript reader** ([meta-source-js](https://github.com/semantic-namespace/meta-source-js/blob/main), in Node with TypeScript's parser)
 share:
 - `meta-source.edn` and the EDN registry files;
 - the questions, with the same answer shapes;
@@ -281,36 +281,47 @@ in its JSDoc (`/** @meta-source/id :fn/x */`). About the registry itself,
 both must answer the same:
 [conformance/](../conformance) holds one registry implemented in both
 languages, and `expected.json`, the Clojure reader's answers. `bb
-conformance` and `npm test` check each reader against it.
+conformance` checks the Clojure reader against it, and meta-source-js's
+`npm test` its copy.
 
 ## Extending it
 
 - **A pack** (see [Packs](#packs-one-contract-shared-machinery)): name yours by its
   qualified symbol in `meta-source.edn`'s `:packs`, with `:deps` to put it
-  on the classpath ([packs.md](packs.md#writing-a-pack)). Libraries ship
-  their own: atlas's registry is `atlas.meta-source/pack`, and its JS
-  module adds an endpoint-call pack.
+  on the classpath ([packs.md](packs.md#writing-a-pack)). A library of
+  packs ships a `meta-source/packs.edn` resource and is enabled by keys,
+  as [meta-source-packs](https://github.com/semantic-namespace/meta-source-packs/blob/main/docs/packs.md) does; the index requires
+  no pack, and finds them on the classpath. Libraries ship their own: atlas's registry is
+  `atlas.meta-source/pack`, and its JS module adds an endpoint-call pack.
 - **Rules** are EDN files of `{:when … :require …}` over entities and their
   relations.
 - **The meta key** is `:meta-source/id` unless `:id-key` says otherwise.
 
 ## Where things are
 
-| Piece | Clojure | JavaScript |
+| Piece | Clojure | JavaScript ([meta-source-js](https://github.com/semantic-namespace/meta-source-js)) |
 |---|---|---|
-| EDN with each key's line | `meta_source/read.clj` | `js/src/edn.js` |
-| merging sources | `meta_source/merge.clj` | `js/src/merge.js` |
-| the index, questions, checks | `meta_source/index.clj` | `js/src/index.js`, `code.js` |
+| EDN with each key's line | `meta_source/read.clj` | `src/edn.js` |
+| merging sources | `meta_source/merge.clj` | `src/merge.js` |
+| the index, questions, checks | `meta_source/index.clj` | `src/index.js`, `code.js` |
 | rules | `meta_source/rules.clj` | — |
-| hover, diagnostics, editor text | `meta_source/hover.clj` | `js/src/hover.js` |
-| CLI and `serve` | `meta_source/cli.clj` | `js/bin/meta-source-js.js` |
-| packs | `meta_source/pack/*.clj` | modules named in `:js {:packs …}` |
+| hover, diagnostics, editor text | `meta_source/hover.clj` | `src/hover.js` |
+| CLI and `serve` | `meta_source/cli.clj` | `bin/meta-source-js.js` |
+| packs | `meta_source/pack/namespaces.clj`; the libraries' in meta-source-packs | modules named in `:js {:packs …}` |
 | editors | `emacs/meta-source.el` | `vscode/` (both readers) |
 
 meta-source is checked on itself. `meta-source.edn` at the root runs the
-namespaces pack over `src/` (`meta-source.pack.reitit` is
-`:meta-source.pack/reitit`), and `rules/architecture.edn` says how it is put
-together: a pack requires only `read` and other packs, so it stays a map the
-index runs; the index and what it is built from never reach the CLI, hover or
-the corpus; `read`, `merge` and `rules` require nothing of meta-source's. CI
-runs `meta-source check` on it.
+namespaces pack over `src/` (`meta-source.pack.namespaces` is
+`:meta-source.pack/namespaces`), and `rules/architecture.edn` says how it is
+put together: a pack requires only `read` and other packs, so it stays a map
+the index runs; the core never requires a pack but its reference one; the
+index and what it is built from never reach the CLI or hover; `read`, `merge`
+and `rules` require nothing of meta-source's. CI runs `meta-source check` on
+it.
+
+The rest are repositories of their own, each with its checks, the core at
+a commit on its classpath: [meta-source-packs](https://github.com/semantic-namespace/meta-source-packs/blob/main) (the packs for
+Clojure libraries, the shop fixture, `examples/billing`, the pattern, and
+`review/`, findings on sdiff's review page),
+[meta-source-corpus](https://github.com/semantic-namespace/meta-source-corpus/blob/main) (real apps, pinned, checked with every
+pack) and [meta-source-js](https://github.com/semantic-namespace/meta-source-js/blob/main) (the JavaScript reader).

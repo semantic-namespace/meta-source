@@ -1,28 +1,19 @@
-{:paths ["src" "bb"]
+{:paths ["src" "resources" "bb"]
  ;; bbin install io.github.semantic-namespace/meta-source
  :bbin/bin {meta-source {:main-opts ["-m" "meta-source.cli"]}}
  :tasks {meta-source {:doc "meta-source <where|uses|deps|data|check|diagnostics|summary|hover|serve> [arg] [--root dir]: answers from the project's files, nothing loaded"
                       :requires ([meta-source.cli])
                       :task (apply meta-source.cli/-main *command-line-args*)}
-         smoke {:doc "The index, its packs and diagnostics over the shop fixture (test/fixtures/shop)"
+         smoke {:doc "The core's checks (bb/smoke/), on test/fixtures/core with no library pack. The packs' are packs/'s bb smoke."
                 :requires ([smoke])
-                :task (smoke/-main)}
-         emacs-smoke {:doc "meta-source.el against a real meta-source serve on the shop fixture. Needs Emacs 27+ ($EMACS) and clojure-mode for the hover tests."
+                :task (apply smoke/-main *command-line-args*)}
+         emacs-smoke {:doc "meta-source.el against a real meta-source serve on the core fixture. Needs Emacs 27+ ($EMACS) and clojure-mode for the hover tests."
                       :requires ([emacs-smoke])
                       :task (emacs-smoke/-main)}
          conformance {:doc "The Clojure reader's answers about conformance/polyglot's registry, against conformance/expected.json (--write: regenerate it)"
                       :extra-paths ["conformance"]
                       :requires ([conformance])
                       :task (apply conformance/-main *command-line-args*)}
-         corpus {:doc "Precision and recall of the checks over pinned real apps: fetch | run [app ...] | report | unlabeled [n] | plant | ci (corpus/README.md)"
-                 :requires ([meta-source.corpus])
-                 :task (apply meta-source.corpus/-main *command-line-args*)}
-         system-snapshot-check {:doc "Runs the integrant and reitit packs' runtime-entities against real integrant and reitit and checks what they give. Needs the clojure CLI."
-                                :requires ([system-snapshot-check])
-                                :task (system-snapshot-check/-main)}
-         jvm-check {:doc "Loads every library namespace on the JVM and checks the shop fixture's index matches babashka's. Needs the clojure CLI."
+         jvm-check {:doc "Loads every core namespace on the JVM and checks the core fixture's index matches babashka's. Needs the clojure CLI."
                     :requires ([jvm-check])
-                    :task (jvm-check/-main)}
-         pathom-snapshot-check {:doc "Rebuilds the shop fixture's Pathom snapshot from real Pathom 3 and 2 and checks it matches the committed one. Needs the clojure CLI."
-                                :requires ([pathom-snapshot-check])
-                                :task (pathom-snapshot-check/-main)}}}
+                    :task (jvm-check/-main)}}}

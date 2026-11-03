@@ -109,10 +109,18 @@ Then, at your project's root:
 
 ```clojure
 ;; meta-source.edn
-{:packs {:integrant {:configs ["resources"]}
+{;; the packs for Clojure libraries are a library: meta-source puts it on
+ ;; the classpath and finds its packs there
+ :deps {io.github.semantic-namespace/meta-source-packs
+        {:git/url "https://github.com/semantic-namespace/meta-source-packs" :git/sha "<sha>"}}
+ :packs {:integrant {:configs ["resources"]}
          :spec {}
          :pathom {}}}
 ```
+
+meta-source alone reads your EDN files, the vars your meta key links, and
+your namespaces (the `:namespaces` pack); a pack of your own is one map,
+enabled by its symbol.
 
 ```sh
 meta-source check --brief      # where your declarations disagree
@@ -142,13 +150,13 @@ declaration names the id it implements in its JSDoc,
 has one registry, each reader indexing its own language's code:
 
 ```sh
-npx github:semantic-namespace/meta-source check --brief
+npx github:semantic-namespace/meta-source-js check --brief
 ```
 
 The [VS Code extension](vscode) runs both readers: here a hover on a
 TypeScript function, an EDN id whose implementation the Clojure reader
 finds, go to definition from the EDN to the TypeScript, and an id tagged on
-two declarations. See [js/README.md](js/README.md).
+two declarations. See [meta-source-js](https://github.com/semantic-namespace/meta-source-js/blob/main/README.md).
 
 ![VS Code: one registry, a Clojure and a TypeScript implementation](docs/images/vscode-polyglot.gif)
 
@@ -198,7 +206,9 @@ two readers, and where each piece lives.
   processors, events, what each reads, produces and consumes, where the def
   sites and the event model disagree), **namespaces** (your own namespaces as
   entities, by a naming convention you state, and what each requires: rules
-  on which may require which), and **your own**: a pack is one map.
+  on which may require which), and **your own**: a pack is one map. The
+  namespaces pack is meta-source's; the others are
+  [meta-source-packs](https://github.com/semantic-namespace/meta-source-packs/blob/main/docs/packs.md). Writing one:
   [docs/packs.md](docs/packs.md)
 - **Facts merge per keyword.** A file says things about an id; it doesn't
   own it. An EDN file can add `:data/privacy :pii` to a key a spec defines.
@@ -247,20 +257,25 @@ in CI.
 
 ## More
 
-- [review/](review/README.md): on [sdiff](https://github.com/semantic-namespace/diff)'s
+- [meta-source-packs/review](https://github.com/semantic-namespace/meta-source-packs/blob/main/review/README.md): on [sdiff](https://github.com/semantic-namespace/diff)'s
   review page, the findings a change introduces and those it fixes
 - [docs/reference.md](docs/reference.md): every command, what `check`
   finds, EDN facts and the meta key, the Emacs package
 - [docs/architecture.md](docs/architecture.md): how it's built, and how the
   pieces fit together
-- [docs/packs.md](docs/packs.md): each pack's options, and writing your own
+- [docs/packs.md](docs/packs.md): writing a pack, and the namespaces pack
+- [meta-source-packs](https://github.com/semantic-namespace/meta-source-packs/blob/main/docs/packs.md): the packs for Clojure
+  libraries, each one's options; [the pattern](https://github.com/semantic-namespace/meta-source-packs/blob/main/docs/pattern.md) they
+  read exactly
+- [meta-source-corpus](https://github.com/semantic-namespace/meta-source-corpus/blob/main/README.md): how often each check is right,
+  on real apps
+- [meta-source-js](https://github.com/semantic-namespace/meta-source-js/blob/main/README.md): the JavaScript and TypeScript reader
 
 ```sh
-bb smoke                   # the index, packs and diagnostics on test/fixtures/shop
+bb smoke                   # the core's checks, on test/fixtures/core with no library pack
 bb emacs-smoke             # meta-source.el against a real meta-source serve
-bb pathom-snapshot-check   # the fixture's Pathom snapshot, rebuilt from real Pathom
 bb conformance             # the answers every reader must give (conformance/)
-npm test                   # the JavaScript reader, against the same answers
+bb jvm-check               # the core loads on the JVM, and builds babashka's index
 ```
 
 meta-source started as `atlas.source` in

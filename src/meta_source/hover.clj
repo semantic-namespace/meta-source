@@ -216,41 +216,36 @@
         (concat (for [[_ e] (:entities idx) d (:definitions e) :when (and (= path (:file d)) (:line d))] (:line d))
                 (for [v (get-in idx [:code path :vars])] (:row v)))))
 
+(defn- pack-message
+  "The fn an enabled pack gives in its :pack/messages for `p`'s problem: the
+   pack whose kind the problem names first, else any that knows it."
+  [idx p]
+  (let [k (:problem p)
+        packs (:packs idx)]
+    (or (some #(when (contains? (:pack/kinds %) (:pack p)) (get (:pack/messages %) k)) packs)
+        (some #(get (:pack/messages %) k) packs))))
+
 (defn message
-  "What the problem says, in a line, about `k` when it is about one key."
-  [p k]
+  "What the problem says, in a line, about `k` when it is about one key: in
+   the words of the pack that found it (its :pack/messages, called with the
+   problem, its dev-id and its keys as written), else meta-source's own."
+  [idx p k]
   (let [id (some-> (:dev-id p) pr-str)
-        ks (or (some-> k pr-str) (str/join " " (map pr-str (:keys p))))]
+        ks (or (some-> k pr-str) (str/join " " (map pr-str (:keys p))))
+        own (pack-message idx p)]
     (str "meta-source: "
-         (case (:problem p)
+         (if own
+           (own p id ks)
+           (case (:problem p)
            :keys-outside-contract (str ks " is used here but is not in " id "'s contract")
            :undeclared-call (str id " calls " (pr-str (:calls p)) ", which its entry doesn't name")
            :conflicting-values (str id " " (pr-str (:key p)) ": the sources give different values: "
                                     (str/join ", " (for [v (:values p) src (:sources v)] (str (:file src) ":" (:line src)))))
-           :ref-to-undefined (str "no config defines " ks)
-           :init-key-without-config (str "init-key for " id ", which no config defines")
-           :ref-ambiguous (str "a ref to " ks " matches " (str/join ", " (map pr-str (:candidates p)))
-                               ", configured together: integrant can't choose")
-           :ref-cycle (str "the refs go round in a circle: " (str/join " → " (map pr-str (:cycle p))))
-           :ref-invalid (str id ": integrant refuses these refs, not a qualified keyword or a vector of them: "
-                             (str/join " " (map pr-str (:refs p))))
-           :var-unbound (str id ": #ig/var " (str/join " " (:vars p)) " is not in the file's :vars: ig/init refuses it")
-           :no-init-key (str "nothing builds " id ": no init-key on it or what it derives from, and no fn named like it")
-           :removed-method (str (:method p) " for " id ": integrant removed it in " (:removed-in p)
-                                (if (:integrant-version p) (str ", and the project uses " (:integrant-version p)) ""))
            :off-pattern (str (if id (str id ": ") "") (:lost p) "  [" (pr-str (:pattern p)) "]")
-           :ref-maybe-from-module (str "no config defines " ks ", which the project's module " (pr-str (:module p)) " may add")
-           :data-key-without-schema (str "no schema shapes " ks)
-           :schema-key-without-shape (str ks " has no spec of its own")
-           :unqualified-schema-keys (str "unqualified key " ks ": dataflow can't follow it")
-           :input-without-producer (str "nothing produces " ks)
-           :operation-option-not-read (str id ": " (str/join ", " (map name (:options p))) " written as code, not read")
            :pack-form-not-read (str (some-> (:pack p) name) " form not read: " (:reason p))
            :checks-not-run (str (some-> (:pack p) name) " checks not run, a config wasn't read: "
                                 (str/join ", " (map name (:checks p))))
-           :config-var-not-found (str (:var p) ", a config var the options name: " (:reason p))
            :not-covered (:reason p)
-           :register-call-not-read (str "register! call not read: " (:reason p))
            :id-in-several-packs (str id " is declared by several packs: " (str/join ", " (map name (:packs p))))
            :runtime-disagrees (str id " differs from the running process"
                                    (when (:changed-since-snapshot p) " (the file changed since the snapshot)"))
@@ -278,51 +273,8 @@
                                    "  [" (pr-str (:rule p)) "]")
            :rule-not-understood (str "rule " (pr-str (:rule p)) " not understood: " (str/join "; " (:reasons p)))
            :unreadable-rules-file (str "rules file not readable: " (:message p))
-           :event-not-registered (str "no reg-event registers " id)
-           :route-not-defined (str "no route is named " id)
-           :include-not-found (str "#include " (pr-str (name (:dev-id p))) " is not found: aero reads it as {:aero/missing-include ...}")
-           :tag-without-reader (str "no reader for #" (str/replace (name (:dev-id p)) "." "/") ": reading the config throws")
-           :profile-never-read (str id ": no profile read sees " (str/join " " (map pr-str (:keys p))))
-           :profile-without-branch (str id ": #profile has no :default, and no branch for " (str/join " " (map pr-str (:keys p))))
-           :ref-to-nothing (str id ": #ref to nothing: " (str/join " " (map pr-str (:paths p))))
-           :env-not-set (str id " is read with no default, and no :env-sources file sets it")
-           :not-a-number (str id ": #" (name (:tag p)) " over " (pr-str (:value p)) ", not a number")
-           :pull-join-not-ref (str "pull joins on " id ", which is not a ref" (when (:in-no-schema p) " (no schema read gives it)"))
-           :reverse-not-ref (str "reverse " id " needs it to be a ref" (when (:in-no-schema p) " (no schema read gives it)"))
-           :lookup-ref-not-unique (str "lookup ref on " id ", which is not :db/unique" (when (:in-no-schema p) " (no schema read gives it)"))
-           :schema-disagrees (str id " is " (:datascript p) " in the Datascript schema, one " (:shape p) " in its spec")
-           :handler-not-found (str id "'s handler " (:calls p) " is not defined")
-           :sub-not-registered (str "no reg-sub registers " id)
-           :effect-not-registered (str "no reg-fx registers the effect " id)
-           :cofx-not-registered (str "no reg-cofx registers " id)
-           :event-never-dispatched (str "nothing dispatches " id)
-           :sub-never-subscribed (str "nothing subscribes to " id)
-           :transition-to-no-state (str id ": " (pr-str (:state p)) " on " (pr-str (:on p)) " goes to " (pr-str (:to p))
-                                        ", which is no state of it")
-           :initial-state-not-a-state (str id " starts at " (pr-str (:to p)) ", which is no state of it")
-           :state-defined-twice (str id " defines the state " (pr-str (:state p)) " twice: tilakone takes the first")
-           :state-unreachable (str (pr-str (:state p)) " is not reached from " (pr-str (:from p)) " by " id "'s transitions")
-           :relation-to-nothing (str id "'s " (name (:end p)) " " (pr-str (:to p)) " is no element of the model")
-           :missing-id (str "this " (some-> (:el p) name) (when (:name p) (str " " (pr-str (:name p))))
-                            " has no :id, and Overarch can't generate one: it needs a parent with an :id, and a :name")
-           :relation-missing-end (str "this " (name (:el p)) " has no " (:missing p) ": Overarch reads it as a node, not a relation")
-           :parent-override (str id " is contained in " (str/join " and " (map pr-str (:parents p))) ": Overarch takes one parent")
-           :missing-desc (str id " has no :desc")
-           :concerns-nothing (str id " concerns nothing: no " (pr-str (:rel p)) " relation from it")
-           :view-of-nothing (str id " shows "(pr-str (:to p)) ", which the model doesn't define")
-           :element-defined-twice (str "the model defines " id " twice")
-           :element-in-no-view (str "no view shows " id)
-           :model-relation-not-declared (str "the model relates " id " to " (pr-str (:to p)) ", and nothing else describing " id " names " (pr-str (:to p)))
-           :relation-missing-from-model (str id " names " (pr-str (:to p)) ", and the model draws no relation from it to " (pr-str (:to p)))
-           :grain-not-in-model (str id " is defined, and its area's event model doesn't list it")
-           :grain-model-only (str id ": the event model lists it, and no def site defines it")
-           :grain-reads-undefined (str id " reads " ks ", which no read model defines")
-           :grain-event-not-produced (str id " is consumed, and no block declares producing it")
-           :grain-area-declares-no-producers (str "area " id ": no command, processor or periodic task declares what it produces ("
-                                                  (count (:events p)) " consumed events)")
-           :grain-event-not-consumed (str id " is produced, and no read model or processor consumes it")
            (str (name (:problem p)) (when id (str " " id)) (when (seq (:keys p)) (str " " ks))
-                (when (:reason p) (str ": " (:reason p))) (when (:message p) (str ": " (:message p))))))))
+                (when (:reason p) (str ": " (:reason p))) (when (:message p) (str ": " (:message p)))))))))
 
 (defn brief
   "check's problems as lines for a terminal, most severe first: severity,
@@ -333,7 +285,7 @@
          (format "%-7s %-34s %s"
                  (name (:severity p))
                  (if l (str (:file l) ":" (:line l)) "")
-                 (subs (message p nil) (count "meta-source: "))))))
+                 (subs (message idx p nil) (count "meta-source: "))))))
 
 (defn diagnostics
   "check's problems located in `file` (absolute, or relative to the root),
@@ -373,7 +325,7 @@
                 (seq at-keys) (for [[k [n c e]] at-keys] {:line n :col c :end-col e :key k})
                 at-id (let [[n c e] at-id] [{:line n :col c :end-col e}])
                 :else [{:line line}])]
-        (cond-> (assoc (dissoc d :key) :severity severity :problem (name (:problem p)) :message (message p (:key d)))
+        (cond-> (assoc (dissoc d :key) :severity severity :problem (name (:problem p)) :message (message idx p (:key d)))
           (nil? (:col d)) (dissoc :col :end-col)))))))
 
 ;; =============================================================================

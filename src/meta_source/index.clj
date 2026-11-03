@@ -19,18 +19,6 @@
             [clojure.java.io :as io]
             [clojure.string :as str]
             [meta-source.merge :as merge]
-            [meta-source.pack.aero :as aero]
-            [meta-source.pack.datascript :as datascript]
-            [meta-source.pack.fn-schema :as fn-schema]
-            [meta-source.pack.integrant :as integrant]
-            [meta-source.pack.namespaces :as namespaces]
-            [meta-source.pack.pathom :as pathom]
-            [meta-source.pack.re-frame :as re-frame]
-            [meta-source.pack.reitit :as reitit]
-            [meta-source.pack.overarch :as overarch]
-            [meta-source.pack.tilakone :as tilakone]
-            [meta-source.pack.grain :as grain]
-            [meta-source.pack.schema :as schema]
             [meta-source.read :as read]
             [meta-source.rules :as rules])
   (:import (java.io File)))
@@ -221,6 +209,13 @@
 ;;                          id (a dispatch): never its primary definition.
 ;;                          One with :var ns/name says that var implements
 ;;                          the id, as the meta key does (an s/fdef's)
+;;   :pack/schema-call?     (fn [call opts]) → true when a call (clj-kondo's
+;;                          var usage: :to its ns, :name) names a schema
+;;                          rather than reads a key: (s/valid? ::order x)
+;;   :pack/messages         {problem (fn [p id ks])} → the line a problem
+;;                          of its checks shows in the editor and in check
+;;                          --brief (meta-source.hover/message); id and ks
+;;                          are the problem's dev-id and keys as written
 ;;   :pack/checks           (fn [view]) → problems; view is {:entities
 ;;                          :of-kinds :data-key? :loc :flow :opts
 ;;                          :var-defined? :namespaces :not-read :skipped :impl
@@ -245,6 +240,12 @@
 ;;                          what the entity's code hands each fn it calls
 ;;                          (callee "ns/name" or a bare name, "*" for any
 ;;                          other), {} for nothing, nil when not known
+;;   :pack/inexact          {reason {:pattern rule-id :lost "..."}}: how it
+;;                          names an edge that isn't exact (edges: :inexact/
+;;                          hands-unknown, config-outside-builds,
+;;                          inline-uses-config, holder-wraps) when its entities
+;;                          are involved, the rule of its pattern broken and
+;;                          what is lost; reported as :off-pattern
 ;;   :pack/merge            {key :union}: keys whose values it unions across
 ;;                          sources (a set of tags); others conflict
 ;;   :pack/covers           #{ns ...}: library namespaces whose structure the
@@ -292,21 +293,49 @@
 ;; cached per file, so it must be data. A pack needs :pack/find and
 ;; :pack/read, or :pack/data-files and :pack/read-data, or both.
 
-(def builtin-packs [schema/pack fn-schema/pack datascript/pack pathom/pack integrant/pack aero/pack re-frame/pack reitit/pack tilakone/pack overarch/pack grain/pack namespaces/pack])
+(def ^:private packs-resource "meta-source/packs.edn")
+
+(defn available-packs
+  "The packs on the classpath, in classpath order: each library of packs
+   ships a meta-source/packs.edn resource, a vector of {:pack sym
+   :config-keys #{k ...}}, the var holding a pack and the keys of
+   meta-source.edn's :packs that enable it. Nothing is loaded here."
+  []
+  (into [] (comp (mapcat #(edn/read-string (slurp %))) (distinct))
+        (enumeration-seq (.getResources (clojure.lang.RT/baseLoader) packs-resource))))
+
+(defn- load-pack
+  "The pack held by the var `sym`, which must be a map a pack can be."
+  [sym]
+  (let [p (some-> (requiring-resolve sym) deref)]
+    (when-not (and (map? p) (or (and (:pack/find p) (:pack/read p))
+                                (and (:pack/data-files p) (:pack/read-data p))))
+      (throw (ex-info "A pack is a map with :pack/find and :pack/read, or :pack/data-files and :pack/read-data" {:pack sym})))
+    p))
 
 (defn enabled-packs
-  "The packs `packs-config` (meta-source.edn's :packs) enables: each
-   built-in pack one of whose :pack/config-keys it has, and each qualified
-   symbol in it, resolved to a project's own pack."
+  "The packs `packs-config` (meta-source.edn's :packs) enables: each pack on
+   the classpath (available-packs) one of whose config keys it has, and each
+   qualified symbol in it, resolved to a project's own pack. A key no pack
+   on the classpath is enabled by is an error, not a pack silently left out."
   [packs-config]
   (let [ks (set (keys packs-config))
+        available (available-packs)
+        unknown (sort (remove #(or (qualified-symbol? %) (some (fn [a] (contains? (:config-keys a) %)) available)) ks))
+        _ (when (seq unknown)
+            (throw (ex-info (str "No pack on the classpath is enabled by " (str/join ", " (map pr-str unknown))
+                                 " in meta-source.edn's :packs: add the library that has it to the project's deps")
+                            {:keys (vec unknown) :available (vec (sort (mapcat :config-keys available)))})))
+        found (for [{:keys [pack config-keys]} available
+                    :when (some ks config-keys)
+                    :let [p (load-pack pack)]]
+                (if (= (set config-keys) (set (:pack/config-keys p)))
+                  p
+                  (throw (ex-info (str pack "'s :pack/config-keys aren't the ones its " packs-resource " gives")
+                                  {:pack pack :resource config-keys :pack/config-keys (:pack/config-keys p)}))))
         own (for [k ks :when (qualified-symbol? k)]
-              (let [p (some-> (requiring-resolve k) deref)]
-                (when-not (and (map? p) (or (and (:pack/find p) (:pack/read p))
-                                            (and (:pack/data-files p) (:pack/read-data p))))
-                  (throw (ex-info "A pack is a map with :pack/find and :pack/read, or :pack/data-files and :pack/read-data" {:pack k})))
-                (update p :pack/config-keys (fnil conj #{}) k)))
-        ps (vec (concat (filter #(some ks (:pack/config-keys %)) builtin-packs) (sort-by :pack/id own)))]
+              (update (load-pack k) :pack/config-keys (fnil conj #{}) k))
+        ps (vec (concat found (sort-by :pack/id own)))]
     (when-let [dup (seq (for [[k n] (frequencies (mapcat :pack/kinds ps)) :when (> n 1)] k))]
       (throw (ex-info "Two packs give sources of the same kind" {:kinds (vec dup)})))
     ps))
@@ -812,6 +841,23 @@
                    :when (seq ds)]
                [id (disj ds id)]))))
 
+
+(def ^:private inexact-fallback
+  {:inexact/hands-unknown "what its builder hands it isn't known: what it reaches isn't in the graph"
+   :inexact/config-outside-builds "its builder uses its config outside the calls that build it: what it reaches isn't in the graph"
+   :inexact/inline-uses-config "it is written in a component that uses its config, which it may close over: what it reaches isn't in the graph"
+   :inexact/holder-wraps "a component that takes it holds others, which may wrap it: what it reaches isn't in the graph"})
+
+(defn- inexact-pattern
+  "How the packs name `reason`, an edge that isn't exact, for the entities
+   `ids` involved: {:pattern :lost}, from the :pack/inexact of the first of
+   their packs that names it, else of any pack. No pack naming it, the reason
+   itself and a line saying what is lost."
+  [idx reason ids]
+  (let [own (for [id ids d (get-in idx [:entities id :definitions])
+                  :let [p (pack-of idx (:kind d))] :when p] p)]
+    (or (some #(get-in % [:pack/inexact reason]) (concat own (:packs idx)))
+        {:pattern reason :lost (inexact-fallback reason)})))
 (defn edges
   "What the entities' code says they depend on, beyond what their entries
    name: {:calls :provided-by :given :inexact}.
@@ -826,14 +872,16 @@
      builder follows the pattern (docs/pattern.md): the components behind the
      config keys its init-key destructures and passes to the call building it.
    - :inexact {id #{{:pattern :at ...}}}: an entity whose reach isn't exact,
-     and the pattern rule broken that makes it so. Nothing is guessed for it:
-     I5, a builder whose config isn't destructured or is used whole or
-     rebound (:pattern/integrant-destructure); R4a, a builder using its
-     config outside the calls that build, in a middleware or an option, which
-     may wrap all it builds (:pattern/reitit-hands-route-fns); R4b, a
-     component taking the routes (depending on their builder, transitively)
-     that holds other components, which may wrap them
-     (:pattern/reitit-router-holds-routes)."
+     and the pattern rule broken that makes it so, as the packs involved name
+     it (inexact-pattern). Nothing is guessed for it. The reasons:
+     :inexact/hands-unknown, what a builder hands isn't known, or the value
+     handed is the whole config or one rebound in the body;
+     :inexact/config-outside-builds, a builder uses its config outside the
+     calls that build, which may wrap all it builds;
+     :inexact/inline-uses-config, an entity written in a component's own rows
+     that uses its config, which the entity may close over;
+     :inexact/holder-wraps, a component taking what was built (depending on
+     its builder, transitively) holds other components, which may wrap it."
   [idx]
   (let [var->id (into {} (for [[id vs] (linked-vars idx) v vs] [[(symbol (str (:ns v))) (symbol (str (:name v)))] id]))
         ranges (group-by (comp :filename second) (concat (:impl-ranges idx) (:body-ranges idx)))
@@ -896,9 +944,9 @@
                                loose (when (sequential? h) (remove (fn [[k callees]] (or (= :rebound k) (some builders callees))) h))]
                            (cond
                              (or (not (sequential? h)) (some #(#{:unknown :rebound} (first %)) mine))
-                             (update-in acc [:inexact r] (fnil conj #{}) {:pattern :pattern/integrant-destructure :at from})
+                             (update-in acc [:inexact r] (fnil conj #{}) {:reason :inexact/hands-unknown :at from})
                              (seq loose)
-                             (update-in acc [:inexact r] (fnil conj #{}) {:pattern :pattern/reitit-hands-route-fns :at from})
+                             (update-in acc [:inexact r] (fnil conj #{}) {:reason :inexact/config-outside-builds :at from})
                              :else (reduce #(update %1 :given add r %2) acc (mapcat first mine)))))
                        {:given {} :inexact {}}
                        builds)
@@ -908,8 +956,8 @@
                          (let [h (hands c)]
                            (cond
                              (and (sequential? h) (empty? h)) acc
-                             (not (sequential? h)) (update-in acc [:inexact r] (fnil conj #{}) {:pattern :pattern/integrant-destructure :at c})
-                             :else (update-in acc [:inexact r] (fnil conj #{}) {:pattern :pattern/reitit-routes-in-route-fns :at c}))))
+                             (not (sequential? h)) (update-in acc [:inexact r] (fnil conj #{}) {:reason :inexact/hands-unknown :at c})
+                             :else (update-in acc [:inexact r] (fnil conj #{}) {:reason :inexact/inline-uses-config :at c}))))
                        handed
                        (for [[c ids] defined-inline r ids] [c r]))
         ;; what takes the routes and holds anything else may wrap them
@@ -927,12 +975,17 @@
                            (reduce (fn [acc k]
                                      (let [held (sort (remove #(or (route-chain %) (builder-ids %)) (deps k)))]
                                        (if (seq held)
-                                         (update-in acc [:inexact r] (fnil conj #{}) {:pattern :pattern/reitit-router-holds-routes :at k :holds (vec held)})
+                                         (update-in acc [:inexact r] (fnil conj #{}) {:reason :inexact/holder-wraps :at k :holds (vec held)})
                                          acc)))
                                    acc ks)))
                        handed
-                       (for [[r froms] provided-by from froms] [r from]))]
-    (merge {:calls calls :provided-by provided-by} handed)))
+                       (for [[r froms] provided-by from froms] [r from]))
+        ;; each reason as the packs of the entities involved name it
+        named (into {} (for [[r xs] (:inexact handed)]
+                         [r (set (for [{:keys [reason at] :as x} xs]
+                                   (-> x (dissoc :reason)
+                                       (assoc :pattern (:pattern (inexact-pattern idx reason [r at]))))))]))]
+    (merge {:calls calls :provided-by provided-by} (assoc handed :inexact named))))
 
 (defn- impl-of
   "Where `id` is implemented: its var, or the rows a pack located."
@@ -1138,8 +1191,6 @@
           (recur (into seen new) (seq (concat more new))))
         seen))))
 
-(def ^:private schema-nses '#{clojure.spec.alpha cljs.spec.alpha malli.core})
-
 (defn- token-positions
   "{[row col] position} for each token of `text` (1-based, as clj-kondo
    counts): the form it is in (:list :vector :map :set, :rc for a reader
@@ -1236,9 +1287,9 @@
 (defn- keys-outside-contract
   "Data keys a linked var mentions that are neither in what it consumes or
    produces nor in what an entity it names produces, nor (the keys of the
-   schemas among those), leaving out keys written inside a clojure.spec or
-   malli call, or a call to a fn :spec or :malli lists under :schema-fns
-   (a project's own validate), which name a schema rather than read a key,
+   schemas among those), leaving out keys written inside a call a pack's
+   :pack/schema-call? says names a schema rather than reads a key (a
+   clojure.spec or malli call, the schema pack says),
    and keywords passed as values: an argument of a call other than a key
    fn's (fetch cache ::count), a map's value (key-position?). Only keys that appear
    in some entity's contract, or that a pack shapes, count as data keys. A
@@ -1248,8 +1299,11 @@
    has one whose contract a pack read as code (a context built by (into ..))."
   [idx]
   (let [contracts (into {} (for [[id e] (:entities idx)] [id (contract-keys idx (:entry e))]))
-        ;; a project's own fns that take a schema: (schema/validate ::message x)
-        schema-fns (set (mapcat #(get-in idx [:config :packs % :schema-fns]) [:spec :malli]))
+        ;; a call that names a schema rather than reading a key, as the
+        ;; packs that know schemas say: (s/valid? ::order x)
+        schema-call? (let [fs (keep :pack/schema-call? (:packs idx))
+                           opts (pack-opts (:config idx))]
+                       (fn [c] (some #(% c opts) fs)))
         data-keys (-> #{}
                       (into (mapcat (fn [{:keys [consumes produces]}] (concat consumes produces))) (vals contracts))
                       (into (map key) (data-key-entities idx))
@@ -1274,9 +1328,8 @@
                 named (filter qualified-keyword? (tree-seq coll? seq (vals entry)))
                 ;; a schema key in the contract stands for the keys it is made of
                 allowed (into (with-members idx (into (into (:consumes own) (:produces own)) via-deps)) named)
-                ;; (s/valid? ::order x), (m/validate ::order x): a schema named, no key read
-                in-schema-call? (let [cs (filter #(or (schema-nses (:to %)) (schema-fns (symbol (str (:to %)) (str (:name %)))))
-                                                 (get-in idx [:code (:filename v) :calls]))]
+                ;; inside a call naming a schema: no key read
+                in-schema-call? (let [cs (filter schema-call? (get-in idx [:code (:filename v) :calls]))]
                                   (fn [{:keys [row col]}]
                                     (some #(and (:end-row %)
                                                 (neg? (compare [(:row %) (:col %)] [row col]))
@@ -1411,23 +1464,25 @@
           :file (relative (:root idx) file) :line row}))
      (identity-problems idx)
      (runtime-problems idx)
-     ;; the pattern across packs (docs/pattern.md, I5 and R4): what builds
-     ;; or takes routes hands components to them only through route fns'
-     ;; destructured parameters, when the project asks
-     (when (some #(get-in (:config idx) [:packs % :pattern]) [:integrant :reitit])
+     ;; the pattern across packs (docs/pattern.md, I5 and R4): an edge that
+     ;; isn't exact, as the packs involved name it (:pack/inexact), when one
+     ;; of them is asked for its pattern
+     (when (some #(get-in (:config idx) [:packs % :pattern]) (mapcat :pack/config-keys (:packs idx)))
        (let [{:keys [inexact]} (edges idx)
-             by (group-by (juxt :pattern :at) (for [[r rs] inexact x rs] (assoc x :route r)))]
-         (for [[[pattern at] xs] (sort-by (comp pr-str key) by)]
+             by (group-by (juxt :pattern :at) (for [[r rs] inexact x rs] (assoc x :route r)))
+             named (into {} (for [p (:packs idx) [_ n] (:pack/inexact p)] [(:pattern n) n]))
+             asked? (fn [ids] (some #(get-in (:config idx) [:packs % :pattern])
+                                    (for [id ids d (get-in idx [:entities id :definitions])
+                                          k (:pack/config-keys (pack-of idx (:kind d)))]
+                                      k)))]
+         (for [[[pattern at] xs] (sort-by (comp pr-str key) by)
+               :let [routes (vec (sort (distinct (map :route xs))))]
+               :when (asked? (cons at routes))]
            (cond-> {:severity :info :problem :off-pattern :pattern pattern :dev-id at
-                    :routes (vec (sort (distinct (map :route xs))))
-                    :lost (case pattern
-                            :pattern/integrant-destructure "its config isn't destructured, or the whole config or a value bound in the body is handed to a route fn: what the routes it builds reach isn't in the graph"
-                            :pattern/reitit-routes-in-route-fns "its init-key writes routes itself and uses its config: an inline handler may close over any of it, so what those routes reach isn't in the graph"
-                            :pattern/reitit-hands-route-fns "its init-key uses its config outside the route fns' calls (a middleware, an option): what the routes it builds reach isn't in the graph"
-                            :pattern/reitit-router-holds-routes "it takes routes and holds components that build none of them (a middleware's, or routes not written in a route fn), which may wrap them: what those routes reach isn't in the graph")
+                    :routes routes
+                    :lost (:lost (or (named pattern) {:lost (inexact-fallback pattern)}))
                     :definition (loc idx (get-in idx [:entities at]))}
              (:holds (first xs)) (assoc :holds (:holds (first xs))))))))))
-
 (defn- relations-view
   "The relations rules and queries follow, each once for the whole index."
   [idx]

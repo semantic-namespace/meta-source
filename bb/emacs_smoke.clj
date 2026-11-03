@@ -1,6 +1,6 @@
 (ns emacs-smoke
   "Runs test/emacs/meta-source-test.el: meta-source.el against a real
-   `meta-source serve' on the shop fixture. Its hover tests need
+   `meta-source serve' on the core fixture. Its hover tests need
    clojure-mode: $CLOJURE_MODE_DIR, or where Debian's elpa-clojure-mode,
    straight or package.el put it; without it they are skipped. Needs Emacs
    27 or later: $EMACS, or the first of emacs, /snap/bin/emacs that is."

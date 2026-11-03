@@ -8,13 +8,19 @@
   :require [{:deps {:all {:or [{:id-ns "meta-source.pack"} {:id :meta-source/read}]}}}]}
 
  :meta-source.architecture/core-without-front-ends
- {:doc "The index and what it is built from never reach a front end: the CLI, hover, the corpus"
+ {:doc "The index and what it is built from never reach a front end: the CLI, hover"
   :severity :error
   :when {:id #{:meta-source/index :meta-source/rules :meta-source/merge :meta-source/read}}
-  :require [{:reaches {:none {:id #{:meta-source/cli :meta-source/hover :meta-source/corpus}}}}]}
+  :require [{:reaches {:none {:id #{:meta-source/cli :meta-source/hover}}}}]}
 
  :meta-source.architecture/leaves
  {:doc "read, merge and rules require nothing of meta-source's"
   :severity :error
   :when {:id #{:meta-source/read :meta-source/merge :meta-source/rules}}
-  :require [{:missing :meta-source/requires}]}}
+  :require [{:missing :meta-source/requires}]}
+
+ :meta-source.architecture/core-without-packs
+ {:doc "Core finds packs on the classpath and never requires one: only the namespaces pack, its own, is part of it"
+  :severity :error
+  :when {:id-ns "meta-source" :not {:id-ns "meta-source.pack"}}
+  :require [{:reaches {:none {:id-ns "meta-source.pack" :not {:id :meta-source.pack/namespaces}}}}]}}

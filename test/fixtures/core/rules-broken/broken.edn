@@ -1,0 +1,3 @@
+{:rule/misspelled
+ {:when {:kynd :edn}
+  :require [{:has :component/stops}]}}

@@ -1,0 +1,5 @@
+;; What the functions need, as the shop names it.
+{:shop/mailer {:component/kind :smtp
+               :component/stops true}
+ ;; a tier the shop states: no pack derives over it
+ :shop/metrics {:component/kind :statsd :app/tier :service}}
