@@ -117,3 +117,16 @@
   {:pack/id :rules-of :pack/kinds #{:rules-of}
    :pack/find (fn [_ _] []) :pack/read (fn [_ _ _] [])
    :pack/rules-of (fn [entries] (into {} (for [[id e] entries :when (:rule/as-data e)] [id (:rule/as-data e)])))})
+
+(def dispatch-pack
+  "A pack reading only what the analysis gives: each (defmethod handle :x)
+   is an entity, from its dispatch value, with no form read, so its sites
+   carry no position."
+  {:pack/id :dispatch :pack/kinds #{:dispatch}
+   :pack/find (fn [analysis _]
+                (for [u (:var-usages analysis)
+                      :when (and (:defmethod u) (= 'handle (:name u)))]
+                  (select-keys u [:filename :row :dispatch-val-str])))
+   :pack/read (fn [sites _ _]
+                (vec (for [{:keys [row dispatch-val-str]} sites]
+                       {:row row :kind :dispatch :dev-id (keyword "op" (name (read-string dispatch-val-str))) :entry {:op/handled true}})))})

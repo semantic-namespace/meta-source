@@ -293,6 +293,19 @@
              (and (pos? (:analysed after)) (nil? (show after)))))
     (fs/delete-tree dir))
 
+  ;; ---- a pack's sites with no position (it reads what the analysis gives,
+  ;; never the form): each is read, none folded into another
+  (let [dir (str (fs/create-temp-dir))]
+    (fs/create-dirs (str dir "/src/app"))
+    (spit (str dir "/src/app/core.clj")
+          (str "(ns app.core)\n(defmulti handle :op)\n"
+               "(defmethod handle :a [_] 1)\n(defmethod handle :b [_] 2)\n(defmethod handle :c [_] 3)\n"))
+    (try
+      (let [ii (index/build {:root dir :src ["src"] :registry [] :packs {'smoke.packs/dispatch-pack {}}})]
+        (check "core: a pack's sites with no :name-row/:name-col are each read, not folded into one"
+               (= #{:op/a :op/b :op/c} (set (filter #(= "op" (namespace %)) (keys (:entities ii)))))))
+      (finally (fs/delete-tree dir))))
+
   ;; ---- dataflow a pack derives from what was read
   (let [dir (str (fs/create-temp-dir))]
     (fs/create-dirs (str dir "/registry"))
