@@ -58,7 +58,8 @@ own `defjob` macro, and makes a job a consumer of the data keys it lists:
                 (for [u (:var-usages analysis)
                       :when (and (= 'app.scheduler (:to u)) (= 'defjob (:name u)))]
                   (select-keys u [:filename :row :name-row :name-col])))
-   ;; one file's forms, read as data; what it returns is cached, so it is data
+   ;; one file's forms, read as data; what it returns is cached, so it is
+   ;; data, kept while the file and the pack's code are unchanged
    :pack/read (fn [sites {:keys [form-at own-ns]} opts]
                 (vec (for [{:keys [row name-row name-col]} sites
                            :let [[_ nm job] (form-at name-row name-col)]]
