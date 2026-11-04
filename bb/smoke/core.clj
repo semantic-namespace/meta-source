@@ -293,6 +293,33 @@
              (and (pos? (:analysed after)) (nil? (show after)))))
     (fs/delete-tree dir))
 
+;; ---- a project's own pack edited: the cached reads aren't reused
+  (let [dir (str (fs/create-temp-dir))
+        pack-file (str dir "/packs/src/cachepack/core.clj")
+        pack-src (fn [v] (str "(ns cachepack.core)\n"
+                              "(def pack {:pack/id :cache-pack :pack/kinds #{:cached}\n"
+                              "  :pack/find (fn [a _] (for [u (:var-usages a) :when (= 'defthing (:name u))]\n"
+                              "                         (select-keys u [:filename :row :name-row :name-col])))\n"
+                              "  :pack/read (fn [sites _ _] (vec (for [{:keys [row]} sites]\n"
+                              "                                    {:row row :kind :cached :dev-id :app/thing :entry {:thing/v " v "}})))})\n"))
+        cache (str dir "/.meta-source/index.transit")
+        build #(index/build {:root dir :src ["src"] :registry [] :cache cache :packs {'cachepack.core/pack {}}})
+        v-of #(get-in (index/where % :app/thing) [:entry :thing/v])]
+    (fs/create-dirs (str dir "/src/app")) (fs/create-dirs (fs/parent pack-file))
+    (spit (str dir "/src/app/core.clj") "(ns app.core)\n(defmacro defthing [n] `(def ~n 1))\n(defthing a)\n")
+    (spit pack-file (pack-src 1))
+    ((requiring-resolve 'babashka.classpath/add-classpath) (str dir "/packs/src"))
+    (try
+      (let [before (build)]
+        ;; the pack edited, as a project edits its own; a new run loads it again
+        (spit pack-file (pack-src 2))
+        (.setLastModified (fs/file pack-file) (+ 2000 (System/currentTimeMillis)))
+        (require 'cachepack.core :reload)
+        (let [after (build)]
+          (check "core: a project's own pack edited, the cache isn't reused: its reads are its new code's"
+                 (and (= 1 (v-of before)) (= 2 (v-of after)) (pos? (:analysed after))))))
+      (finally (fs/delete-tree dir))))
+
   ;; ---- dataflow a pack derives from what was read
   (let [dir (str (fs/create-temp-dir))]
     (fs/create-dirs (str dir "/registry"))
