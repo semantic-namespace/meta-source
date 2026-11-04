@@ -485,6 +485,39 @@
                 :when (and (.isFile f) (not (str/starts-with? rel ".cache")))]
             [rel (.lastModified f)]))))
 
+(defn- pack-code-stamps
+  "What the enabled packs' code is, so that a pack changed since the cache
+   was written isn't answered from it: for each source root a pack's
+   namespace loads from, {path mtime} of its .clj, .cljc and .edn files when
+   it is a directory (a project's own pack, a checkout), else the URL it
+   loads from (a jar, whose URL names its version). A git dep is a directory
+   pinned by commit, so its stamps never change."
+  [packs-config]
+  (let [ks (set (keys packs-config))
+        syms (distinct (concat (filter qualified-symbol? ks)
+                               (for [{:keys [pack config-keys]} (available-packs)
+                                     :when (some ks config-keys)]
+                                 pack)))
+        roots (distinct
+               (for [sym syms
+                     :let [base (-> (namespace sym) (str/replace "-" "_") (str/replace "." "/"))
+                           [rel url] (some #(when-let [u (io/resource (str base %))] [(str base %) u])
+                                           [".clj" ".cljc"])]
+                     :when url]
+                 (if (= "file" (.getProtocol ^java.net.URL url))
+                   (let [path (.getPath (io/file (.toURI ^java.net.URL url)))]
+                     (io/file (subs path 0 (- (count path) (count rel)))))
+                   (str url))))]
+    (into (sorted-map)
+          (for [r roots]
+            (if (string? r)
+              [r r]
+              [(canonical r)
+               (into (sorted-map)
+                     (for [^java.io.File f (file-seq r)
+                           :when (and (.isFile f) (re-find #"\.(clj|cljc|edn)$" (.getName f)))]
+                       [(relative (canonical r) (canonical f)) (.lastModified f)]))])))))
+
 (defn- analyse-code
   "{file {:vars [..] :calls [..] :keywords [..] :pack-results {pack-id [..]}}}
    for `files`, the parts of clj-kondo's analysis the index uses, and what
@@ -617,7 +650,9 @@
                 :not-covered (let [{:keys [languages libraries]} (:not-covered opts)]
                                {:languages (vec (sort languages)) :libraries (vec (sort libraries))})
                 ;; a changed clj-kondo config changes what the code analyses to
-                :kondo-config (kondo-config-stamps root)}
+                :kondo-config (kondo-config-stamps root)
+                ;; and a changed pack, what it reads there
+                :pack-code (pack-code-stamps (or packs {}))}
         edn-files (vec (files-under root registry [".edn"]))
         src-files (files-under root src [".clj" ".cljc" ".cljs"])
         cached (cond
