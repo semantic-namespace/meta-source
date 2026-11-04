@@ -293,7 +293,7 @@
              (and (pos? (:analysed after)) (nil? (show after)))))
     (fs/delete-tree dir))
 
-;; ---- a project's own pack edited: the cached reads aren't reused
+  ;; ---- a project's own pack edited: the cached reads aren't reused
   (let [dir (str (fs/create-temp-dir))
         pack-file (str dir "/packs/src/cachepack/core.clj")
         pack-src (fn [v] (str "(ns cachepack.core)\n"
@@ -318,6 +318,19 @@
         (let [after (build)]
           (check "core: a project's own pack edited, the cache isn't reused: its reads are its new code's"
                  (and (= 1 (v-of before)) (= 2 (v-of after)) (pos? (:analysed after))))))
+      (finally (fs/delete-tree dir))))
+
+  ;; ---- a pack's sites with no position (it reads what the analysis gives,
+  ;; never the form): each is read, none folded into another
+  (let [dir (str (fs/create-temp-dir))]
+    (fs/create-dirs (str dir "/src/app"))
+    (spit (str dir "/src/app/core.clj")
+          (str "(ns app.core)\n(defmulti handle :op)\n"
+               "(defmethod handle :a [_] 1)\n(defmethod handle :b [_] 2)\n(defmethod handle :c [_] 3)\n"))
+    (try
+      (let [ii (index/build {:root dir :src ["src"] :registry [] :packs {'smoke.packs/dispatch-pack {}}})]
+        (check "core: a pack's sites with no :name-row/:name-col are each read, not folded into one"
+               (= #{:op/a :op/b :op/c} (set (filter #(= "op" (namespace %)) (keys (:entities ii)))))))
       (finally (fs/delete-tree dir))))
 
   ;; ---- dataflow a pack derives from what was read

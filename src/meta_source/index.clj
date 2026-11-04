@@ -195,7 +195,8 @@
 ;;                          :name-row :name-col ...} found in clj-kondo's
 ;;                          analysis (a site inside a (comment ...) block
 ;;                          is dropped: REPL scratch); name-row/name-col is the symbol right
-;;                          after the form's opening paren
+;;                          after the form's opening paren, which form-at
+;;                          reads; a site with none is read once as itself
 ;;   :pack/read             (fn [sites file opts]) → [{:row :kind :dev-id
 ;;                          :entry} or {:row :kind :skipped reason}] for one
 ;;                          file's sites (a skipped one with :pattern rule-id
@@ -348,7 +349,9 @@
 
 (defn- read-packs
   "{pack-id [result ...]} for `file`: each pack's :pack/read over its sites
-   there, once per position (a .cljc file reports each form per language)."
+   there, each once (a .cljc file reports each form per language): once per
+   position, or, for a site with none (a pack that reads what the analysis
+   gives, never the form), once per site."
   [file found packs-config own-ns aliases]
   (let [lines (delay (str/split-lines (slurp file)))
         src (delay (source-text @lines))
@@ -361,7 +364,10 @@
            :find-row (fn [text row] (some (fn [n] (when (str/includes? (nth @lines (dec n)) text) n))
                                           (range (max 1 row) (inc (count @lines)))))}]
     (into {} (for [[pack sites] found
-                   :let [sites (sort-by :row (map first (vals (group-by (juxt :name-row :name-col) sites))))]]
+                   :let [sites (sort-by :row (map first (vals (group-by #(if (:name-row %)
+                                                                           [(:name-row %) (:name-col %)]
+                                                                           (dissoc % :lang))
+                                                                        sites))))]]
                [(:pack/id pack)
                 ;; a pack that fails on a file costs that file, not the index
                 (try (if-let [failed (some :pack-failed sites)]
