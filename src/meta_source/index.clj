@@ -660,7 +660,7 @@
                  cache (read-cache cache config))
         packs (enabled-packs (:packs config))
         stamps (into {} (map (juxt identity mtime)) src-files)
-        data-files (pack-data-files root (:packs config) packs)
+        data-files (pack-data-files root (pack-opts config) packs)
         rule-files (vec (distinct (for [d (:rules opts)
                                         :let [f (under root d)]
                                         path (cond (.isDirectory f) (files-under root [d] [".edn"])

@@ -81,6 +81,20 @@
                             {:file file :row line :kind :note :dev-id k :entry {:note/text "described"}})))})
 
 (def describing-jobs-pack (notes-pack true "notes/jobs.edn"))
+
+(def listing-notes-pack
+  "A pack that lists its data files itself, under the project's root it is
+   given: each notes/*.edn."
+  {:pack/id :listed-notes :pack/kinds #{:listed-note}
+   :pack/data-files (fn [opts]
+                      (let [d (java.io.File. (str (:meta-source/root opts)) "notes")]
+                        (vec (for [^java.io.File f (or (.listFiles d) []) :when (.endsWith (.getName f) ".edn")]
+                               (str "notes/" (.getName f))))))
+   :pack/read-data (fn [files _]
+                     (vec (for [{:keys [file text]} files
+                                [k _ line] (meta-source.read/keyed-lines text {:tags :keep})
+                                :when (qualified-keyword? k)]
+                            {:file file :row line :kind :listed-note :dev-id k :entry {:note/text "listed"}})))})
 (def declaring-jobs-pack (notes-pack false "notes/jobs.edn"))
 
 (def job-again
