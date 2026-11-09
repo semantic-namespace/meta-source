@@ -138,6 +138,10 @@
                     (= :job (:pack (:definition (index/where d :shop.jobs/nightly-digest))))
                     (= "described" (:note/text (:entry (index/where d :shop.jobs/nightly-digest))))
                     (contains? (shared (with 'smoke.packs/declaring-jobs-pack)) :shop.jobs/nightly-digest)))))
+    (check "core: a pack listing its data files is given the project's root, not the directory meta-source runs in"
+           (= "listed" (get-in (index/where (index/build (assoc-in cfg [:packs 'smoke.packs/listing-notes-pack] {}))
+                                            :shop.jobs/nightly-digest)
+                               [:entry :note/text])))
     (check "core: two packs giving the same kind are refused"
            (= {:kinds [:job]}
               (try (index/build (update cfg :packs assoc 'smoke.packs/job-pack {} 'smoke.packs/job-again {})) nil
