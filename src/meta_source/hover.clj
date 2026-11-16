@@ -55,8 +55,9 @@
         problems (filter #(= id (:dev-id %)) (index/check idx))
         {:keys [consumes produces]} (index/contract-keys idx entry)
         named (:depends-on (index/dependencies idx id))
-        deps (distinct (map :dev-id (filter #(index/dependency? (:verb %)) named)))
-        ;; what it names under a key with a verb of its own: a relation, not a dependency
+        deps (distinct (map :dev-id (filter #(or (index/dependency? (:verb %)) (:depends %)) named)))
+        ;; what it names under a key with a verb of its own: a relation (and a
+        ;; dependency too when its relation says :depends true, in deps as well)
         related (into (sorted-map-by #(compare (str %1) (str %2)))
                       (for [[v rs] (group-by :verb (remove #(or (index/dependency? (:verb %))
                                                                 (#{:consumes :produces} (:verb %)))
@@ -294,9 +295,14 @@
                                                                                      (str (pr-str (:at b)) " (" (pr-str (:relation b)) " is "
                                                                                           (str/join " or " (map pr-str (sort-by str (:verbs b)))) ")")))))])))
                                    "  [" (pr-str (:rule p)) "]")
-           :conflicting-relations (str (pr-str (:property p)) " is given several verbs: "
-                                       (str/join ", " (for [[v srcs] (:verbs p)] (str (pr-str v) " by " (str/join " and " (map #(if (keyword? %) (name %) (str %)) srcs)))))
-                                       "; it is untyped until they agree")
+           :conflicting-relations (let [by (fn [srcs] (str/join " and " (map #(if (keyword? %) (name %) (str %)) srcs)))]
+                                    (str (pr-str (:property p))
+                                         (if (< 1 (count (:verbs p)))
+                                           (str " is given several verbs: "
+                                                (str/join ", " (for [[v srcs] (:verbs p)] (str (pr-str v) " by " (by srcs)))))
+                                           (str " " (pr-str (key (first (:verbs p)))) " is a dependency by "
+                                                (by (get-in p [:depends true])) " and not by " (by (get-in p [:depends false]))))
+                                         "; it is untyped until they agree"))
            :relation-not-understood (str "a relation in " (let [s (:source p)] (if (keyword? s) (str "pack " (name s)) s))
                                          " not understood"
                                          (when (:property p) (str ", " (pr-str (:property p)) " " (pr-str (:given p))))

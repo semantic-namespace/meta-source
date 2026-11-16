@@ -91,6 +91,7 @@
         "file" : "registry/functions.edn",
         "line" : 8
       },
+      "depends" : true,
       "dev-id" : "fn/render-receipt",
       "verb" : "page/shows",
       "via" : "page/shows"
@@ -159,6 +160,7 @@
         "file" : "registry/pages.edn",
         "line" : 1
       },
+      "depends" : true,
       "dev-id" : "page/receipt",
       "verb" : "page/shows",
       "via" : "page/shows"

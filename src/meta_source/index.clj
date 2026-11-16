@@ -196,7 +196,8 @@
 ;;                          follows), :consumes or :produces (its dataflow:
 ;;                          :pack/dataflow says the same), or a qualified
 ;;                          verb of the pack's own, a relation rules follow
-;;                          by name. A key no source gives a verb is untyped:
+;;                          by name ({:verb v :depends true}: a dependency
+;;                          too). A key no source gives a verb is untyped:
 ;;                          what it names is a dependency
 ;;   :pack/relations-of     (fn [entries]) → the same, derived from what was
 ;;                          read: atlas's type-refs
@@ -414,7 +415,9 @@
 
 (defn dependency?
   "True when an edge of `verb` is a dependency: declared :depends, or untyped
-   (no source said what its key means)."
+   (no source said what its key means). An edge of a verb of the project's
+   own is one too when its relation says {:depends true}: `references` gives
+   that as each edge's fourth element."
   [verb]
   (or (nil? verb) (= :depends verb)))
 
@@ -426,7 +429,7 @@
   [config packs entities]
   (let [of-relations (fn [m source]
                        (if (map? m)
-                         (for [[prop r] m] [prop (when (map? r) (:verb r)) source r])
+                         (for [[prop r] m] [prop (when (map? r) (:verb r)) source r (when (map? r) (:depends r))])
                          [[nil nil source m]]))
         of-dataflow (fn [df source]
                       (for [[verb ps] (select-keys df [:consumes :produces]) p ps] [p verb source]))]
@@ -441,33 +444,50 @@
               claim))))
 
 (defn- relations
-  "{:verbs {prop verb} :problems [...]}: each entry key's verb, where its
-   sources agree. A key given two verbs is a :conflicting-relations error,
-   naming who gave which, and stays untyped: never last-write-wins. A claim
-   with no keyword key, or no verb meta-source knows (reserved or
-   qualified), is a :relation-not-understood error."
+  "{:verbs {prop verb} :depending #{prop} :problems [...]}: each entry key's
+   verb, where its sources agree, and the keys of a verb of their own whose
+   ids are dependencies too ({:verb v :depends true}: reach follows them,
+   :related follows v). A key given two verbs, or :depends by one source and
+   not another, is a :conflicting-relations error, naming who gave which, and
+   stays untyped: never last-write-wins. A claim with no keyword key, no verb
+   meta-source knows (reserved or qualified), a :depends that isn't true or
+   false, or :depends true on dataflow, is a :relation-not-understood error."
   [config packs entities]
   (let [claims (relation-claims config packs entities)
-        ok? (fn [[prop verb]] (and (keyword? prop) (or (contains? reserved-verbs verb) (qualified-keyword? verb))))
-        by-prop (group-by first (filter ok? claims))]
+        problem (fn [[prop verb _ _ depends]]
+                  (cond (not (keyword? prop)) (if (nil? prop) ":relations is a map of entry key to {:verb v}" "an entry key is a keyword")
+                        (not (or (contains? reserved-verbs verb) (qualified-keyword? verb)))
+                        (str "a verb is one of " (pr-str (sort reserved-verbs)) " or a qualified keyword")
+                        (not (contains? #{nil true false} depends)) ":depends is true or false"
+                        (and (true? depends) (#{:consumes :produces} verb))
+                        "dataflow is no dependency: :depends true goes with :depends or a verb of the project's own"))
+        ;; what reach makes of a claim: :depends, or a verb of its own marked :depends true
+        depends? (fn [[_ verb _ _ depends]] (or (= :depends verb) (true? depends)))
+        by-prop (group-by first (remove problem claims))]
     {:verbs (into {} (for [[prop cs] by-prop
                            :let [vs (distinct (map second cs))]
-                           :when (= 1 (count vs))]
+                           :when (and (= 1 (count vs)) (apply = (map depends? cs)))]
                        [prop (first vs)]))
+     :depending (set (for [[prop cs] by-prop
+                           :let [vs (distinct (map second cs))]
+                           :when (and (= 1 (count vs)) (not= :depends (first vs)) (every? depends? cs))]
+                       prop))
      :problems (vec (concat
-                     (for [[prop verb source given] (remove ok? claims)]
-                       (cond-> {:severity :error :problem :relation-not-understood :source source
-                                :reason (cond (nil? prop) ":relations is a map of entry key to {:verb v}"
-                                              (not (keyword? prop)) "an entry key is a keyword"
-                                              :else (str "a verb is one of " (pr-str (sort reserved-verbs))
-                                                         " or a qualified keyword"))}
+                     (for [[prop verb source given :as c] claims
+                           :let [reason (problem c)]
+                           :when reason]
+                       (cond-> {:severity :error :problem :relation-not-understood :source source :reason reason}
                          (keyword? prop) (assoc :property prop :given given)))
                      (for [[prop cs] (sort-by (comp str key) by-prop)
-                           :let [vs (group-by second cs)]
-                           :when (< 1 (count vs))]
-                       {:severity :error :problem :conflicting-relations :property prop
-                        :verbs (into (sorted-map-by #(compare (str %1) (str %2)))
-                                     (for [[v vcs] vs] [v (vec (distinct (map #(nth % 2) vcs)))]))})))}))
+                           :let [vs (group-by second cs)
+                                 ds (group-by depends? cs)]
+                           :when (or (< 1 (count vs)) (< 1 (count ds)))]
+                       (cond-> {:severity :error :problem :conflicting-relations :property prop
+                                :verbs (into (sorted-map-by #(compare (str %1) (str %2)))
+                                             (for [[v vcs] vs] [v (vec (distinct (map #(nth % 2) vcs)))]))}
+                         ;; one verb, given as a dependency by some and not others
+                         (and (= 1 (count vs)) (< 1 (count ds)))
+                         (assoc :depends (into (sorted-map) (for [[d dcs] ds] [d (vec (distinct (map #(nth % 2) dcs)))])))))))}))
 
 (defn- dataflow-of
   "{:consumes [k ...] :produces [k ...]}: the entry keys whose verb is
@@ -881,6 +901,7 @@
      :rules-problems (:problems rules-read)
      :packs packs
      :relations (:verbs rels)
+     :depending (:depending rels)
      :relations-problems (:problems rels)
      :dataflow (dataflow-of (:verbs rels))
      :stamps stamps
@@ -952,7 +973,7 @@
   [idx]
   (let [resolved (apply merge-with into (keep #(when-let [f (:pack/depends %)] (f (:entities idx))) (:packs idx)))]
     (into {} (for [[id e] (:entities idx)
-                   :let [ds (into (set (for [[_ x verb] (references idx (:entry e)) :when (dependency? verb)] x))
+                   :let [ds (into (set (for [[_ x _ dep?] (references idx (:entry e)) :when dep?] x))
                                   (get resolved id))]
                    :when (seq ds)]
                [id (disj ds id)]))))
@@ -1132,9 +1153,11 @@
     (boolean (and (some (kinds-of data) given) (not (some (kinds-of declared) given))))))
 
 (defn- references
-  "[[prop dev-id verb] ...] for every registry entity an entry names in its
-   props, verb what the index's relations say prop is (nil: untyped). Data
-   keys are not references: `data-key` answers for them."
+  "[[prop dev-id verb depends?] ...] for every registry entity an entry names
+   in its props: verb, what the index's relations say prop is (nil:
+   untyped); depends?, whether the edge is a dependency (untyped, :depends,
+   or a verb of its own with :depends true). Data keys are not references:
+   `data-key` answers for them."
   [idx entry]
   (let [ids (:entities idx)
         ;; a pack's lookup tables name ids its other keys already refer to
@@ -1144,7 +1167,8 @@
            :when (not (skip k))
            x (tree-seq coll? seq v)
            :when (and (qualified-keyword? x) (contains? ids x) (not (data-key? idx (get ids x))))]
-       [k x (get (:relations idx) k)]))))
+       (let [verb (get (:relations idx) k)]
+         [k x verb (or (dependency? verb) (contains? (:depending idx) k))])))))
 
 (defn- of-kinds
   "The entities some source of one of `kinds` gives."
@@ -1208,10 +1232,11 @@
                            (when-not (:from-var c) (range-owner ranges (:filename c) (:row c)))))]
     {:dev-id id
      :referenced-by (vec (for [[other e] (sort-by key (:entities idx))
-                               [prop x verb] (references idx (:entry e))
+                               [prop x verb dep?] (references idx (:entry e))
                                :when (= x id)]
                            (cond-> {:dev-id other :via prop :definition (loc idx e)}
-                             verb (assoc :verb verb))))
+                             verb (assoc :verb verb)
+                             (and dep? (not (dependency? verb))) (assoc :depends true))))
      :called-from (vec (concat
                         (when (and impl (not (:inline impl)))
                           (for [c (mapcat :calls (vals (:code idx)))
@@ -1232,13 +1257,14 @@
   "The entities `id`'s entry names, with where each is defined, and :verb,
    what the key naming it means, when a source said (meta-source.edn's or a
    pack's :relations): one that isn't :depends is a relation, not a
-   dependency."
+   dependency, unless the row says :depends true too."
   [idx id]
   (when-let [e (get-in idx [:entities id])]
     {:dev-id id
-     :depends-on (vec (for [[prop x verb] (references idx (:entry e))]
+     :depends-on (vec (for [[prop x verb dep?] (references idx (:entry e))]
                         (cond-> {:dev-id x :via prop :definition (loc idx (get-in idx [:entities x]))}
-                          verb (assoc :verb verb))))}))
+                          verb (assoc :verb verb)
+                          (and dep? (not (dependency? verb))) (assoc :depends true))))}))
 
 (defn data-key
   "The entities producing (response) and consuming (context) data key `k`.
