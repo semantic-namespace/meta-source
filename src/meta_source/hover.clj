@@ -91,7 +91,9 @@
        (when (seq consumes) [(str "consumes   " (str/join " " (map pr-str (sort consumes))))])
        (when (seq produces) [(str "produces   " (str/join " " (map pr-str (sort produces))))])
        (when (seq deps) [(str "deps       " (str/join " " (map pr-str deps)))])
-       (for [[v ids] related] (str (pr-str v) "  " (str/join " " (map pr-str ids))))
+       ;; what it names under keys with a verb of their own, by verb
+       (for [[i [v ids]] (map-indexed vector related)]
+         (str (if (zero? i) "related    " "           ") (pr-str v) " " (str/join " " (map pr-str ids))))
        (for [[k v] (sort-by key entry) :when (not (marker? k))] (str (pr-str k) "  " (pr-str v)))
        [""]
        (for [[i s] (map-indexed vector defining)]

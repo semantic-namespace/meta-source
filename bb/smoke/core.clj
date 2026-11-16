@@ -680,8 +680,8 @@
                                                               (:depends-on (index/dependencies pi2 :adr/cache))))))))))
       (check "hover: an entity's relations, by verb, apart from its deps"
              (let [d (:describe (hover/lookup ri :adr/cache))]
-               (and (str/includes? d ":adr/realized-by  :fn/run")
-                    (str/includes? d ":adr/mitigates  :risk/slow")
+               (and (str/includes? d "related    :adr/mitigates :risk/slow")
+                    (str/includes? d "           :adr/realized-by :fn/run")
                     (not (re-find #"(?m)^deps " d))))))
     (fs/delete-tree dir))
 
