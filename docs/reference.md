@@ -91,6 +91,14 @@ already has is read, keyed by its var
 
 ### What an entry key means: relations
 
+![Relations: a link isn't a dependency, and a rule follows the verb, in Emacs](images/meta-source-relations.gif)
+
+A team's rule says the UI reaches no database, and marks a checkout page that
+only links to a function writing one (`:doc/see-also`). One line in
+`meta-source.edn` says what that key is: the mark goes. `C-c .` lists the
+page's deps, and the link apart, under `related`. A rule follows the verb with
+`:related`: what a page links to is documented.
+
 A key naming other entities is, by default, a dependency: `:deps`, `reach`
 and the "deps" in a hover follow every one. `:relations` says what a key's
 ids are to the entity, as a verb:
