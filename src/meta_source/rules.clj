@@ -27,14 +27,16 @@
      :or [cond ...]            one of them holds
      :id :k or #{:k ...}       it is one of these entities
      :consumers, :producers    a data key's consumers or producers,
-     :deps, :used-by           what its entry names, or what names it,
+     :deps, :used-by           what its entry names under a key whose verb
+                               is :depends or untyped, or what so names it,
      :calls, :called-by        whose linked var its code calls, or whose code calls its,
      :provided-by, :provides   the entity whose code builds the var it is defined
                                in (a route's component), or what it so builds:
                                {:all cond}, {:some cond} or {:none cond}
      :reaches {q cond}         everything it depends on, transitively, through
                                declared relations: :deps, :calls and
-                               :provided-by (or the ones :via names), not
+                               :provided-by (or the ones :via names, which
+                               may be verbs: :via #{:deps :adr/realized-by}), not
                                data (reading a key doesn't reach its
                                producer): {:reaches {:none {:id :infra/db}}},
                                {:reaches {:via #{:deps} :some {:kind :spec}}};
@@ -52,6 +54,12 @@
      :refs {:k q}              what its entry's :k names, q as above:
                                {:refs {:fn/deps {:all {:has :tier/x}}}}
      :referenced-by {:k q}     the entities whose :k names it
+     :related {verb q}         what it names under the keys whose verb is
+                               this (meta-source.edn's :relations, or a
+                               pack's): {:related {:adr/mitigates {:some
+                               {:has :risk/level}}}}; a verb no relation
+                               declares is a rule not understood
+     :related-by {verb q}      the entities naming it under such a key
      :resolves :k or [:k ...]  everything its entry's :k names is an
                                entity some source defines
 
@@ -67,8 +75,10 @@
   #{:deps :calls :provided-by})
 (def ^:private quantifiers #{:all :some :none})
 (def ^:private property-relations #{:refs :referenced-by})
+(def ^:private verb-relations #{:related :related-by})
 (def ^:private condition-keys
-  (into #{:kind :has :has-in :missing := :in :matches :id-ns :id :data-key :not :or :resolves :reaches :reached-by} (concat relations property-relations)))
+  (into #{:kind :has :has-in :missing := :in :matches :id-ns :id :data-key :not :or :resolves :reaches :reached-by}
+        (concat relations property-relations verb-relations)))
 
 (defn- many [x] (if (or (sequential? x) (set? x)) x [x]))
 
@@ -109,6 +119,18 @@
                  (problems-in (val (first q)))
                  [(str (pr-str r) " takes {:all cond}, {:some cond} or {:none cond}")]))]
        p)
+     (for [r verb-relations :when (contains? c r)
+           p (let [m (get c r)]
+               (if (and (map? m) (seq m))
+                 (for [[v q] m
+                       p (concat
+                          (when-not (keyword? v) [(str (pr-str r) " takes verbs as keys, not " (pr-str v))])
+                          (if (and (map? q) (= 1 (count q)) (quantifiers (key (first q))))
+                            (problems-in (val (first q)))
+                            [(str (pr-str r) " " (pr-str v) " takes {:all cond}, {:some cond} or {:none cond}")]))]
+                   p)
+                 [(str (pr-str r) " takes {verb {:all cond}}, a verb, and a clause on what it relates")]))]
+       p)
      (for [r property-relations :when (contains? c r)
            p (let [m (get c r)]
                (if (and (map? m) (seq m))
@@ -127,8 +149,8 @@
                 (if (and (map? qs) (= 1 (count qs)) (quantifiers (key (first qs))))
                   (problems-in (val (first qs)))
                   [(str (pr-str r) " takes {:all cond}, {:some cond} or {:none cond}, and optionally :via")])
-                (when (and via (not (and (coll? via) (every? depends-on via))))
-                  [(str (pr-str r) " :via takes some of " (pr-str (sort depends-on)))])))]
+                (when (and via (not (and (coll? via) (every? #(or (depends-on %) (qualified-keyword? %)) via))))
+                  [(str (pr-str r) " :via takes some of " (pr-str (sort depends-on)) " and verbs")])))]
        p)
      (when (and (contains? c :has-in) (not (and (vector? (:has-in c)) (seq (:has-in c)))))
        [":has-in takes a vector of keys, a path"])
@@ -155,9 +177,34 @@
            (when (sequential? (:require rule)) (mapcat problems-in (:require rule))))))
 
 (defn- related
-  "The ids `relation` relates `id` to, in `view`."
+  "The ids `relation` relates `id` to, in `view`: a relation meta-source
+   names, or a verb (qualified, in a :via)."
   [view relation id]
-  ((get view relation) id))
+  (if (qualified-keyword? relation)
+    ((:related view) relation id)
+    ((get view relation) id)))
+
+(defn- verbs-in
+  "The verbs condition `c` follows: under :related and :related-by, and the
+   qualified ones in a :via."
+  [c]
+  (when (map? c)
+    (concat (mapcat #(when (map? (get c %)) (keys (get c %))) verb-relations)
+            (for [r [:reaches :reached-by] :let [q (get c r)] :when (map? q)
+                  v (when (coll? (:via q)) (:via q)) :when (qualified-keyword? v)]
+              v)
+            (verbs-in (:not c))
+            (when (sequential? (:or c)) (mapcat verbs-in (:or c))))))
+
+(defn- undeclared-verbs
+  "What is wrong with `rule` over `view`: the verbs it follows that no
+   relation declares, which would relate nothing and so pass."
+  [view rule]
+  (when (map? rule)
+    (let [declared (or (:verbs view) #{})]
+      (for [v (distinct (concat (verbs-in (:when rule)) (when (sequential? (:require rule)) (mapcat verbs-in (:require rule)))))
+            :when (and (keyword? v) (not (contains? declared v)))]
+        (str "no relation declares the verb " (pr-str v))))))
 
 (declare holds?)
 
@@ -188,6 +235,16 @@
                                  :refs (names entry k)
                                  :referenced-by ((:referrers view) k id))
                            b (quantified view q ids)]
+                     :when b]
+                 b)]
+    (when (seq broken) (vec (distinct (apply concat broken))))))
+
+(defn- verb-breakers
+  "For {verb {quantifier cond}} under :related or :related-by: nil when every
+   verb's clause holds on `id`, otherwise the ids that break them."
+  [view relation m id]
+  (let [broken (for [[v q] m
+                     :let [b (quantified view q ((get view relation) v id))]
                      :when b]
                  b)]
     (when (seq broken) (vec (distinct (apply concat broken))))))
@@ -277,6 +334,7 @@
                 :or (some #(holds? view % id) v)
                 :resolves (nil? (unresolved view v id))
                 (:refs :referenced-by) (nil? (property-breakers view k v id))
+                (:related :related-by) (nil? (verb-breakers view k v id))
                 (nil? (breakers view k v id))))
             c)))
 
@@ -301,11 +359,12 @@
   [view rule id]
   (for [c (:require rule)
         :when (not (unsure view c id))
-        :let [own (apply dissoc c :resolves :reaches :reached-by (concat relations property-relations))
+        :let [own (apply dissoc c :resolves :reaches :reached-by (concat relations property-relations verb-relations))
               own-fails? (and (seq own) (not (holds? view own id)))
               ;; each related clause: nil when it holds, else who breaks it
               results (concat (for [r relations :when (contains? c r)] (breakers view r (get c r) id))
                               (for [r property-relations :when (contains? c r)] (property-breakers view r (get c r) id))
+                              (for [r verb-relations :when (contains? c r)] (verb-breakers view r (get c r) id))
                               (when (contains? c :resolves) [(unresolved view (:resolves c) id)])
                               (when (contains? c :reaches) [(reach-breakers view (:reaches c) id)])
                               (when (contains? c :reached-by) [(reached-by-breakers view (:reached-by c) id)]))
@@ -352,7 +411,7 @@
         ;; :reached-by's reversed graph, built once per :via
         view (assoc view :reverse-edges (memoize (fn [via] (reverse-edges view via))))]
     (for [{:keys [id rule file line]} rules
-          p (if-let [ps (seq (rule-problems rule))]
+          p (if-let [ps (seq (concat (rule-problems rule) (undeclared-verbs view rule)))]
               [{:severity :error :problem :rule-not-understood :rule id :reasons (vec ps) :file file :line line}]
               (for [e-id ids
                     ;; whether the rule applies, or a clause holds, can't be

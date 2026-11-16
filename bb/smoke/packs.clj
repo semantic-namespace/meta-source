@@ -132,6 +132,14 @@
    :pack/find (fn [_ _] []) :pack/read (fn [_ _ _] [])
    :pack/rules-of (fn [entries] (into {} (for [[id e] entries :when (:rule/as-data e)] [id (:rule/as-data e)])))})
 
+(def relations-pack
+  "A pack deriving relations from what was read: an entry with :ref/property
+   and :ref/verb says what that key's ids are, as atlas's type-refs do."
+  {:pack/id :relations-of :pack/kinds #{:relations-of}
+   :pack/find (fn [_ _] []) :pack/read (fn [_ _ _] [])
+   :pack/relations-of (fn [entries] (into {} (for [[_ e] entries :when (:ref/property e)]
+                                               [(:ref/property e) {:verb (:ref/verb e)}])))})
+
 (def dispatch-pack
   "A pack reading only what the analysis gives: each (defmethod handle :x)
    is an entity, from its dispatch value, with no form read, so its sites

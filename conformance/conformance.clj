@@ -29,7 +29,7 @@
    "check"
    "hover :fn/price" "hover :order/total" "hover :nope/x"])
 
-(def registry-problems #{"conflicting-values" "unreadable-registry-file"})
+(def registry-problems #{"conflicting-values" "unreadable-registry-file" "conflicting-relations" "relation-not-understood"})
 
 (defn- deep-sort
   "Arrays of scalars sorted (a set's order is the reader's); everything else as is."

@@ -191,6 +191,15 @@
 ;;   :pack/dataflow-of      (fn [entries]) → the same, derived from what was
 ;;                          read ({id entry}): atlas's ontologies declare
 ;;                          their context and response keys
+;;   :pack/relations        {prop {:verb v}}: what an entry key's ids are to
+;;                          the entity: :depends (its :deps, what :reaches
+;;                          follows), :consumes or :produces (its dataflow:
+;;                          :pack/dataflow says the same), or a qualified
+;;                          verb of the pack's own, a relation rules follow
+;;                          by name. A key no source gives a verb is untyped:
+;;                          what it names is a dependency
+;;   :pack/relations-of     (fn [entries]) → the same, derived from what was
+;;                          read: atlas's type-refs
 ;;   :pack/find             (fn [analysis opts]) → sites, each {:filename :row
 ;;                          :name-row :name-col ...} found in clj-kondo's
 ;;                          analysis (a site inside a (comment ...) block
@@ -396,17 +405,76 @@
          (cond-> {:id id :rule rule :pack (:pack/id p)}
            d (assoc :file (relative root (:file d)) :line (:line d))))))
 
-(defn- dataflow
-  "Which entry keys list consumed and produced data keys: meta-source.edn's
-   :dataflow, plus what each enabled pack declares, plus what each pack's
-   :pack/dataflow-of derives from `entities` ({id entry}), as atlas's reads
-   it from the project's ontologies."
+(def reserved-verbs
+  "The verbs meta-source itself acts on: :depends, a dependency (:deps, what
+   :reaches follows); :consumes and :produces, the dataflow. Any other verb
+   is a qualified keyword, a relation of the project's own that rules follow
+   by name."
+  #{:depends :consumes :produces})
+
+(defn dependency?
+  "True when an edge of `verb` is a dependency: declared :depends, or untyped
+   (no source said what its key means)."
+  [verb]
+  (or (nil? verb) (= :depends verb)))
+
+(defn- relation-claims
+  "[[prop verb source]]: what each entry key's ids are, as meta-source.edn's
+   :relations and :dataflow say, and each enabled pack's :pack/relations,
+   :pack/relations-of, :pack/dataflow and :pack/dataflow-of (the -of fns
+   derive it from `entities`, {id entry}: atlas's type-refs and ontologies)."
   [config packs entities]
-  (apply merge-with (comp vec distinct concat)
-         {:consumes [] :produces []}
-         (:dataflow config)
-         (concat (keep :pack/dataflow packs)
-                 (for [p packs :let [f (:pack/dataflow-of p)] :when f] (f entities)))))
+  (let [of-relations (fn [m source]
+                       (if (map? m)
+                         (for [[prop r] m] [prop (when (map? r) (:verb r)) source r])
+                         [[nil nil source m]]))
+        of-dataflow (fn [df source]
+                      (for [[verb ps] (select-keys df [:consumes :produces]) p ps] [p verb source]))]
+    (concat (of-relations (or (:relations config) {}) "meta-source.edn")
+            (of-dataflow (:dataflow config) "meta-source.edn")
+            (for [p packs
+                  :let [source (or (:pack/id p) :pack)]
+                  claim (concat (some-> (:pack/relations p) (of-relations source))
+                                (when-let [f (:pack/relations-of p)] (of-relations (f entities) source))
+                                (of-dataflow (:pack/dataflow p) source)
+                                (when-let [f (:pack/dataflow-of p)] (of-dataflow (f entities) source)))]
+              claim))))
+
+(defn- relations
+  "{:verbs {prop verb} :problems [...]}: each entry key's verb, where its
+   sources agree. A key given two verbs is a :conflicting-relations error,
+   naming who gave which, and stays untyped: never last-write-wins. A claim
+   with no keyword key, or no verb meta-source knows (reserved or
+   qualified), is a :relation-not-understood error."
+  [config packs entities]
+  (let [claims (relation-claims config packs entities)
+        ok? (fn [[prop verb]] (and (keyword? prop) (or (contains? reserved-verbs verb) (qualified-keyword? verb))))
+        by-prop (group-by first (filter ok? claims))]
+    {:verbs (into {} (for [[prop cs] by-prop
+                           :let [vs (distinct (map second cs))]
+                           :when (= 1 (count vs))]
+                       [prop (first vs)]))
+     :problems (vec (concat
+                     (for [[prop verb source given] (remove ok? claims)]
+                       (cond-> {:severity :error :problem :relation-not-understood :source source
+                                :reason (cond (nil? prop) ":relations is a map of entry key to {:verb v}"
+                                              (not (keyword? prop)) "an entry key is a keyword"
+                                              :else (str "a verb is one of " (pr-str (sort reserved-verbs))
+                                                         " or a qualified keyword"))}
+                         (keyword? prop) (assoc :property prop :given given)))
+                     (for [[prop cs] (sort-by (comp str key) by-prop)
+                           :let [vs (group-by second cs)]
+                           :when (< 1 (count vs))]
+                       {:severity :error :problem :conflicting-relations :property prop
+                        :verbs (into (sorted-map-by #(compare (str %1) (str %2)))
+                                     (for [[v vcs] vs] [v (vec (distinct (map #(nth % 2) vcs)))]))})))}))
+
+(defn- dataflow-of
+  "{:consumes [k ...] :produces [k ...]}: the entry keys whose verb is
+   :consumes or :produces."
+  [verbs]
+  {:consumes (vec (sort (for [[p v] verbs :when (= :consumes v)] p)))
+   :produces (vec (sort (for [[p v] verbs :when (= :produces v)] p)))})
 
 (defn- snapshot-file
   "Where `pack`'s runtime snapshot is: its :snapshot option, or
@@ -639,7 +707,8 @@
   [{:keys [root registry src cache previous packs dataflow id-key] :as opts
     :or {root "." id-key default-id-key}}]
   (let [config {:root (canonical root) :registry (vec registry) :src (vec src)
-                :packs (or packs {}) :dataflow dataflow :merge (:merge opts) :id-key id-key
+                :packs (or packs {}) :dataflow dataflow :relations (:relations opts)
+                :merge (:merge opts) :id-key id-key
                 :rules (vec (:rules opts))
                 ;; the source directories of libraries (:libs): read, never reported on
                 :lib-src (vec (:lib-src opts))
@@ -802,7 +871,8 @@
                                 {:keys [dev-id row] :as v} vars
                                 :when (and dev-id (not (contains? static dev-id)))
                                 :let [d {:file f :line row :kind :binding :keys []}]]
-                            [dev-id (assoc d :entry {} :definitions [d])]))]
+                            [dev-id (assoc d :entry {} :definitions [d])]))
+        rels (relations config packs (update-vals static :entry))]
     (when (and cache (or (seq stale) (not= (:stamps cached) stamps)))
       (write-cache cache {:version cache-version :config config :stamps stamps :code code}))
     {:root (canonical root)
@@ -810,7 +880,9 @@
      :rules (into (:rules rules-read) (pack-rules root packs static))
      :rules-problems (:problems rules-read)
      :packs packs
-     :dataflow (dataflow config packs (update-vals static :entry))
+     :relations (:verbs rels)
+     :relations-problems (:problems rels)
+     :dataflow (dataflow-of (:verbs rels))
      :stamps stamps
      :edn-stamps edn-stamps
      :edn edn
@@ -872,13 +944,16 @@
 (declare references)
 
 (defn- depends-on
-  "{id #{id}}: what each entity depends on by its entry: the ids it names,
-   and what its pack resolves its names to (an integrant ref to a key that
-   others derive from: :pack/depends)."
+  "{id #{id}}: what each entity depends on by its entry: the ids it names
+   under a key whose verb is :depends or that has none (a key with another
+   verb is a relation of its own, not a dependency), and what its pack
+   resolves its names to (an integrant ref to a key that others derive
+   from: :pack/depends)."
   [idx]
   (let [resolved (apply merge-with into (keep #(when-let [f (:pack/depends %)] (f (:entities idx))) (:packs idx)))]
     (into {} (for [[id e] (:entities idx)
-                   :let [ds (into (set (map second (references idx (:entry e)))) (get resolved id))]
+                   :let [ds (into (set (for [[_ x verb] (references idx (:entry e)) :when (dependency? verb)] x))
+                                  (get resolved id))]
                    :when (seq ds)]
                [id (disj ds id)]))))
 
@@ -1057,8 +1132,9 @@
     (boolean (and (some (kinds-of data) given) (not (some (kinds-of declared) given))))))
 
 (defn- references
-  "[[prop dev-id] ...] for every registry entity an entry names in its props.
-   Data keys are not references: `data-key` answers for them."
+  "[[prop dev-id verb] ...] for every registry entity an entry names in its
+   props, verb what the index's relations say prop is (nil: untyped). Data
+   keys are not references: `data-key` answers for them."
   [idx entry]
   (let [ids (:entities idx)
         ;; a pack's lookup tables name ids its other keys already refer to
@@ -1068,7 +1144,7 @@
            :when (not (skip k))
            x (tree-seq coll? seq v)
            :when (and (qualified-keyword? x) (contains? ids x) (not (data-key? idx (get ids x))))]
-       [k x]))))
+       [k x (get (:relations idx) k)]))))
 
 (defn- of-kinds
   "The entities some source of one of `kinds` gives."
@@ -1132,9 +1208,10 @@
                            (when-not (:from-var c) (range-owner ranges (:filename c) (:row c)))))]
     {:dev-id id
      :referenced-by (vec (for [[other e] (sort-by key (:entities idx))
-                               [prop x] (references idx (:entry e))
+                               [prop x verb] (references idx (:entry e))
                                :when (= x id)]
-                           {:dev-id other :via prop :definition (loc idx e)}))
+                           (cond-> {:dev-id other :via prop :definition (loc idx e)}
+                             verb (assoc :verb verb))))
      :called-from (vec (concat
                         (when (and impl (not (:inline impl)))
                           (for [c (mapcat :calls (vals (:code idx)))
@@ -1152,12 +1229,16 @@
      :coverage (coverage-note idx)}))
 
 (defn dependencies
-  "The entities `id`'s entry names, with where each is defined."
+  "The entities `id`'s entry names, with where each is defined, and :verb,
+   what the key naming it means, when a source said (meta-source.edn's or a
+   pack's :relations): one that isn't :depends is a relation, not a
+   dependency."
   [idx id]
   (when-let [e (get-in idx [:entities id])]
     {:dev-id id
-     :depends-on (vec (for [[prop x] (references idx (:entry e))]
-                        {:dev-id x :via prop :definition (loc idx (get-in idx [:entities x]))}))}))
+     :depends-on (vec (for [[prop x verb] (references idx (:entry e))]
+                        (cond-> {:dev-id x :via prop :definition (loc idx (get-in idx [:entities x]))}
+                          verb (assoc :verb verb))))}))
 
 (defn data-key
   "The entities producing (response) and consuming (context) data key `k`.
@@ -1536,7 +1617,13 @@
         reverse-of (fn [m] (reduce (fn [r [from tos]] (reduce #(update %1 %2 (fnil conj #{}) from) r tos)) {} m))
         called-by (reverse-of calls)
         provides (reverse-of provided-by)
-        rdeps (reverse-of deps)]
+        rdeps (reverse-of deps)
+        ;; {verb {id #{id}}}: what each entity's typed keys name
+        by-verb (reduce (fn [m [id e]]
+                          (reduce (fn [m [_ x verb]] (if verb (update-in m [verb id] (fnil conj #{}) x) m))
+                                  m (references idx (:entry e))))
+                        {} entities)
+        rev-by-verb (update-vals by-verb reverse-of)]
     {:entities (:entities idx)
      :data-key? #(data-key? idx %)
      :loc #(loc idx %)
@@ -1545,6 +1632,10 @@
      ;; what its entry names, and what its pack resolves those names to
      :deps #(sort (get deps % #{}))
      :used-by #(sort (get rdeps % #{}))
+     ;; the verbs the index's relations declare, and each one's edges
+     :verbs (set (vals (:relations idx)))
+     :related (fn [verb id] (sort (get-in by-verb [verb id] #{})))
+     :related-by (fn [verb id] (sort (get-in rev-by-verb [verb id] #{})))
      :calls #(sort (get calls %))
      :called-by #(sort (get called-by %))
      :provided-by #(sort (get provided-by %))
@@ -1642,6 +1733,7 @@
                   (remove lib?
                   (concat
           (for [p (:read-problems idx)] (assoc p :severity :error))
+          (:relations-problems idx)
           (for [[id vs] linked :when (> (count vs) 1)]
             {:severity :error :problem :dev-id-on-several-vars :dev-id id :vars (mapv #(loc idx %) vs)})
           ;; identity declared, nothing said about it yet: valid, unless a

@@ -4,4 +4,9 @@
 {:registry ["registry"]
  :src ["src" "web"]
  :dataflow {:consumes [:fn/reads] :produces [:fn/returns]}
+ ;; what an entry key's ids are: a dependency, a relation of the page's own,
+ ;; and a verb neither reserved nor qualified, which no reader understands
+ :relations {:fn/calls {:verb :depends}
+             :page/shows {:verb :page/shows}
+             :app/tags {:verb :tags}}
  :merge {:app/tags :union}}
