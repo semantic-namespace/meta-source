@@ -17,6 +17,15 @@
       } ],
       "value" : "Takes a code off the total"
     } ]
+  }, {
+    "given" : {
+      "verb" : "tags"
+    },
+    "problem" : "relation-not-understood",
+    "property" : "app/tags",
+    "reason" : "a verb is one of (:consumes :depends :produces) or a qualified keyword",
+    "severity" : "error",
+    "source" : "meta-source.edn"
   } ],
   "data :order/lines" : {
     "consumers" : [ {
@@ -71,6 +80,7 @@
         "line" : 2
       },
       "dev-id" : "fn/price",
+      "verb" : "depends",
       "via" : "fn/calls"
     } ],
     "dev-id" : "fn/render-receipt"
@@ -82,6 +92,7 @@
         "line" : 8
       },
       "dev-id" : "fn/render-receipt",
+      "verb" : "page/shows",
       "via" : "page/shows"
     } ],
     "dev-id" : "page/receipt"
@@ -137,6 +148,7 @@
         "line" : 8
       },
       "dev-id" : "fn/render-receipt",
+      "verb" : "depends",
       "via" : "fn/calls"
     } ]
   },
@@ -148,6 +160,7 @@
         "line" : 1
       },
       "dev-id" : "page/receipt",
+      "verb" : "page/shows",
       "via" : "page/shows"
     } ]
   },
