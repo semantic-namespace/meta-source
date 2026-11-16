@@ -485,7 +485,8 @@
                        (cond-> {:severity :error :problem :conflicting-relations :property prop
                                 :verbs (into (sorted-map-by #(compare (str %1) (str %2)))
                                              (for [[v vcs] vs] [v (vec (distinct (map #(nth % 2) vcs)))]))}
-                         (< 1 (count ds))
+                         ;; one verb, given as a dependency by some and not others
+                         (and (= 1 (count vs)) (< 1 (count ds)))
                          (assoc :depends (into (sorted-map) (for [[d dcs] ds] [d (vec (distinct (map #(nth % 2) dcs)))])))))))}))
 
 (defn- dataflow-of
