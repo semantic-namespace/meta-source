@@ -11,9 +11,10 @@
  {:when {:has :component/kind}
   :require [{:or [{:used-by {:some {:has :fn/reads}}} {:has :component/optional}]}]}
 
+ ;; reading is dataflow (:fn/reads is :consumes), not a dependency
  :more/no-fn-depends-on-pii
  {:when {:has :fn/reads}
-  :require [{:deps {:none {:= {:data/privacy :pii}}}}]}
+  :require [{:related {:consumes {:none {:= {:data/privacy :pii}}}}}]}
 
  :more/pii-has-a-producer
  {:when {:= {:data/privacy :pii}}

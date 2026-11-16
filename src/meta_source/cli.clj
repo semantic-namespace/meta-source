@@ -12,6 +12,9 @@
       :registry [\"registry\"]             ; EDN files of entries (default [\"registry\"])
       :packs {:integrant {:configs [\"resources\"]} :spec {} :pathom {}}
       :dataflow {:consumes [...] :produces [...]}
+      :relations {:fn/deps {:verb :depends}  ; what an entry key's ids are: :depends,
+                  :fn/reads {:verb :consumes} ; :consumes, :produces or a qualified verb
+                  :adr/mitigates {:verb :adr/mitigates}}
       :merge {:app/tags :union}
       :rules [\"rules\"]                   ; EDN files of the project's own rules
       :id-key :meta-source/id             ; the meta key a var carries
@@ -105,6 +108,7 @@
              :lib-src (lib-src root from-file)
              :packs (:packs from-file {})
              :dataflow (:dataflow from-file)
+             :relations (:relations from-file)
              :merge (:merge from-file)
              :rules (:rules from-file)
              :calls-by-id (:calls-by-id from-file)

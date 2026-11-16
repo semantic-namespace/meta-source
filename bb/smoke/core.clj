@@ -599,6 +599,99 @@
                 (for [p (problems ri :rule-not-understood) :when (= :r/bad (:rule p))] (:reasons p)))))
     (fs/delete-tree dir))
 
+  ;; ---- relations: what an entry key's ids are to the entity
+  (let [dir (str (fs/create-temp-dir))]
+    (fs/create-dirs (str dir "/registry"))
+    (fs/create-dirs (str dir "/rules"))
+    (spit (str dir "/registry/r.edn")
+          (str "{:fn/load {:kind/fn true :fn/deps [:db/main]}\n"
+               " :fn/run {:kind/fn true :fn/deps [:fn/load] :fn/reads [:job/spec]}\n"
+               " :job/spec {:kind/data true}\n"
+               " :db/main {:kind/component true}\n"
+               " :fn/untyped {:kind/fn true :fn/uses [:db/main]}\n"
+               " :adr/cache {:kind/adr true :adr/realized-by [:fn/run] :adr/mitigates [:risk/slow]}\n"
+               " :risk/slow {:kind/risk true}\n"
+               " :risk/orphan {:kind/risk true}}"))
+    (spit (str dir "/rules/r.edn")
+          (str "{:r/risk-mitigated {:when {:has :kind/risk} :require [{:related-by {:adr/mitigates {:some {:has :kind/adr}}}}]}\n"
+               " :r/adr-realized-by-fns {:when {:has :kind/adr} :require [{:related {:adr/realized-by {:all {:has :kind/fn}}}}]}\n"
+               " :r/adr-off-db {:when {:has :kind/adr} :require [{:reaches {:via #{:deps :adr/realized-by} :none {:id :db/main}}}]}\n"
+               " :r/adr-off-db-deps {:when {:has :kind/adr} :require [{:reaches {:none {:id :db/main}}}]}\n"
+               " :r/typo {:when {:has :kind/adr} :require [{:related {:adr/mitigate {:some {:has :kind/risk}}}}]}\n"
+               " :r/via-typo {:when {:has :kind/adr} :require [{:reaches {:via #{:adr/realised-by} :none {:id :db/main}}}]}\n"
+               " :r/bad-shape {:when {:has :kind/adr} :require [{:related :adr/mitigates}]}}"))
+    (let [relations {:fn/deps {:verb :depends} :fn/reads {:verb :consumes}
+                     :adr/realized-by {:verb :adr/realized-by} :adr/mitigates {:verb :adr/mitigates}}
+          build (fn [& {:as more}] (index/build (merge {:root dir :src [] :registry ["registry"] :rules ["rules"] :cache nil
+                                                        :relations relations}
+                                                       more)))
+          ri (build)
+          reached (fn [idx id & via] (set (map :dev-id (:reaches (apply index/reach idx id via)))))
+          v (fn [rule] (set (for [p (problems ri :rule-violated) :when (= rule (:rule p))] [(:dev-id p) (:offenders p)])))
+          not-understood (fn [rule] (first (for [p (problems ri :rule-not-understood) :when (= rule (:rule p))] (:reasons p))))]
+      (check "relations: a key with a verb of its own is a relation, not a dependency: an ADR reaches nothing"
+             (and (empty? (reached ri :adr/cache))
+                  (= #{:fn/load :db/main} (reached ri :fn/run))))
+      (check "relations: what a :consumes key names is dataflow, not a dependency"
+             (not (contains? (reached ri :fn/run) :job/spec)))
+      (check "relations: a key no source gives a verb is untyped, and what it names is a dependency"
+             (and (= #{:db/main} (reached ri :fn/untyped))
+                  (= #{:fn/load :fn/run :fn/untyped} (set (map :dev-id (:reached-by (index/reached-by ri :db/main)))))))
+      (check "relations: dependencies and uses say each key's verb"
+             (and (= #{[:fn/run :adr/realized-by] [:risk/slow :adr/mitigates]}
+                     (set (map (juxt :dev-id :verb) (:depends-on (index/dependencies ri :adr/cache)))))
+                  (= [[:adr/cache :adr/realized-by]] (map (juxt :dev-id :verb) (:referenced-by (index/uses ri :fn/run))))))
+      (check "relations: reach follows a verb when :via names it"
+             (= #{:fn/run :fn/load :db/main} (reached ri :adr/cache [:deps :adr/realized-by])))
+      (check "rules: :related-by, the entities relating to it by a verb; :related, what it relates to"
+             (and (= #{[:risk/orphan nil]} (v :r/risk-mitigated))
+                  (empty? (v :r/adr-realized-by-fns))))
+      (check "rules: :reaches through a verb in :via; without it, a relation isn't followed"
+             (and (= #{[:adr/cache [:db/main]]} (v :r/adr-off-db))
+                  (empty? (v :r/adr-off-db-deps))
+                  (some #(re-find #":adr/cache \(:fn/run → :fn/load → :db/main\)" %) (hover/brief ri))))
+      (check "rules: a verb no relation declares, under :related or in a :via, is a rule not understood, not a pass"
+             (and (= ["no relation declares the verb :adr/mitigate"] (not-understood :r/typo))
+                  (= ["no relation declares the verb :adr/realised-by"] (not-understood :r/via-typo))
+                  (= [":related takes {verb {:all cond}}, a verb, and a clause on what it relates"] (not-understood :r/bad-shape))))
+      (check "relations: a key given two verbs is an error naming who gave which, and stays untyped"
+             (let [ci (build :dataflow {:consumes [:fn/deps]})
+                   [p] (problems ci :conflicting-relations)]
+               (and (= :fn/deps (:property p))
+                    (= {:consumes ["meta-source.edn"] :depends ["meta-source.edn"]} (:verbs p))
+                    (= #{:fn/load :db/main} (reached ci :fn/run))
+                    (str/includes? (hover/message ci p nil) ":fn/deps is given several verbs"))))
+      (check "relations: a verb meta-source doesn't know is a relation not understood"
+             (let [bi (build :relations (assoc relations :fn/deps {:verb :uses} :fn/uses :depends))]
+               (= #{[:fn/deps "a verb is one of (:consumes :depends :produces) or a qualified keyword"]
+                    [:fn/uses "a verb is one of (:consumes :depends :produces) or a qualified keyword"]}
+                  (set (map (juxt :property :reason) (problems bi :relation-not-understood))))))
+      (check "relations: a pack's :pack/relations-of derives them from what was read"
+             (let [pi (index/build {:root dir :src [] :registry ["registry"] :cache nil
+                                    :packs {'smoke.packs/relations-pack {}}})]
+               (spit (str dir "/registry/refs.edn")
+                     "{:ref/mitigates {:ref/property :adr/mitigates :ref/verb :adr/mitigates}}")
+               (let [pi2 (index/build {:root dir :src [] :registry ["registry"] :cache nil
+                                       :packs {'smoke.packs/relations-pack {}}})]
+                 (fs/delete (str dir "/registry/refs.edn"))
+                 (and (contains? (reached pi :adr/cache) :risk/slow)
+                      (not (contains? (reached pi2 :adr/cache) :risk/slow))
+                      (= :adr/mitigates (:verb (first (filter #(= :risk/slow (:dev-id %))
+                                                              (:depends-on (index/dependencies pi2 :adr/cache))))))))))
+      (check "hover: an entity's relations, by verb, apart from its deps"
+             (let [d (:describe (hover/lookup ri :adr/cache))]
+               (and (str/includes? d ":adr/realized-by  :fn/run")
+                    (str/includes? d ":adr/mitigates  :risk/slow")
+                    (not (re-find #"(?m)^deps " d))))))
+    (fs/delete-tree dir))
+
+  (let [cfg (assoc (edn/read-string (slurp (str core-root "/meta-source.edn"))) :root core-root :cache nil)
+        as-relations (-> cfg (dissoc :dataflow)
+                         (assoc :relations {:fn/reads {:verb :consumes} :fn/returns {:verb :produces}}))]
+    (check "relations: :dataflow is what :relations with :consumes and :produces says"
+           (= (map (juxt :consumers :producers) (for [k [:user/email :order/lines :user/id]] (index/data-key (index/build cfg) k)))
+              (map (juxt :consumers :producers) (for [k [:user/email :order/lines :user/id]] (index/data-key (index/build as-relations) k))))))
+
   ;; ---- rules a pack derives from what was read
   (let [dir (str (fs/create-temp-dir))]
     (fs/create-dirs (str dir "/registry"))

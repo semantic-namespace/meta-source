@@ -85,6 +85,8 @@ The optional keys:
 | `:pack/merge` | `{key :union}`: keys whose values it unions across sources, rather than reporting different values as a conflict |
 | `:pack/dataflow` | `{:consumes [k ...] :produces [k ...]}`: entry keys listing the data keys its entities read and give |
 | `:pack/dataflow-of` | `(fn [entries])` → the same, derived from what was read (`{id entry}`): atlas's pack takes a project's ontologies' context and response keys, so a project's own entity types need no `:dataflow` line |
+| `:pack/relations` | `{k {:verb v}}`: what an entry key's ids are to the entity: `:depends`, `:consumes`, `:produces`, or a qualified verb of the pack's own ([relations](reference.md#what-an-entry-key-means-relations)) |
+| `:pack/relations-of` | `(fn [entries])` → the same, derived from what was read: atlas's pack reads its type-refs |
 | `:pack/derive` | `(fn [entities opts])` → `{id {key value}}`: facts derived from what every pack read, `entities` being `{id {:entry merged-entry :kinds #{source-kind}}}`. atlas's pack gives a route described in EDN its `:atlas/type`. A derived fact fills a key the entry lacks, never one a source gave, so it can't conflict; `where` lists it with `:derived-by` |
 | `:pack/rules-of` | `(fn [entries])` → `{rule-id rule}`, rules as a rules file holds them, derived from what was read: atlas's pack takes the rules a project's invariants carry. They are checked with the project's own, and a rule whose id is an entity's is located at that entity |
 | `:pack/id-key` | its library's meta key linking a var to an id (atlas's `:atlas.source/id`), read as `:id-key` is, with no configuration. A var it links that no source describes is the pack's to report, so meta-source's `:binding-only` is left out for it |
@@ -160,6 +162,10 @@ Each pack adds its own (the Pathom pack: `:pathom/input`, `:pathom/params`,
 `{:job/nightly-digest {:job/reads [:user/email]}}` is a consumer of
 `:user/email`. The core fixture (`test/fixtures/core`) describes its plain
 functions this way (`:fn/reads`, `:fn/returns`).
+
+`:dataflow` is the dataflow half of `:relations`, which says what any entry
+key means, a dependency or a relation of the project's own
+([reference](reference.md#what-an-entry-key-means-relations)).
 
 ## A project's own namespaces: the namespaces pack
 

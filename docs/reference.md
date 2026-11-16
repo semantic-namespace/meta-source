@@ -89,6 +89,34 @@ A function with an `s/fdef` or a malli `m/=>` needs neither: the contract it
 already has is read, keyed by its var
 ([meta-source-packs](https://github.com/semantic-namespace/meta-source-packs/blob/main/docs/packs.md#function-contracts-sfdef-and-m)).
 
+### What an entry key means: relations
+
+A key naming other entities is, by default, a dependency: `:deps`, `reach`
+and the "deps" in a hover follow every one. `:relations` says what a key's
+ids are to the entity, as a verb:
+
+```clojure
+;; meta-source.edn
+{:relations {:fn/needs      {:verb :depends}           ; a dependency
+             :fn/reads      {:verb :consumes}          ; dataflow
+             :fn/returns    {:verb :produces}
+             :adr/mitigates {:verb :adr/mitigates}}}   ; a relation of your own
+```
+
+- `:depends`: a dependency, as an undeclared key is.
+- `:consumes`, `:produces`: dataflow, as `:dataflow` says: `{:dataflow
+  {:consumes [:fn/reads]}}` is `{:relations {:fn/reads {:verb :consumes}}}`.
+  Reading a key isn't depending on its producer.
+- any qualified keyword: a relation of its own. It isn't a dependency:
+  `reach` doesn't follow it unless a `:via` names it, and rules follow it
+  with `:related` and `:related-by`. A hover lists it by verb.
+
+A key given two verbs (by `meta-source.edn` and a pack, or two packs) is a
+`:conflicting-relations` error naming who gave which, and stays untyped until
+they agree. A verb meta-source doesn't know is `:relation-not-understood`.
+Packs give relations too (`:pack/relations`, `:pack/relations-of`): atlas's
+reads its type-refs.
+
 A var with the meta key and no entry is valid: an entity with its binding
 only, reported as info. `:id-key` in `meta-source.edn` chooses another meta
 key; `:merge {key :union}` unions a set-valued key across files instead of
@@ -142,15 +170,17 @@ them. A condition is a map, and every key in it must hold:
 | `:not cond`, `:or [cond ...]` | |
 | `:id :k` (or a set) | it is one of these entities |
 | `:consumers`, `:producers` | a data key's consumers or producers... |
-| `:deps`, `:used-by` | ...what its entry names, or what names it... |
+| `:deps`, `:used-by` | ...what its entry names under a key whose verb is `:depends` or that has none, or what so names it... |
 | `:calls`, `:called-by` | ...whose linked var its code calls, or whose code calls its... |
 | `:provided-by`, `:provides` | ...the entity whose code calls the var it is defined in (a route's component: its `init-key` calls the fn building the route), or what it so builds... |
 | `:handed` | ...what that component hands it: the components behind the config keys its `init-key` passes to the call, or all it holds when that isn't known... |
 | | ...with `{:all cond}`, `{:some cond}` or `{:none cond}` |
-| `:reaches {q cond}` | everything it depends on, transitively, through declared relations: `:deps`, `:calls` and `:provided-by` (`:via #{:deps}` follows only those): `{:reaches {:none {:id :infra.db/xtdb}}}`. Not through data: reading a key a second entity produces doesn't reach that entity (atlas's effective dependencies do, so atlas's blast radius can answer differently). A violation shows the path to each offender |
+| `:reaches {q cond}` | everything it depends on, transitively, through declared relations: `:deps`, `:calls` and `:provided-by` (`:via #{:deps}` follows only those, and a `:via` may name verbs: `#{:deps :adr/realized-by}`): `{:reaches {:none {:id :infra.db/xtdb}}}`. Not through data: reading a key a second entity produces doesn't reach that entity (atlas's effective dependencies do, so atlas's blast radius can answer differently). A violation shows the path to each offender |
 | `:reached-by {q cond}` | everything that depends on it, transitively, `:via` as for `:reaches`: `{:reached-by {:none {:kind :reitit}}}` on the database. A violation shows the path from each offender |
 | `:refs {:k q}` | what its `:k` names (the qualified keywords in its value), `q` as above: `{:refs {:fn/deps {:none {:has :kind/component}}}}`. `:deps` follows every key; this, one |
 | `:referenced-by {:k q}` | the entities whose `:k` names it: `{:referenced-by {:vp/pattern {:some {:has :kind/vp}}}}` |
+| `:related {verb q}` | what it names under the keys whose verb is this ([relations](#what-an-entry-key-means-relations)): `{:related {:adr/mitigates {:some {:has :risk/level}}}}`. A verb no relation declares is a rule not understood |
+| `:related-by {verb q}` | the entities naming it under such a key: `{:related-by {:adr/mitigates {:some {:kind :edn}}}}` |
 | `:resolves :k` (or a vector) | everything its `:k` names is an entity some source defines; what doesn't is named |
 
 ![Rules about one property, :resolves and :refs, in Emacs](images/meta-source-rule-refs.gif)

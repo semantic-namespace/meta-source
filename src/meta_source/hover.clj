@@ -54,7 +54,14 @@
         entry (:entry w)
         problems (filter #(= id (:dev-id %)) (index/check idx))
         {:keys [consumes produces]} (index/contract-keys idx entry)
-        deps (distinct (map :dev-id (:depends-on (index/dependencies idx id))))
+        named (:depends-on (index/dependencies idx id))
+        deps (distinct (map :dev-id (filter #(index/dependency? (:verb %)) named)))
+        ;; what it names under a key with a verb of its own: a relation, not a dependency
+        related (into (sorted-map-by #(compare (str %1) (str %2)))
+                      (for [[v rs] (group-by :verb (remove #(or (index/dependency? (:verb %))
+                                                                (#{:consumes :produces} (:verb %)))
+                                                           named))]
+                        [v (distinct (map :dev-id rs))]))
         ;; places that only refer to it (a dispatch) are not where it is defined
         {referring true defining false} (group-by #(boolean (:refers %)) (:sources w))
         ;; its primary definition first: where M-. goes
@@ -84,6 +91,7 @@
        (when (seq consumes) [(str "consumes   " (str/join " " (map pr-str (sort consumes))))])
        (when (seq produces) [(str "produces   " (str/join " " (map pr-str (sort produces))))])
        (when (seq deps) [(str "deps       " (str/join " " (map pr-str deps)))])
+       (for [[v ids] related] (str (pr-str v) "  " (str/join " " (map pr-str ids))))
        (for [[k v] (sort-by key entry) :when (not (marker? k))] (str (pr-str k) "  " (pr-str v)))
        [""]
        (for [[i s] (map-indexed vector defining)]
@@ -98,7 +106,11 @@
                  [""]))
        (cond
          (seq (:referenced-by u))
-         (cons "used by" (for [r (:referenced-by u)] (str "  " (pr-str (:dev-id r)) "  via " (pr-str (:via r)) "    " (at (:definition r)))))
+         (cons "used by" (for [r (:referenced-by u)]
+                           (str "  " (pr-str (:dev-id r)) "  via " (pr-str (:via r))
+                                ;; the verb, when it says more than the key
+                                (when (and (:verb r) (not= (:verb r) (:via r))) (str " (" (pr-str (:verb r)) ")"))
+                                "    " (at (:definition r)))))
          (empty? referring) ["used by    nothing names it"])
        (when (seq (:called-from u))
          (cons "called from" (for [c (:called-from u)] (str "  " (:var c) (when (:dev-id c) (str " " (pr-str (:dev-id c)))) "    " (at c)))))
@@ -271,6 +283,13 @@
                                    " can't be checked: off the pattern at "
                                    (str/join ", " (for [b (:because p)] (str (pr-str (:at b)) " (" (pr-str (:pattern b)) ")")))
                                    "  [" (pr-str (:rule p)) "]")
+           :conflicting-relations (str (pr-str (:property p)) " is given several verbs: "
+                                       (str/join ", " (for [[v srcs] (:verbs p)] (str (pr-str v) " by " (str/join " and " (map #(if (keyword? %) (name %) (str %)) srcs)))))
+                                       "; it is untyped until they agree")
+           :relation-not-understood (str "a relation in " (let [s (:source p)] (if (keyword? s) (str "pack " (name s)) s))
+                                         " not understood"
+                                         (when (:property p) (str ", " (pr-str (:property p)) " " (pr-str (:given p))))
+                                         ": " (:reason p))
            :rule-not-understood (str "rule " (pr-str (:rule p)) " not understood: " (str/join "; " (:reasons p)))
            :unreadable-rules-file (str "rules file not readable: " (:message p))
            (str (name (:problem p)) (when id (str " " id)) (when (seq (:keys p)) (str " " ks))
