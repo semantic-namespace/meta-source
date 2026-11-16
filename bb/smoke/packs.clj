@@ -97,6 +97,17 @@
                             {:file file :row line :kind :listed-note :dev-id k :entry {:note/text "listed"}})))})
 (def declaring-jobs-pack (notes-pack false "notes/jobs.edn"))
 
+(def shapes-pack
+  "A pack whose entities are data keys, as a schema pack's: each key
+   shapes.edn has."
+  {:pack/id :shapes :pack/kinds #{:shape} :pack/data-keys? true
+   :pack/data-files (fn [_] ["shapes.edn"])
+   :pack/read-data (fn [files _]
+                     (vec (for [{:keys [file text]} files
+                                [k v line] (meta-source.read/keyed-lines text {:tags :keep})
+                                :when (qualified-keyword? k)]
+                            {:file file :row line :kind :shape :dev-id k :entry {:shape/is v}})))})
+
 (def job-again
   "A pack claiming the kind the job pack gives."
   {:pack/id :job-again :pack/kinds #{:job} :pack/find (fn [_ _] []) :pack/read (fn [_ _ _] [])})

@@ -121,7 +121,14 @@ ids are to the entity, as a verb:
 
 A key given two verbs (by `meta-source.edn` and a pack, or two packs) is a
 `:conflicting-relations` error naming who gave which, and stays untyped until
-they agree. A verb meta-source doesn't know is `:relation-not-understood`.
+they agree. Meanwhile a rule following that key (`:deps`, `:used-by`,
+`:reaches`, `:reached-by`, `:related` with one of its verbs, `:consumers` or
+`:producers`) is `:rule-unverifiable` where the key would decide its answer,
+naming the conflict: it doesn't answer on a guess.
+
+`:related` with `:consumes` or `:produces` follows the entry's contract, data
+keys included, as `:consumers`, `:producers` and `data` do: enabling a schema
+pack, which makes a key a data key, doesn't change what the rule sees. A verb meta-source doesn't know is `:relation-not-understood`.
 Packs give relations too (`:pack/relations`, `:pack/relations-of`): atlas's
 reads its type-refs.
 

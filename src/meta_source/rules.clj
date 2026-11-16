@@ -58,7 +58,12 @@
                                this (meta-source.edn's :relations, or a
                                pack's): {:related {:adr/mitigates {:some
                                {:has :risk/level}}}}; a verb no relation
-                               declares is a rule not understood
+                               declares is a rule not understood. Under
+                               :consumes and :produces, its contract keys,
+                               data keys included, as :consumers and
+                               :producers see them. Through a key whose
+                               sources give it several verbs, a clause
+                               can't be told: the rule says so
      :related-by {verb q}      the entities naming it under such a key
      :resolves :k or [:k ...]  everything its entry's :k names is an
                                entity some source defines
@@ -350,6 +355,17 @@
             (when (contains? c :reaches)
               (mapcat inexact (cons id (keys (reachable view (or (:via (:reaches c)) depends-on) id)))))
             (when (contains? c :reached-by) (when-let [f (:inexact-all view)] (f)))
+            ;; a key whose sources give several verbs is untyped: what a
+            ;; relation clause follows through it is a guess
+            (let [own (or (:conflicted view) (constantly nil))
+                  naming (or (:conflicted-naming view) (constantly nil))
+                  with-verb (fn [vs rs] (filter #(some (:verbs %) vs) rs))]
+              (concat (when (contains? c :deps) (own id))
+                      (when (contains? c :used-by) (naming id))
+                      (when (map? (:related c)) (with-verb (keys (:related c)) (own id)))
+                      (when (map? (:related-by c)) (with-verb (keys (:related-by c)) (naming id)))
+                      (when (contains? c :consumers) (with-verb [:consumes] (naming id)))
+                      (when (contains? c :producers) (with-verb [:produces] (naming id)))))
             (when (contains? c :not) (unsure view (:not c) id))
             (when (contains? c :or) (mapcat #(unsure view % id) (:or c))))]
     (when (seq rs) (set rs))))
