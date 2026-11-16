@@ -118,8 +118,15 @@ ids are to the entity, as a verb:
 - any qualified keyword: a relation of its own. It isn't a dependency:
   `reach` doesn't follow it unless a `:via` names it, and rules follow it
   with `:related` and `:related-by`. A hover lists it by verb.
+- a qualified verb with `:depends true` is both: a relation rules follow by
+  its verb, and a dependency reach follows. A workflow's producers are what
+  it runs and what it depends on:
+  `{:wf/producers {:verb :wf/has-producer :depends true}}`. `:depends true`
+  doesn't go with `:consumes` or `:produces`: reading data isn't depending
+  on its producer.
 
-A key given two verbs (by `meta-source.edn` and a pack, or two packs) is a
+A key given two verbs (by `meta-source.edn` and a pack, or two packs), or
+`:depends true` by one and not another, is a
 `:conflicting-relations` error naming who gave which, and stays untyped until
 they agree. Meanwhile a rule following that key (`:deps`, `:used-by`,
 `:reaches`, `:reached-by`, `:related` with one of its verbs, `:consumers` or

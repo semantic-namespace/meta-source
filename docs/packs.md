@@ -85,7 +85,7 @@ The optional keys:
 | `:pack/merge` | `{key :union}`: keys whose values it unions across sources, rather than reporting different values as a conflict |
 | `:pack/dataflow` | `{:consumes [k ...] :produces [k ...]}`: entry keys listing the data keys its entities read and give |
 | `:pack/dataflow-of` | `(fn [entries])` → the same, derived from what was read (`{id entry}`): atlas's pack takes a project's ontologies' context and response keys, so a project's own entity types need no `:dataflow` line |
-| `:pack/relations` | `{k {:verb v}}`: what an entry key's ids are to the entity: `:depends`, `:consumes`, `:produces`, or a qualified verb of the pack's own ([relations](reference.md#what-an-entry-key-means-relations)) |
+| `:pack/relations` | `{k {:verb v}}`: what an entry key's ids are to the entity: `:depends`, `:consumes`, `:produces`, or a qualified verb of the pack's own, with `:depends true` when its ids are dependencies too ([relations](reference.md#what-an-entry-key-means-relations)) |
 | `:pack/relations-of` | `(fn [entries])` → the same, derived from what was read: atlas's pack reads its type-refs |
 | `:pack/derive` | `(fn [entities opts])` → `{id {key value}}`: facts derived from what every pack read, `entities` being `{id {:entry merged-entry :kinds #{source-kind}}}`. atlas's pack gives a route described in EDN its `:atlas/type`. A derived fact fills a key the entry lacks, never one a source gave, so it can't conflict; `where` lists it with `:derived-by` |
 | `:pack/rules-of` | `(fn [entries])` → `{rule-id rule}`, rules as a rules file holds them, derived from what was read: atlas's pack takes the rules a project's invariants carry. They are checked with the project's own, and a rule whose id is an entity's is located at that entity |

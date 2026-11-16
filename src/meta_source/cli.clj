@@ -14,7 +14,8 @@
       :dataflow {:consumes [...] :produces [...]}
       :relations {:fn/deps {:verb :depends}  ; what an entry key's ids are: :depends,
                   :fn/reads {:verb :consumes} ; :consumes, :produces or a qualified verb
-                  :adr/mitigates {:verb :adr/mitigates}}
+                  :adr/mitigates {:verb :adr/mitigates}  ; :depends true: a dependency too
+                  :wf/producers {:verb :wf/has-producer :depends true}}
       :merge {:app/tags :union}
       :rules [\"rules\"]                   ; EDN files of the project's own rules
       :id-key :meta-source/id             ; the meta key a var carries

@@ -685,6 +685,53 @@
                     (not (re-find #"(?m)^deps " d))))))
     (fs/delete-tree dir))
 
+  ;; ---- relations: a verb of its own that is a dependency too
+  (let [dir (str (fs/create-temp-dir))]
+    (fs/create-dirs (str dir "/registry"))
+    (fs/create-dirs (str dir "/rules"))
+    (spit (str dir "/registry/r.edn")
+          (str "{:wf/checkout {:wf/producers [:fn/charge]}\n"
+               " :fn/charge {:kind/fn true :fn/deps [:db/payments]}\n"
+               " :db/payments {:kind/db true}}"))
+    (spit (str dir "/rules/r.edn")
+          (str "{:r/producers-are-fns {:when {:has :wf/producers} :require [{:related {:wf/has-producer {:all {:has :kind/fn}}}}]}\n"
+               " :r/wf-off-db {:when {:has :wf/producers} :require [{:reaches {:none {:has :kind/db}}}]}}"))
+    (let [build (fn [rel & {:as more}] (index/build (merge {:root dir :src [] :registry ["registry"] :rules ["rules"] :cache nil
+                                                           :relations {:wf/producers rel}}
+                                                          more)))
+          both (build {:verb :wf/has-producer :depends true})
+          only (build {:verb :wf/has-producer})
+          reached (fn [idx] (set (map :dev-id (:reaches (index/reach idx :wf/checkout)))))
+          v (fn [idx] (set (map :rule (problems idx :rule-violated))))]
+      (check "relations: {:verb v :depends true}: reach follows the key and :related follows its verb, both"
+             (and (= #{:fn/charge :db/payments} (reached both))
+                  (= #{:r/wf-off-db} (v both))
+                  (= [{:dev-id :fn/charge :verb :wf/has-producer :depends true}]
+                     (map #(select-keys % [:dev-id :verb :depends]) (:depends-on (index/dependencies both :wf/checkout))))
+                  (= [{:dev-id :wf/checkout :verb :wf/has-producer :depends true}]
+                     (map #(select-keys % [:dev-id :verb :depends]) (:referenced-by (index/uses both :fn/charge))))))
+      (check "relations: without :depends true, a verb of its own is a relation only: reach doesn't follow it"
+             (and (empty? (reached only)) (empty? (v only))))
+      (check "hover: a dependency under a verb of its own is in deps and under related"
+             (let [d (:describe (hover/lookup both :wf/checkout))]
+               (and (re-find #"(?m)^deps +:fn/charge" d) (str/includes? d "related    :wf/has-producer :fn/charge"))))
+      (check "relations: :depends true on dataflow, or not true or false, is a relation not understood"
+             (= #{"dataflow is no dependency: :depends true goes with :depends or a verb of the project's own"
+                  ":depends is true or false"}
+                (set (map :reason (concat (problems (build {:verb :consumes :depends true}) :relation-not-understood)
+                                          (problems (build {:verb :wf/has-producer :depends :yes}) :relation-not-understood))))))
+      (check "relations: :depends given by one source and not another is a conflict, naming who said which"
+             (let [ci (build {:verb :wf/has-producer :depends true}
+                             :packs {'smoke.packs/relations-pack {}})
+                   _ (spit (str dir "/registry/refs.edn") "{:ref/p {:ref/property :wf/producers :ref/verb :wf/has-producer}}")
+                   ci (build {:verb :wf/has-producer :depends true} :packs {'smoke.packs/relations-pack {}})
+                   [p] (problems ci :conflicting-relations)]
+               (fs/delete (str dir "/registry/refs.edn"))
+               (and (= {true ["meta-source.edn"] false [:relations-of]} (:depends p))
+                    (str/includes? (hover/message ci p nil)
+                                   ":wf/producers :wf/has-producer is a dependency by meta-source.edn and not by relations-of")))))
+    (fs/delete-tree dir))
+
   ;; ---- relations: rules give one answer whatever the packs, or say they can't
   (let [dir (str (fs/create-temp-dir))]
     (fs/create-dirs (str dir "/registry"))
