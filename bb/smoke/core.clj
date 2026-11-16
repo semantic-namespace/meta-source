@@ -685,6 +685,54 @@
                     (not (re-find #"(?m)^deps " d))))))
     (fs/delete-tree dir))
 
+  ;; ---- relations: rules give one answer whatever the packs, or say they can't
+  (let [dir (str (fs/create-temp-dir))]
+    (fs/create-dirs (str dir "/registry"))
+    (fs/create-dirs (str dir "/rules"))
+    (spit (str dir "/registry/r.edn")
+          (str "{:fn/register-user {:fn/reads [:user/email]}\n"
+               " :user/email {:data/privacy :pii}}"))
+    (spit (str dir "/shapes.edn") "{:user/email string?}")
+    (spit (str dir "/rules/r.edn")
+          (str "{:r/no-pii-read {:when {:has :fn/reads} :require [{:related {:consumes {:none {:= {:data/privacy :pii}}}}}]}\n"
+               " :r/pii-unread {:when {:= {:data/privacy :pii}} :require [{:related-by {:consumes {:none {:has :fn/reads}}}}]}}"))
+    (let [build (fn [packs] (index/build {:root dir :src [] :registry ["registry"] :rules ["rules"] :cache nil
+                                          :relations {:fn/reads {:verb :consumes}} :packs packs}))
+          plain (build {})
+          shaped (build {'smoke.packs/shapes-pack {}})
+          v (fn [idx] (set (map (juxt :rule :dev-id) (problems idx :rule-violated))))]
+      (check "relations: :related over a dataflow verb follows the contract, data keys included: a pack making :user/email a data key doesn't change the rule's answer"
+             (and (some? (:shape (index/data-key shaped :user/email)))
+                  (= #{[:r/no-pii-read :fn/register-user] [:r/pii-unread :user/email]} (v plain) (v shaped)))))
+    (fs/delete-tree dir))
+
+  (let [dir (str (fs/create-temp-dir))]
+    (fs/create-dirs (str dir "/registry"))
+    (fs/create-dirs (str dir "/rules"))
+    (spit (str dir "/registry/r.edn")
+          (str "{:ui/page {:layer :ui :doc/see-also [:fn/save]}\n"
+               " :fn/save {:layer :domain :fn/deps [:db/orders]}\n"
+               " :db/orders {:layer :data}}"))
+    (spit (str dir "/rules/r.edn")
+          (str "{:r/ui-off-db {:when {:= {:layer :ui}} :require [{:reaches {:none {:= {:layer :data}}}}]}\n"
+               " :r/ui-deps {:when {:= {:layer :ui}} :require [{:deps {:none {:= {:layer :domain}}}}]}\n"
+               " :r/linked {:when {:= {:layer :ui}} :require [{:related {:doc/see-also {:none {:= {:layer :domain}}}}}]}\n"
+               " :r/unused {:when {:= {:layer :domain}} :require [{:used-by {:none {:= {:layer :ui}}}}]}\n"
+               " :r/layered {:when {:= {:layer :ui}} :require [{:missing :layer}]}}"))
+    (let [ci (index/build {:root dir :src [] :registry ["registry"] :rules ["rules"] :cache nil
+                           :relations {:doc/see-also {:verb :doc/see-also}} :dataflow {:consumes [:doc/see-also]}})
+          by (fn [problem] (set (map (juxt :rule :dev-id) (problems ci problem))))
+          unverifiable (first (filter #(= :r/ui-off-db (:rule %)) (problems ci :rule-unverifiable)))]
+      (check "relations: a rule following a key whose sources give it several verbs says it can't be checked, naming the conflict, instead of answering on a guess"
+             (and (= #{[:r/ui-off-db :ui/page] [:r/ui-deps :ui/page] [:r/linked :ui/page] [:r/unused :fn/save]}
+                     (by :rule-unverifiable))
+                  (= [{:relation :doc/see-also :verbs #{:consumes :doc/see-also} :at :ui/page}] (:because unverifiable))
+                  (str/includes? (hover/message ci unverifiable nil)
+                                 "its relations are in conflict at :ui/page (:doc/see-also is :consumes or :doc/see-also)")))
+      (check "relations: a rule not following the conflicted key still answers"
+             (= #{[:r/layered :ui/page]} (by :rule-violated))))
+    (fs/delete-tree dir))
+
   (let [cfg (assoc (edn/read-string (slurp (str core-root "/meta-source.edn"))) :root core-root :cache nil)
         as-relations (-> cfg (dissoc :dataflow)
                          (assoc :relations {:fn/reads {:verb :consumes} :fn/returns {:verb :produces}}))]

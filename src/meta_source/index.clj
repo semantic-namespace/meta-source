@@ -1609,9 +1609,11 @@
   "The relations rules and queries follow, each once for the whole index."
   [idx]
   (let [entities (sort-by key (:entities idx))
-        index-by (fn [f] (reduce (fn [m [id e]] (reduce #(update %1 %2 (fnil conj []) id) m (f e))) {} entities))
-        consumers (index-by #(:consumes (contract-keys idx (:entry %))))
-        producers (index-by #(:produces (contract-keys idx (:entry %))))
+        contracts (into {} (for [[id e] entities] [id (contract-keys idx (:entry e))]))
+        by-contract (fn [k] (reduce (fn [m [id c]] (reduce #(update %1 %2 (fnil conj []) id) m (get c k)))
+                                    {} (sort-by key contracts)))
+        consumers (by-contract :consumes)
+        producers (by-contract :produces)
         {:keys [calls provided-by given inexact]} (edges idx)
         deps (depends-on idx)
         reverse-of (fn [m] (reduce (fn [r [from tos]] (reduce #(update %1 %2 (fnil conj #{}) from) r tos)) {} m))
@@ -1623,7 +1625,22 @@
                           (reduce (fn [m [_ x verb]] (if verb (update-in m [verb id] (fnil conj #{}) x) m))
                                   m (references idx (:entry e))))
                         {} entities)
-        rev-by-verb (update-vals by-verb reverse-of)]
+        rev-by-verb (update-vals by-verb reverse-of)
+        ;; keys whose sources give several verbs, and so are untyped: what
+        ;; follows them is a guess, which rules say rather than answer
+        conflicted (into {} (for [p (:relations-problems idx) :when (= :conflicting-relations (:problem p))]
+                              [(:property p) (set (keys (:verbs p)))]))
+        own-conflicts (into {} (for [[id e] entities
+                                     :let [rs (for [[k vs] conflicted :when (contains? (:entry e) k)]
+                                                {:relation k :verbs vs :at id})]
+                                     :when (seq rs)]
+                                 [id (set rs)]))
+        naming-conflicts (reduce (fn [m [id e]]
+                                   (reduce (fn [m [k vs]]
+                                             (reduce #(update %1 %2 (fnil conj #{}) {:relation k :verbs vs :at id})
+                                                     m (rules/names (:entry e) k)))
+                                           m conflicted))
+                                 {} entities)]
     {:entities (:entities idx)
      :data-key? #(data-key? idx %)
      :loc #(loc idx %)
@@ -1633,9 +1650,20 @@
      :deps #(sort (get deps % #{}))
      :used-by #(sort (get rdeps % #{}))
      ;; the verbs the index's relations declare, and each one's edges
-     :verbs (set (vals (:relations idx)))
-     :related (fn [verb id] (sort (get-in by-verb [verb id] #{})))
-     :related-by (fn [verb id] (sort (get-in rev-by-verb [verb id] #{})))
+     ;; a verb a conflicting claim gives is declared too: a rule following
+     ;; it is unverifiable, not misread
+     :verbs (into (set (vals (:relations idx))) (mapcat val conflicted))
+     ;; the dataflow verbs relate an entry to its contract keys, data keys
+     ;; included, as :consumers, :producers and `data-key` answer: a pack
+     ;; making a key a data key doesn't take it out of what a rule sees
+     :related (fn [verb id] (case verb
+                              :consumes (sort (get-in contracts [id :consumes]))
+                              :produces (sort (get-in contracts [id :produces]))
+                              (sort (get-in by-verb [verb id] #{}))))
+     :related-by (fn [verb id] (case verb
+                                 :consumes (sort (get consumers id))
+                                 :produces (sort (get producers id))
+                                 (sort (get-in rev-by-verb [verb id] #{}))))
      :calls #(sort (get calls %))
      :called-by #(sort (get called-by %))
      :provided-by #(sort (get provided-by %))
@@ -1644,8 +1672,11 @@
      :handed #(sort (get given % #{}))
      ;; why an entity's reach isn't exact (docs/pattern.md): rules over it
      ;; are unverifiable rather than passing
-     :inexact #(get inexact %)
-     :inexact-all (fn [] (set (mapcat val inexact)))}))
+     :inexact #(not-empty (into (set (get inexact %)) (get own-conflicts %)))
+     :inexact-all (fn [] (into (set (mapcat val inexact)) (mapcat val own-conflicts)))
+     ;; a conflicted key in its own entry, and in the entries naming it by one
+     :conflicted #(get own-conflicts %)
+     :conflicted-naming #(get naming-conflicts %)}))
 
 (defn- rule-findings
   "The project's own rules (meta-source.rules) over the index, and the

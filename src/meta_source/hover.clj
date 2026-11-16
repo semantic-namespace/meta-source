@@ -282,8 +282,17 @@
                                "  [" (pr-str (:rule p)) "]")
            :rule-unverifiable (str (or (:doc p) (pr-str (:rule p))) ": " id
                                    (if (= :unknown (:applies p)) ", whether it applies" "")
-                                   " can't be checked: off the pattern at "
-                                   (str/join ", " (for [b (:because p)] (str (pr-str (:at b)) " (" (pr-str (:pattern b)) ")")))
+                                   " can't be checked: "
+                                   (let [{conflicts true pattern false} (group-by #(contains? % :relation) (:because p))]
+                                     (str/join "; " (remove nil?
+                                                            [(when (seq pattern)
+                                                               (str "off the pattern at "
+                                                                    (str/join ", " (for [b pattern] (str (pr-str (:at b)) " (" (pr-str (:pattern b)) ")")))))
+                                                             (when (seq conflicts)
+                                                               (str "its relations are in conflict at "
+                                                                    (str/join ", " (for [b conflicts]
+                                                                                     (str (pr-str (:at b)) " (" (pr-str (:relation b)) " is "
+                                                                                          (str/join " or " (map pr-str (sort-by str (:verbs b)))) ")")))))])))
                                    "  [" (pr-str (:rule p)) "]")
            :conflicting-relations (str (pr-str (:property p)) " is given several verbs: "
                                        (str/join ", " (for [[v srcs] (:verbs p)] (str (pr-str v) " by " (str/join " and " (map #(if (keyword? %) (name %) (str %)) srcs)))))
