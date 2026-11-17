@@ -182,6 +182,8 @@ a project's own packs, and the [packs](https://github.com/semantic-namespace/met
 libraries. New and experimental: the [JavaScript/TypeScript reader](https://github.com/semantic-namespace/meta-source-js#readme)
 and the VS Code extension. How often each check is right on real apps is
 measured in [meta-source-corpus](https://github.com/semantic-namespace/meta-source-corpus#readme).
+How much of a project it read, and so how much a clean `check` says, every
+`check` prints on its coverage line ([reference](docs/reference.md#commands)).
 
 ## More
 

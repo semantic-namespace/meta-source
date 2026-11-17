@@ -499,6 +499,25 @@
       (seq paths) (assoc :paths paths)
       (seq given-at) (assoc :given-at given-at))))
 
+(defn tally
+  "How much `rules` could say over `view`: {:rules n :applications n
+   :unverifiable n :through-untyped n}. An application is a valid rule and an
+   entity it applies to, or might: unverifiable when that, or one of its
+   clauses, can't be told through code off the pattern; through-untyped when
+   its answer rests on a key no source gives a verb (see untyped-decided)."
+  [view rules]
+  (let [view (prepared view)
+        valid (filter #(and (map? (:rule %)) (empty? (rule-problems (:rule %)))) rules)
+        apps (for [{:keys [rule]} valid
+                   e-id (keys (:entities view))
+                   :let [when-unsure (unsure view (:when rule) e-id)]
+                   :when (or when-unsure (holds? view (:when rule) e-id))]
+               (boolean (or when-unsure (some #(unsure view % e-id) (:require rule)))))]
+    {:rules (count valid)
+     :applications (count apps)
+     :unverifiable (count (filter true? apps))
+     :through-untyped (count (untyped-decided view valid))}))
+
 (defn check
   "The findings `rules` give over `view`: {:entities, :data-key? (fn [e]),
    :consumers :producers :deps :used-by (fn [id] → ids), :loc (fn [e])}.

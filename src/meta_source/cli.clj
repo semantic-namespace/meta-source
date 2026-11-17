@@ -159,13 +159,30 @@
          (System/exit 1))))
 
 (defn read-line-summary
-  "One line saying what check read: its entities, and per pack what was read
-   and what wasn't."
-  [{:keys [entities source-files packs]}]
-  (str "meta-source: read " entities " entities from " source-files " source files"
-       (when (seq packs)
-         (str "; " (str/join ", " (for [[kind {:keys [read not-read]}] packs]
-                                     (str (name kind) " " read (when (pos? not-read) (str " (" not-read " not read)")))))))))
+  "What check read, and how far its answers reach: its entities, per pack
+   what was read and what wasn't; then a coverage line: the forms the packs
+   couldn't read, the public fns linked to an entity (code not linked is
+   seen as calls, not entities), and how many rule answers were exact,
+   couldn't be told, or rest on a key no source types."
+  [{:keys [entities source-files packs coverage]}]
+  (let [{:keys [linked-vars public-fns rules]} coverage
+        read (reduce + (map :read (vals packs)))
+        not-read (reduce + (map :not-read (vals packs)))]
+    (str "meta-source: read " entities " entities from " source-files " source files"
+         (when (seq packs)
+           (str "; " (str/join ", " (for [[kind {:keys [read not-read]}] packs]
+                                       (str (name kind) " " read (when (pos? not-read) (str " (" not-read " not read)")))))))
+         "\nmeta-source: coverage: "
+         (str/join "; "
+                   (concat
+                    (when (seq packs)
+                      [(str read " of " (+ read not-read) " library forms read")])
+                    (when public-fns
+                      [(str linked-vars " of " public-fns " public fns linked to an entity")])
+                    (when-let [{:keys [applications unverifiable through-untyped]} rules]
+                      [(str applications " rule applications, " (- applications unverifiable) " exact"
+                            (when (pos? unverifiable) (str ", " unverifiable " unverifiable"))
+                            (when (pos? through-untyped) (str "; " through-untyped " rule answers rest on untyped keys")))]))))))
 
 (def ^:private severity-rank {:info 0 :warning 1 :error 2})
 

@@ -17,7 +17,7 @@ Emacs package. Packs, and how to write one: [packs.md](packs.md).
 | `data <key>` | a data key's shape, producers and consumers, and the schemas it is a key of |
 | `check` | where code and declarations disagree, most severe first |
 | `diagnostics <file>` | `check`'s findings in one file, with the line and columns to underline |
-| `summary` | counts: entities by source, forms each pack read and couldn't |
+| `summary` | counts: entities by source, forms each pack read and couldn't, and `:coverage` (linked fns, rule applications) |
 | `hover <keyword>` | what an editor shows for a keyword |
 | `serve` | long-lived, one JSON request and reply per line: what the editor talks to |
 
@@ -28,6 +28,26 @@ when a problem is an error (`warning`: a warning or an error; `info`: any
 problem):
 
 ![check --fail-on: the exit status CI reads](images/meta-source-fail-on.gif)
+
+`check` also says, on stderr, what it read and how far its answers reach:
+
+```
+meta-source: read 28 entities from 6 source files; integrant 15, malli 7, reitit 4, tilakone 6
+meta-source: coverage: 32 of 32 library forms read; 4 of 12 public fns linked to an entity; 19 rule applications, 19 exact
+```
+
+- **Library forms read**: what the packs read, out of what they found. A
+  form not read is a `pack-form-not-read` finding.
+- **Public fns linked**: code not linked to an entity is seen as calls, not
+  as entities. A rule's path goes through linked code and declarations only,
+  so few linked fns means a `:reaches {:none …}` pass says less.
+- **Rule applications**: each rule and entity it applies to. Exact ones were
+  checked over the graph; unverifiable ones went through code off a pattern
+  (`rule-unverifiable`). Answers resting on keys no source types are counted
+  too (`untyped-decides-rules`).
+
+Read a clean `check` together with this line: no finding over little
+coverage is little evidence.
 
 ## What `check` finds
 
@@ -194,7 +214,10 @@ data. They are checked with the project's own.
 ![A pack's rules, from atlas's invariants and the project's own, in Emacs](images/meta-source-pack-rules.gif)
 
 `:when` selects entities; each `:require` condition must hold on every one of
-them. A condition is a map, and every key in it must hold:
+them. A rule holds over what meta-source reads: declarations, and calls
+between linked vars. "Reaches none" means no *declared* path, not no path:
+code no entity is linked to, and values passed at run time, aren't followed.
+`check`'s coverage line says how much that leaves out. A condition is a map, and every key in it must hold:
 
 | Key | Holds when |
 |---|---|

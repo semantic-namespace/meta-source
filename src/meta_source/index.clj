@@ -1914,4 +1914,5 @@
                                           [kind {:file (relative (:root idx) file) :as-of (instant written) :entities (count ids)}]))
      :source-files (count (:code idx))
      :analysed-now (:analysed idx)
-     :coverage (dissoc (coverage-note idx) :note)}))
+     :coverage (cond-> (dissoc (coverage-note idx) :note)
+                 (seq (:rules idx)) (assoc :rules (rules/tally (relations-view idx) (:rules idx))))}))
