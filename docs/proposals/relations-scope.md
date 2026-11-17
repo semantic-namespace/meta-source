@@ -57,20 +57,27 @@ A key belongs to whoever owns its namespace. The owner says what it means.
 
 **A. Packs declare their own keys** (meta-source-packs; no interface change).
 Each pack in meta-source-packs gives `:pack/relations` for the keys it writes
-into entries. For example:
+into entries. For tilakone and integrant, checked against the private app
+(see *Step A, simulated* below):
 
-| pack | key | relation |
-|---|---|---|
-| tilakone | `:tilakone/to` | `{:verb :tilakone/to}`: a transition, not a dependency |
-| tilakone | `:tilakone/machines` | `{:verb :tilakone/state-of}` |
-| tilakone | `:tilakone/on` | `{:verb :tilakone/on}` |
-| integrant | `:integrant/refs` | `{:verb :depends}` (what it already is, said) |
-| integrant | `:integrant/init-writes` | to decide with the pack: a write is dataflow (`:produces`)? |
+| pack | key | relation | why |
+|---|---|---|---|
+| tilakone | `:tilakone/states` | `{:verb :tilakone/states :depends true}` | a machine runs its states |
+| tilakone | `:tilakone/machines` | `{:verb :tilakone/state-of}` | a state's pointer back to its machine; as a dependency every state reaches every other |
+| tilakone | `:tilakone/to`, `:tilakone/on` | `{:verb :tilakone/to}`, `{:verb :tilakone/on}` | a transition isn't a dependency |
+| tilakone | `:tilakone/transitions`, `:tilakone/initial` | relations by their own name | same |
+| integrant | `:integrant/refs`, `:integrant/composite-refs` | `{:verb :depends}` | what they already are, said |
+| integrant | `:integrant/derives` | `{:verb :integrant/derives :depends true}` | a derived key with no `init-key` of its own runs its parent's |
+| integrant | `:integrant/init-writes` | `{:verb :integrant/init-writes}` | the keys an init writes |
+
+Two of these need #58's `:depends true`: a key can be a relation *and* a
+dependency. Declaring every tilakone key a plain relation cut machines off
+from their states; declaring `derives` a plain relation left a component
+whose 18 children derive it with no dependents at all.
 
 re-frame, reitit, Pathom, aero, Datascript, Overarch and grain get the same
-review. That alone takes 121 of the app's 191 edges out of reach, and makes
-rules like `{:related {:tilakone/to …}}` possible. It's also the right place:
-the pack that writes a key is the one that knows it.
+review. It makes rules like `{:related {:tilakone/to …}}` possible, and it's
+the right place: the pack that writes a key is the one that knows it.
 
 **B. A pack's untyped default, for its vocabulary only** (small interface
 addition). `:pack/untyped :relation` applies to undeclared keys whose
@@ -125,6 +132,25 @@ The untyped dependency edges leaving atlas entities would become:
 These are estimates from the table above. `:integrant/refs` stays a
 dependency, now declared. Each step would be measured with the before/after
 of #56 (findings unchanged, reach compared entity by entity).
+
+### Step A, simulated
+
+On the private app, with meta-source 8032469 and atlas 61d01cd, the
+tilakone and integrant declarations of step A given as the project's
+`:relations` (the same declarations a pack would give):
+
+| | before #56 | main | step A |
+|---|---|---|---|
+| findings | 218 | 218 | 218, identical |
+| reach pairs (entity → entity it reaches) | 31,305 | 27,847 | 5,783 |
+| untyped edges, all entities | 1,981 | 1,323 | 101 |
+
+No entity reaches anything it didn't on main. The most depended-on component
+keeps 363 dependents (412 on main); an entry point goes from 225 reached
+entities to 113. What's left untyped: `:behavior-tree/children` 24,
+`:spec/refs` 24, `:spec/req` 12, `:spec/req-un` 1 (the spec pack's own keys,
+for A too), the app's own id key 21, and `:llm-prompt/verifies` 12,
+`:workflow-producer/output` 5, `:node/mitigates` 2 (B).
 
 ## Open questions
 
