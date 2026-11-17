@@ -175,6 +175,10 @@ Decomplecting Clojure meta:
 Each library stays the authority on what it declares. meta-source is the
 cross-reference, and it keeps the cross-reference true.
 
+Rules are a small language of their own rather than Datalog, so that a rule
+can say it couldn't tell, and points at a place
+([why](docs/architecture.md#why-rules-arent-datalog)).
+
 ## Status
 
 Working today: the index, `check` and the queries, rules, the Emacs package,

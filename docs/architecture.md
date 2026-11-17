@@ -123,7 +123,11 @@ A pack is a plain map of data and functions keyed `:pack/…`. It isn't a
   - **from code:** `:pack/find` and `:pack/read`;
   - **from data files:** `:pack/data-files` and `:pack/read-data`.
 - **Checked when enabled.** A map missing both pairs is refused, and so is a
-  second pack giving the same source `:kind`.
+  second pack giving the same source `:kind`, and a `:pack/` key meta-source
+  doesn't know.
+- **Stable or provisional.** A key two packs or more give changes only by
+  addition; one only one pack gives may still change
+  ([packs.md](packs.md#the-contract)).
 
 Each key is a function meta-source calls at one point of a build. Listed in
 the order they're called (every key is described in
@@ -131,14 +135,14 @@ the order they're called (every key is described in
 
 | When | Keys | What the pack gives |
 |---|---|---|
-| **enabling** | `:pack/config-keys` | for a pack a library lists in its `meta-source/packs.edn` resource, the `:packs` keys that turn it on; a project's pack is turned on by its symbol |
+| **enabling** | `:pack/id`, `:pack/config-keys` | its name in findings and summaries; for a pack a library lists in its `meta-source/packs.edn` resource, the `:packs` keys that turn it on; a project's pack is turned on by its symbol |
 | **analysis** | `:pack/kondo-config`, `:pack/var-meta`, `:pack/id-key` | clj-kondo config its library would export (`:lint-as`), meta keys to keep on var definitions, and its own meta key linking a var to an id (atlas's `:atlas.source/id`) |
 | **finding** | `:pack/find` | from the analysis of every file, the sites where its forms are: file, row, and the head symbol's position |
 | **reading** | `:pack/read`; `:pack/data-files`, `:pack/read-data` | for one file's sites, each form read as data into `{:row :kind :dev-id :entry}`; for data files, all of them at once |
-| **merging** | `:pack/kinds`, `:pack/merge`, `:pack/data-keys?`, `:pack/describes?`, `:pack/vocabulary` | the kind of its sources, keys it unions, and its role: declaring things, shaping data keys, or describing what others declare |
-| **deriving** | `:pack/dataflow`, `:pack/dataflow-of`, `:pack/relations`, `:pack/relations-of`, `:pack/untyped`, `:pack/vocabulary-of`, `:pack/rules-of`, `:pack/inline-data-keys`, `:pack/schema-call?` | which entry keys list data read and given, and what any entry key's ids are (a dependency, or a verb of the pack's own), declared or derived from what was read, rules derived from entries (atlas's invariants), data keys defined inline, calls that name a schema rather than read a key |
+| **merging** | `:pack/kinds`, `:pack/merge`, `:pack/data-keys?`, `:pack/describes?`, `:pack/depicts?`, `:pack/vocabulary` | the kind of its sources, keys it unions or collects per declaration, and its role: declaring things, shaping data keys, describing what others declare, or picturing the system |
+| **deriving** | `:pack/dataflow`, `:pack/dataflow-of`, `:pack/relations`, `:pack/relations-of`, `:pack/untyped`, `:pack/not-references`, `:pack/depends`, `:pack/hands`, `:pack/vocabulary-of`, `:pack/derive`, `:pack/rules-of`, `:pack/inline-data-keys`, `:pack/schema-call?` | which entry keys list data read and given, and what any entry key's ids are (a dependency, or a verb of the pack's own), declared or derived from what was read; what its names resolve to and what its code hands on; facts and rules derived from entries (atlas's invariants); data keys defined inline; calls that name a schema rather than read a key |
 | **the running system** | `:pack/runtime-fill`, `:pack/runtime-diff`, `:pack/runtime-kinds` | given its snapshot: what static reading couldn't read, and where code and process disagree |
-| **checking** | `:pack/checks` | its library's problems, given a view of the index |
+| **checking** | `:pack/checks`, `:pack/covers` | its library's problems, given a view of the index, and the library namespaces it reads, so they aren't `:not-covered` |
 | **showing** | `:pack/describe`, `:pack/shape`, `:pack/members`, `:pack/messages`, `:pack/inexact` | a hover's one line, a data key's shape, the keys a schema is made of, what each of its problems says, in a line, and the name of its pattern's rule an edge through code breaks |
 
 ### What meta-source does for every pack
@@ -252,6 +256,33 @@ Over the index, a few questions answer everything an editor or CI needs:
   a transition to no state.
 - **Your rules,** written as data over every source at once
   ([docs/reference.md](reference.md#your-own-rules)).
+
+### Why rules aren't Datalog
+
+Rules could be Datalog queries over the index, as atlas's Datascript
+backend runs its invariants. meta-source's are a small language of their own instead
+([rules.clj](../src/meta_source/rules.clj)), for four reasons:
+
+- **A rule says when it can't answer.** Datalog is closed-world: what can't
+  be derived is false. A path through code meta-source couldn't follow
+  would read as no path, and `:reaches {:none …}` would pass. A rule here has
+  a third answer, `rule-unverifiable`, naming the pattern that made the path
+  inexact, and an answer that rests on a key no source types is reported
+  (`untyped-decides-rules`). `check`'s coverage line counts both.
+- **An answer is a place.** A violation names the entity, where it's
+  defined, and for `:reaches` the path that breaks it. A query returns
+  bindings; where they came from would be a second query, written again for
+  every rule.
+- **A typo is an error.** A rule's clauses are a fixed set, checked before
+  it runs: `:reachs` is reported. A misspelled attribute in a query matches
+  nothing, and the rule passes.
+- **Nothing to load.** Rules run in babashka with the index. Datascript
+  doesn't run in stock babashka.
+
+What this gives up is joins the author writes: a rule quantifies over the
+relations meta-source defines (`:deps`, `:calls`, `:consumers`, `:reaches`,
+a pack's verbs, …), not over any pattern of attributes. When a rule needs
+one, the place to add it is a new relation, which keeps all four.
 
 ## Surfaces: CLI, serve, editors, CI
 

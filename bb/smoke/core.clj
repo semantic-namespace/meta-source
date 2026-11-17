@@ -278,10 +278,12 @@
     (fs/create-dirs (str dir "/packs/resources/meta-source"))
     (spit (str dir "/packs/deps.edn") "{:paths [\"src\" \"resources\"]}")
     (spit (str dir "/packs/resources/meta-source/packs.edn")
-          "[{:pack libpack.core/pack :config-keys #{:libpack}} {:pack libpack.core/drift :config-keys #{:drift}}]")
+          (str "[{:pack libpack.core/pack :config-keys #{:libpack}} {:pack libpack.core/drift :config-keys #{:drift}}"
+               " {:pack libpack.core/typo :config-keys #{:typo}}]"))
     (spit (str dir "/packs/src/libpack/core.clj")
           (str "(ns libpack.core)\n(def pack " (pack :libpack "#{:libpack}") ")\n"
-               "(def drift " (pack :drift "#{:other}") ")\n"))
+               "(def drift " (pack :drift "#{:other}") ")\n"
+               "(def typo (assoc " (pack :typo "#{:typo}") " :pack/relation {:x/y {:verb :x/z}} :typo/own 1))\n"))
     (spit (str dir "/meta-source.edn") "{:deps {my/packs {:local/root \"packs\"}} :packs {:libpack {}}}")
     (let [c (cli/config {:root dir})]
       (check "a library's packs are found through its meta-source/packs.edn, once :deps puts it on the classpath"
@@ -289,7 +291,11 @@
                   (= [:libpack] (map :pack/id (index/enabled-packs (:packs c))))))
       (check "packs.edn and the pack disagreeing on its config keys is an error, not a guess"
              (= #{:drift} (:resource (try (index/enabled-packs {:drift {}}) nil
-                                          (catch clojure.lang.ExceptionInfo e (ex-data e)))))))
+                                          (catch clojure.lang.ExceptionInfo e (ex-data e))))))
+      (check "a :pack/ key meta-source doesn't know is refused, naming it, not ignored; a key in another namespace is the pack's own"
+             (let [e (try (index/enabled-packs {:typo {}}) nil (catch clojure.lang.ExceptionInfo e e))]
+               (and (= [:pack/relation] (:unknown (ex-data e)))
+                    (str/includes? (ex-message e) "libpack.core/typo gives :pack/relation, which meta-source doesn't know")))))
     (fs/delete-tree dir))
 
   ;; ---- the project's clj-kondo config: test/fixtures/kondo-config, read from here, not its root
