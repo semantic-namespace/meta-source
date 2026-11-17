@@ -1277,7 +1277,8 @@
                                :when (= x id)]
                            (cond-> {:dev-id other :via prop :definition (loc idx e)}
                              verb (assoc :verb verb)
-                             (and dep? (not (dependency? verb))) (assoc :depends true))))
+                             (and dep? (not (dependency? verb))) (assoc :depends true)
+                             (get-in idx [:untyped-relations prop]) (assoc :untyped (get-in idx [:untyped-relations prop])))))
      :called-from (vec (concat
                         (when (and impl (not (:inline impl)))
                           (for [c (mapcat :calls (vals (:code idx)))
@@ -1298,14 +1299,19 @@
   "The entities `id`'s entry names, with where each is defined, and :verb,
    what the key naming it means, when a source said (meta-source.edn's or a
    pack's :relations): one that isn't :depends is a relation, not a
-   dependency, unless the row says :depends true too."
+   dependency, unless the row says :depends true too. :untyped, the pack
+   whose :pack/untyped :relation made the key a relation, when no source
+   gave it a verb."
   [idx id]
   (when-let [e (get-in idx [:entities id])]
     {:dev-id id
      :depends-on (vec (for [[prop x verb dep?] (references idx (:entry e))]
                         (cond-> {:dev-id x :via prop :definition (loc idx (get-in idx [:entities x]))}
                           verb (assoc :verb verb)
-                          (and dep? (not (dependency? verb))) (assoc :depends true))))}))
+                          (and dep? (not (dependency? verb))) (assoc :depends true)
+                          ;; a relation because no source types it and it is in
+                          ;; that pack's :pack/untyped :relation vocabulary
+                          (get-in idx [:untyped-relations prop]) (assoc :untyped (get-in idx [:untyped-relations prop])))))}))
 
 (defn data-key
   "The entities producing (response) and consuming (context) data key `k`.

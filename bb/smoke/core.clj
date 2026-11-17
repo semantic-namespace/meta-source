@@ -748,7 +748,12 @@
                   (= #{:db/main :svc/mail} (reached ui))
                   (= {:adr/mitigates :untyped :wf/steps :untyped} (:untyped-relations ui))
                   (= :adr/mitigates (get-in ui [:relations :adr/mitigates]))
-                  (str/includes? (:describe (hover/lookup ui :adr/cache)) "related    :adr/mitigates :risk/slow")))
+                  (str/includes? (:describe (hover/lookup ui :adr/cache))
+                                 "related    :adr/mitigates :risk/slow\n             untyped, in untyped's vocabulary")
+                  (= {:verb :adr/mitigates :untyped :untyped}
+                     (select-keys (first (filter #(= :risk/slow (:dev-id %)) (:depends-on (index/dependencies ui :adr/cache)))) [:verb :untyped]))
+                  (= :untyped (:untyped (first (:referenced-by (index/uses ui :risk/slow)))))
+                  (not (str/includes? (:describe (hover/lookup ui :adr/cache)) "related    :adr/needs"))))
       (check "relations: a key a source gives a verb keeps it, and other packs' keys stay dependencies"
              (let [ri (build :packs {'smoke.packs/untyped-pack {}} :relations {:adr/mitigates {:verb :depends}})]
                (and (= #{:risk/slow :db/main :svc/mail} (reached ri))

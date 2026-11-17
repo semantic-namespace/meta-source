@@ -63,6 +63,8 @@
                                                                 (#{:consumes :produces} (:verb %)))
                                                            named))]
                         [v (distinct (map :dev-id rs))]))
+        ;; verbs no source gave: a pack's :pack/untyped :relation made the key one
+        untyped-by (into {} (for [r named :when (:untyped r)] [(:verb r) (:untyped r)]))
         ;; places that only refer to it (a dispatch) are not where it is defined
         {referring true defining false} (group-by #(boolean (:refers %)) (:sources w))
         ;; its primary definition first: where M-. goes
@@ -93,8 +95,10 @@
        (when (seq produces) [(str "produces   " (str/join " " (map pr-str (sort produces))))])
        (when (seq deps) [(str "deps       " (str/join " " (map pr-str deps)))])
        ;; what it names under keys with a verb of their own, by verb
-       (for [[i [v ids]] (map-indexed vector related)]
-         (str (if (zero? i) "related    " "           ") (pr-str v) " " (str/join " " (map pr-str ids))))
+       (mapcat (fn [i [v ids]]
+                 (cons (str (if (zero? i) "related    " "           ") (pr-str v) " " (str/join " " (map pr-str ids)))
+                       (when-let [p (untyped-by v)] [(str "             untyped, in " (name p) "'s vocabulary")])))
+               (range) related)
        (for [[k v] (sort-by key entry) :when (not (marker? k))] (str (pr-str k) "  " (pr-str v)))
        [""]
        (for [[i s] (map-indexed vector defining)]
