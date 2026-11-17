@@ -1021,14 +1021,29 @@
    under a key whose verb is :depends or that has none (a key with another
    verb is a relation of its own, not a dependency), and what its pack
    resolves its names to (an integrant ref to a key that others derive
-   from: :pack/depends)."
+   from: :pack/depends). With `declared?`, only what some source said is a
+   dependency: a key no source types (untyped) is left out."
+  ([idx] (depends-on idx false))
+  ([idx declared?]
+   (let [resolved (apply merge-with into (keep #(when-let [f (:pack/depends %)] (f (:entities idx))) (:packs idx)))]
+     (into {} (for [[id e] (:entities idx)
+                    :let [ds (into (set (for [[_ x verb dep?] (references idx (:entry e))
+                                              :when (and dep? (or verb (not declared?)))]
+                                          x))
+                                   (get resolved id))]
+                    :when (seq ds)]
+                [id (disj ds id)])))))
+
+(defn- untyped-edges
+  "{id {id #{key}}}: for each entity, what it names under keys no source
+   types (dependencies until something says otherwise), by those keys."
   [idx]
-  (let [resolved (apply merge-with into (keep #(when-let [f (:pack/depends %)] (f (:entities idx))) (:packs idx)))]
-    (into {} (for [[id e] (:entities idx)
-                   :let [ds (into (set (for [[_ x _ dep?] (references idx (:entry e)) :when dep?] x))
-                                  (get resolved id))]
-                   :when (seq ds)]
-               [id (disj ds id)]))))
+  (into {} (for [[id e] (:entities idx)
+                 :let [m (reduce (fn [m [k x verb]] (if verb m (update m x (fnil conj #{}) k)))
+                                 {} (references idx (:entry e)))
+                       m (dissoc m id)]
+                 :when (seq m)]
+             [id m])))
 
 
 (def ^:private inexact-fallback
@@ -1701,6 +1716,11 @@
         {:keys [calls provided-by given inexact]} (edges idx)
         deps (depends-on idx)
         reverse-of (fn [m] (reduce (fn [r [from tos]] (reduce #(update %1 %2 (fnil conj #{}) from) r tos)) {} m))
+        ;; the same graph with only what a source said is a dependency: a
+        ;; rule that holds only through an untyped key isn't answered
+        untyped (untyped-edges idx)
+        declared-deps (when (seq untyped) (depends-on idx true))
+        declared-rdeps (when declared-deps (reverse-of declared-deps))
         called-by (reverse-of calls)
         provides (reverse-of provided-by)
         rdeps (reverse-of deps)
@@ -1733,6 +1753,12 @@
      ;; what its entry names, and what its pack resolves those names to
      :deps #(sort (get deps % #{}))
      :used-by #(sort (get rdeps % #{}))
+     ;; when some key is untyped: :deps and :used-by without it, and which
+     ;; untyped keys draw each edge ({id {id #{key}}})
+     :declared (when declared-deps
+                 {:deps #(sort (get declared-deps % #{}))
+                  :used-by #(sort (get declared-rdeps % #{}))})
+     :untyped-edges untyped
      ;; the verbs the index's relations declare, and each one's edges
      ;; a verb a conflicting claim gives is declared too: a rule following
      ;; it is unverifiable, not misread
@@ -1766,8 +1792,18 @@
   "The project's own rules (meta-source.rules) over the index, and the
    rules files that couldn't be read."
   [idx]
-  (concat (for [p (:rules-problems idx)] (assoc p :severity :error))
-          (rules/check (relations-view idx) (:rules idx))))
+  (let [view (relations-view idx)
+        ;; answers that pass only because an untyped key counts as a
+        ;; dependency: one info per key, naming them, so none is silent
+        decided (group-by first (for [d (rules/untyped-decided view (:rules idx)) k (:keys d)]
+                                  [k (dissoc d :keys)]))]
+    (concat (for [p (:rules-problems idx)] (assoc p :severity :error))
+            (rules/check view (:rules idx))
+            (for [[k ds] (sort-by (comp str key) decided)
+                  :let [at (first (for [[id e] (sort-by key (:entities idx)) :when (contains? (:entry e) k)] id))]]
+              (cond-> {:severity :info :problem :untyped-decides-rules :property k
+                       :decides (vec (sort-by (juxt (comp str :rule) (comp str :dev-id)) (map second ds)))}
+                at (assoc :dev-id at :definition (loc idx (get-in idx [:entities at]))))))))
 
 (defn reach
   "What `id` depends on, transitively, through `via` (default :deps, :calls

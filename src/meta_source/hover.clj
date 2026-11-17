@@ -307,6 +307,14 @@
                                            (str " " (pr-str (key (first (:verbs p)))) " is a dependency by "
                                                 (by (get-in p [:depends true])) " and not by " (by (get-in p [:depends false]))))
                                          "; it is untyped until they agree"))
+           :untyped-decides-rules (let [ds (:decides p)
+                                        shown (take 3 ds)]
+                                    (str (pr-str (:property p)) " is untyped, so it counts as a dependency, and "
+                                         (str/join ", " (for [d shown]
+                                                          (str (pr-str (:rule d)) (if (:applies d) " holds on " " leaves out ")
+                                                               (pr-str (:dev-id d)))))
+                                         (when (> (count ds) 3) (str " and " (- (count ds) 3) " more"))
+                                         " only through it: say what it is in :relations"))
            :relation-not-understood (str "a relation in " (let [s (:source p)] (if (keyword? s) (str "pack " (name s)) s))
                                          " not understood"
                                          (when (:property p) (str ", " (pr-str (:property p)) " " (pr-str (:given p))))
