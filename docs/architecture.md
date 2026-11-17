@@ -257,6 +257,33 @@ Over the index, a few questions answer everything an editor or CI needs:
 - **Your rules,** written as data over every source at once
   ([docs/reference.md](reference.md#your-own-rules)).
 
+### Why rules aren't Datalog
+
+Rules could be Datalog queries over the index, as atlas's Datascript
+backend runs its invariants. meta-source's are a small language of their own instead
+([rules.clj](../src/meta_source/rules.clj)), for four reasons:
+
+- **A rule says when it can't answer.** Datalog is closed-world: what can't
+  be derived is false. A path through code meta-source couldn't follow
+  would read as no path, and `:reaches {:none …}` would pass. A rule here has
+  a third answer, `rule-unverifiable`, naming the pattern that made the path
+  inexact, and an answer that rests on a key no source types is reported
+  (`untyped-decides-rules`). `check`'s coverage line counts both.
+- **An answer is a place.** A violation names the entity, where it's
+  defined, and for `:reaches` the path that breaks it. A query returns
+  bindings; where they came from would be a second query, written again for
+  every rule.
+- **A typo is an error.** A rule's clauses are a fixed set, checked before
+  it runs: `:reachs` is reported. A misspelled attribute in a query matches
+  nothing, and the rule passes.
+- **Nothing to load.** Rules run in babashka with the index. Datascript
+  doesn't run in stock babashka.
+
+What this gives up is joins the author writes: a rule quantifies over the
+relations meta-source defines (`:deps`, `:calls`, `:consumers`, `:reaches`,
+a pack's verbs, …), not over any pattern of attributes. When a rule needs
+one, the place to add it is a new relation, which keeps all four.
+
 ## Surfaces: CLI, serve, editors, CI
 
 - **The CLI** (`meta-source where | uses | deps | data | check | summary |
