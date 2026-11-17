@@ -132,6 +132,47 @@ measured gain. Revisit when a real conflict appears. If it does, scope with
 the entry conditions rules already use (`{:when {:= {:atlas/type …}}}`),
 restricted to entry-only clauses, so relations don't depend on relations.
 
+**E. Scoped ids: no; location keys per declaration instead.** D asks whether
+a *key* means one thing everywhere. An external review asked the same about
+*ids*: one keyword, one entity, project-wide, while some libraries name
+things per container. The case it cites is logseq. Its desktop and mobile
+routers each name routes `:home`, `:page` and `:import`, and these are
+meta-source's only false `conflicting-values` errors (6 of 6 in the corpus).
+
+What was measured:
+
+| codebase | ids declared twice | conflicting keys |
+|---|---|---|
+| 21 corpus apps | logseq's 3 route names | `:reitit/in` 3, `:reitit/ns` 3 |
+| the private app (2,625 entities) | none | none |
+| atlas (426) | none | none |
+
+Every other false finding on an unqualified id comes from a registration fn
+or route tree a pack doesn't read (101: 84 re-frame registrations through the
+project's own fns, 17 routes in a tree a fn builds), not from a collision. In logseq, the keys that say *what* the route is agree: both
+`:home`s are `/`, both `:page`s `/page/:name`, both `:import`s `/import`. The
+keys that differ only say *where* each is written.
+
+So the false errors come from the location keys, not from global identity.
+The proposal is that a pack names its location keys (`:pack/merge
+{:reitit/in :each :reitit/ns :each}`). Such a key holds the set of values,
+one per declaration, and never conflicts. It's a merge policy beside
+`:union`, which only unions sets. Logseq would go from 6 errors to 0, with
+no change to identity.
+
+Scoped identity (one entity per router and name) stays out:
+- **References carry no scope.** `(rfe/push-state :home)` doesn't say which
+  router; that depends on which one is running. Resolving it would mean
+  following code, which meta-source doesn't do.
+- **The cost spreads.** Hover, `M-.`, `uses` and reach would each need a
+  scope, for one measured case.
+
+If two declarations of a name ever disagree on a *what* key (`:home` at `/`
+in one router and at `/home` in the other), the conflict stays. It is right
+under one name, one entity, and the message should say "declared by two
+routers" rather than read as a data error. Revisit scoping only when such
+a case turns up in a codebase we didn't write.
+
 ## What changes, in numbers
 
 The untyped dependency edges leaving atlas entities would become:
@@ -182,4 +223,5 @@ them) is a relation. On the same app: 218 findings, identical; reach pairs
    it on the private app before merging B. *Checked:* the 34 namespaces it
    adds hide no data key's props there.
 4. **Order:** A first (packs repo, no core change, biggest gain), then B
-   (core + atlas), with C optional. D only on evidence.
+   (core + atlas), with C optional. D only on evidence. E's location keys
+   are small and independent (core merge policy, then the reitit pack).
