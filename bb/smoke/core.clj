@@ -732,6 +732,32 @@
                                    ":wf/producers :wf/has-producer is a dependency by meta-source.edn and not by relations-of")))))
     (fs/delete-tree dir))
 
+  ;; ---- relations: a pack's own keys are relations when no source says otherwise
+  (let [dir (str (fs/create-temp-dir))]
+    (fs/create-dirs (str dir "/registry"))
+    (spit (str dir "/registry/r.edn")
+          (str "{:adr/cache {:adr/mitigates [:risk/slow] :adr/needs [:db/main] :wf/steps [:fn/run] :team/uses [:svc/mail]}\n"
+               " :risk/slow {:k/x 1} :db/main {:k/x 1} :fn/run {:k/x 1} :svc/mail {:k/x 1}\n"
+               " :vocab/wf {:vocab/ns \"wf\"}}"))
+    (let [build (fn [& {:as more}] (index/build (merge {:root dir :src [] :registry ["registry"] :cache nil} more)))
+          plain (build)
+          ui (build :packs {'smoke.packs/untyped-pack {}})
+          reached (fn [idx] (set (map :dev-id (:reaches (index/reach idx :adr/cache)))))]
+      (check "relations: :pack/untyped :relation: a key of the pack's vocabulary no source gives a verb is a relation by its own name"
+             (and (= #{:risk/slow :db/main :fn/run :svc/mail} (reached plain))
+                  (= #{:db/main :svc/mail} (reached ui))
+                  (= {:adr/mitigates :untyped :wf/steps :untyped} (:untyped-relations ui))
+                  (= :adr/mitigates (get-in ui [:relations :adr/mitigates]))
+                  (str/includes? (:describe (hover/lookup ui :adr/cache)) "related    :adr/mitigates :risk/slow")))
+      (check "relations: a key a source gives a verb keeps it, and other packs' keys stay dependencies"
+             (let [ri (build :packs {'smoke.packs/untyped-pack {}} :relations {:adr/mitigates {:verb :depends}})]
+               (and (= #{:risk/slow :db/main :svc/mail} (reached ri))
+                    (= {:wf/steps :untyped} (:untyped-relations ri)))))
+      (check "relations: :pack/untyped other than :relation is a relation not understood"
+             (= [[:untyped-dependency :dependency]]
+                (map (juxt :source :given) (problems (build :packs {'smoke.packs/untyped-dependency-pack {}}) :relation-not-understood)))))
+    (fs/delete-tree dir))
+
   ;; ---- relations: rules give one answer whatever the packs, or say they can't
   (let [dir (str (fs/create-temp-dir))]
     (fs/create-dirs (str dir "/registry"))

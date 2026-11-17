@@ -137,7 +137,11 @@ naming the conflict: it doesn't answer on a guess.
 keys included, as `:consumers`, `:producers` and `data` do: enabling a schema
 pack, which makes a key a data key, doesn't change what the rule sees. A verb meta-source doesn't know is `:relation-not-understood`.
 Packs give relations too (`:pack/relations`, `:pack/relations-of`): atlas's
-reads its type-refs.
+reads its type-refs. A pack can also say that a key of its own vocabulary no
+source gives a verb is a relation by its own name (`:pack/untyped
+:relation`): atlas does, as its datalog draws no edge from a key no ontology
+declares. That default never reaches another pack's keys or the project's
+own, which stay dependencies until something says otherwise.
 
 A var with the meta key and no entry is valid: an entity with its binding
 only, reported as info. `:id-key` in `meta-source.edn` chooses another meta
