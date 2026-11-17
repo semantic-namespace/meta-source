@@ -811,6 +811,17 @@
                   (empty? (problems as-dep :rule-violated)))))
     (fs/delete-tree dir))
 
+  ;; ---- coverage: public fns are counted in Clojure and ClojureScript, a .cljc one once
+  (let [dir (str (fs/create-temp-dir))]
+    (fs/create-dirs (str dir "/src/app"))
+    (spit (str dir "/src/app/a.clj") "(ns app.a)\n(defn ^{:meta-source/id :fn/a} a [] 1)\n(defn- hidden [] 2)\n")
+    (spit (str dir "/src/app/b.cljs") "(ns app.b)\n(defn b [] 1)\n")
+    (spit (str dir "/src/app/c.cljc") "(ns app.c)\n(defn ^{:meta-source/id :fn/c} c [] 1)\n")
+    (let [s (index/summary (index/build {:root dir :src ["src"] :cache nil}))]
+      (check "coverage: public fns count defn in .clj, .cljs and .cljc, each var once; private fns aren't counted"
+             (= {:linked-vars 2 :public-fns 3} (select-keys (:coverage s) [:linked-vars :public-fns]))))
+    (fs/delete-tree dir))
+
   ;; ---- relations: a pack's own keys are relations when no source says otherwise
   (let [dir (str (fs/create-temp-dir))]
     (fs/create-dirs (str dir "/registry"))
