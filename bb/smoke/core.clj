@@ -732,6 +732,33 @@
                                    ":wf/producers :wf/has-producer is a dependency by meta-source.edn and not by relations-of")))))
     (fs/delete-tree dir))
 
+  ;; ---- relations: a pack giving a key several relations, each from where it read it
+  (let [dir (str (fs/create-temp-dir))]
+    (fs/create-dirs (str dir "/registry"))
+    (fs/create-dirs (str dir "/rules"))
+    (spit (str dir "/registry/r.edn")
+          (str "{:adr/cache {:adr/mitigates [:risk/slow]}\n :risk/slow {:k/x 1}\n"
+               " :ref/a {:ref/property :adr/mitigates :ref/verb :adr/mitigates}\n"
+               " :ref/b {:ref/property :adr/mitigates :ref/verb :adr/mitigates}}"))
+    (spit (str dir "/rules/r.edn") "{:r/mitigates-risks {:when {:has :adr/mitigates} :require [{:related {:adr/mitigates {:all {:has :k/x}}}}]}}")
+    (let [build #(index/build {:root dir :src [] :registry ["registry"] :rules ["rules"] :cache nil
+                               :packs {'smoke.packs/sourced-relations-pack {}}})
+          agree (build)
+          _ (spit (str dir "/registry/r.edn")
+                  (str/replace (slurp (str dir "/registry/r.edn")) ":ref/b {:ref/property :adr/mitigates :ref/verb :adr/mitigates}"
+                               ":ref/b {:ref/property :adr/mitigates :ref/verb :adr/averts}"))
+          differ (build)
+          [p] (problems differ :conflicting-relations)]
+      (check "relations: a pack's several relations for a key that agree give it that verb"
+             (and (= :adr/mitigates (get-in agree [:relations :adr/mitigates]))
+                  (empty? (problems agree :conflicting-relations))))
+      (check "relations: a pack's several relations for a key that disagree are a conflict naming where each was read, never one picked"
+             (and (= {:adr/averts ["sourced :ref/b"] :adr/mitigates ["sourced :ref/a"]} (:verbs p))
+                  (nil? (get-in differ [:relations :adr/mitigates]))
+                  (str/includes? (hover/message differ p nil) ":adr/averts by sourced :ref/b, :adr/mitigates by sourced :ref/a")
+                  (= [:r/mitigates-risks] (map :rule (problems differ :rule-unverifiable))))))
+    (fs/delete-tree dir))
+
   ;; ---- relations: a pack's own keys are relations when no source says otherwise
   (let [dir (str (fs/create-temp-dir))]
     (fs/create-dirs (str dir "/registry"))

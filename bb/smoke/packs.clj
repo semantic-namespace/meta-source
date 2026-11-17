@@ -168,6 +168,15 @@
    :pack/find (fn [_ _] []) :pack/read (fn [_ _ _] [])
    :pack/untyped :dependency})
 
+(def sourced-relations-pack
+  "As relations-pack, but each :ref/ entry is a claim of its own, naming the
+   entry it comes from, as atlas's pack gives each type-ref."
+  {:pack/id :sourced :pack/kinds #{:sourced}
+   :pack/find (fn [_ _] []) :pack/read (fn [_ _ _] [])
+   :pack/relations-of (fn [entries] (update-vals (group-by :prop (for [[id e] (sort-by key entries) :when (:ref/property e)]
+                                                                   {:prop (:ref/property e) :verb (:ref/verb e) :source id}))
+                                                 (fn [cs] (mapv #(dissoc % :prop) cs))))})
+
 (def dispatch-pack
   "A pack reading only what the analysis gives: each (defmethod handle :x)
    is an entity, from its dispatch value, with no form read, so its sites

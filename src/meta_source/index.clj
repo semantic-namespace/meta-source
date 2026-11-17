@@ -203,7 +203,11 @@
 ;;                          too). A key no source gives a verb is untyped:
 ;;                          what it names is a dependency
 ;;   :pack/relations-of     (fn [entries]) → the same, derived from what was
-;;                          read: atlas's type-refs
+;;                          read: atlas's type-refs. A prop may have several,
+;;                          [{:verb v :source s} ...], each from where the
+;;                          pack read it (a type-ref's id): two that disagree
+;;                          are a :conflicting-relations error naming each,
+;;                          never one picked
 ;;   :pack/untyped          :relation: a key of the pack's vocabulary that no
 ;;                          source gives a verb is a relation by its own name,
 ;;                          not a dependency (atlas draws no edge from a key
@@ -437,7 +441,14 @@
   [config packs entities]
   (let [of-relations (fn [m source]
                        (if (map? m)
-                         (for [[prop r] m] [prop (when (map? r) (:verb r)) source r (when (map? r) (:depends r))])
+                         ;; a prop's relation, or several, each naming where it
+                         ;; comes from (:source): two that disagree conflict
+                         (for [[prop r] m
+                               c (if (sequential? r) r [r])
+                               :let [from (when (map? c) (:source c))]]
+                           [prop (when (map? c) (:verb c))
+                            (if from (str (if (keyword? source) (name source) source) " " (pr-str from)) source)
+                            c (when (map? c) (:depends c))])
                          [[nil nil source m]]))
         of-dataflow (fn [df source]
                       (for [[verb ps] (select-keys df [:consumes :produces]) p ps] [p verb source]))]
