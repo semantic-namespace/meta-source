@@ -64,6 +64,17 @@
            (let [tags (update cfg :registry conj "registry-tags")]
              (and (= [[:user/email :data/tags]] (map (juxt :dev-id :key) (problems (index/build tags) :conflicting-values)))
                   (= #{:contact :pii} (get-in (index/where (index/build (assoc tags :merge {:data/tags :union})) :user/email) [:entry :data/tags])))))
+    (check "core: one id declared in two places, a key saying where: a conflict, unless :merge says :each, which keeps one value per declaration"
+           (let [where (update cfg :registry conj "registry-where")
+                 each (index/build (assoc where :merge {:site/router :each}))
+                 e (get-in each [:entities :route/home])]
+             (and (= [[:route/home :site/router]] (map (juxt :dev-id :key) (problems (index/build where) :conflicting-values)))
+                  (empty? (problems each :conflicting-values))
+                  (= #{:site/desktop :site/mobile} (get-in e [:entry :site/router]))
+                  (= "/" (get-in e [:entry :site/path]))
+                  ;; and where each value was given, as for a unioned key
+                  (= {:site/desktop ["desktop.edn"] :site/mobile ["mobile.edn"]}
+                     (update-vals (get-in e [:given-by :site/router]) #(mapv (comp str fs/file-name :file) %))))))
     (check "core: :dataflow in meta-source.edn makes a project's own keys consume data"
            (= [:fn/register-user :job/nightly-digest]
               (map :dev-id (:consumers (index/data-key (index/build (-> cfg (update :registry conj "registry-jobs")

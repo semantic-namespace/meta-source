@@ -269,8 +269,11 @@
 ;;                          inline-uses-config, holder-wraps) when its entities
 ;;                          are involved, the rule of its pattern broken and
 ;;                          what is lost; reported as :off-pattern
-;;   :pack/merge            {key :union}: keys whose values it unions across
-;;                          sources (a set of tags); others conflict
+;;   :pack/merge            {key :union|:each}: keys whose sets it unions across
+;;                          sources (a set of tags), and keys saying where an
+;;                          id is declared (a route's router), whose values it
+;;                          collects into a set, one per declaration; others
+;;                          conflict
 ;;   :pack/covers           #{ns ...}: library namespaces whose structure the
 ;;                          pack reads, so the index doesn't report them as
 ;;                          :not-covered (a project's own Pedestal pack)
@@ -400,7 +403,7 @@
                          :skipped (str "the pack failed reading this file: " (ex-message ex))}]))]))))
 
 (defn- merge-policy
-  "{key :union}: meta-source.edn's :merge, plus what each enabled pack declares."
+  "{key :union|:each}: meta-source.edn's :merge, plus what each enabled pack declares."
   [config packs]
   (apply merge (concat (keep :pack/merge packs) [(:merge config)])))
 

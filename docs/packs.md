@@ -82,7 +82,7 @@ The optional keys:
 | `:pack/inline-data-keys` | `(fn [entities])` → data keys its entities define with no entity of their own |
 | `:pack/shape`, `:pack/members` | a data key's shape as text, and the keys a schema is made of |
 | `:pack/describe` | one line for the hover |
-| `:pack/merge` | `{key :union}`: keys whose values it unions across sources, rather than reporting different values as a conflict |
+| `:pack/merge` | `{key :union}`: keys whose sets it unions across sources, rather than reporting different values as a conflict. `{key :each}`: keys that say where an id is declared (a route's router), whose values it collects into a set, one per declaration, so two declarations in two places don't conflict |
 | `:pack/dataflow` | `{:consumes [k ...] :produces [k ...]}`: entry keys listing the data keys its entities read and give |
 | `:pack/dataflow-of` | `(fn [entries])` → the same, derived from what was read (`{id entry}`): atlas's pack takes a project's ontologies' context and response keys, so a project's own entity types need no `:dataflow` line |
 | `:pack/relations` | `{k {:verb v}}`: what an entry key's ids are to the entity: `:depends`, `:consumes`, `:produces`, or a qualified verb of the pack's own, with `:depends true` when its ids are dependencies too ([relations](reference.md#what-an-entry-key-means-relations)) |
