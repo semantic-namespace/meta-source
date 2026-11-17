@@ -798,6 +798,11 @@
                                  ":doc/see-also is untyped, so it counts as a dependency, and :r/health-reaches-mailer holds on :page/health")
                   ;; :fn/deps decides nothing: no info for it
                   (= 1 (count (problems plain :untyped-decides-rules)))))
+      (check "coverage: summary tallies the rule applications, how many were exact, and the answers resting on untyped keys; check's coverage line says it"
+             (let [s (index/summary plain)]
+               (and (= {:rules 2 :applications 1 :unverifiable 0 :through-untyped 2} (get-in s [:coverage :rules]))
+                    (str/includes? (cli/read-line-summary s)
+                                   "meta-source: coverage: 0 of 0 public fns linked to an entity; 1 rule applications, 1 exact; 2 rule answers rest on untyped keys"))))
       (check "relations: once the key is typed, the answer is the declared one and the info goes"
              (and (empty? (problems typed :untyped-decides-rules))
                   (= #{[:r/health-reaches-mailer :page/health] [:r/off-mailer-pages-documented :page/health]}
