@@ -13,7 +13,9 @@
    - unless the key's merge policy says otherwise. :union takes the union of
      every source's set (a set of tags, say). Sets are not unioned by
      default: a union would hide a deletion, a dep removed in one file and
-     still listed in another.")
+     still listed in another. :each is for a key that says where an id is
+     declared (a route's router): each source's value goes into a set, one
+     per declaration, so two declarations in two places never conflict.")
 
 (defn- labels
   "A set of source labels, sorted by how they print: a label may be a file
@@ -25,10 +27,11 @@
   "Merges `sources`, each {:source label :entities {id entry}}, into
    {:entities   {id entry}
     :provenance {id {key #{label ...}}}
-    :value-provenance {id {key {value #{label ...}}}}, for a unioned key: who
-                 gave each of its values
+    :value-provenance {id {key {value #{label ...}}}}, for a :union or :each
+                 key: who gave each of its values
     :conflicts  [{:problem :conflicting-values :dev-id :key :values [{:value :sources}]}]}.
-   `policy` is {key :union}, the keys whose values are unioned. A
+   `policy` is {key :union|:each}: the keys whose sets are unioned, and the
+   keys whose values are collected into a set, one per source. A
    conflicting key is left out of its entity; the rest of the entity is kept."
   ([sources] (merge-sources sources {}))
   ([sources policy]
@@ -38,8 +41,9 @@
                  {:id id :k k :v v :source source})
          by-key (group-by (juxt :id :k) given)
          merged-value (fn [[_ k] gs]
-                        (if (= :union (get policy k))
-                          {:value (into #{} (mapcat :v) gs)}
+                        (case (get policy k)
+                          :union {:value (into #{} (mapcat :v) gs)}
+                          :each {:value (into #{} (map :v) gs)}
                           (let [by-value (group-by :v gs)]
                             (if (= 1 (count by-value))
                               {:value (:v (first gs))}
@@ -58,8 +62,11 @@
                           {}
                           by-key)
       :value-provenance (reduce (fn [acc {:keys [id k v source]}]
-                                  (if (and (= :union (get policy k)) (coll? v))
-                                    (reduce #(update-in %1 [id k %2] (fnil conj (labels [])) source) acc v)
+                                  (case (get policy k)
+                                    :union (if (coll? v)
+                                             (reduce #(update-in %1 [id k %2] (fnil conj (labels [])) source) acc v)
+                                             acc)
+                                    :each (update-in acc [id k v] (fnil conj (labels [])) source)
                                     acc))
                                 {}
                                 given)

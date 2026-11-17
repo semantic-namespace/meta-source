@@ -157,7 +157,11 @@ own, which stay dependencies until something says otherwise.
 A var with the meta key and no entry is valid: an entity with its binding
 only, reported as info. `:id-key` in `meta-source.edn` chooses another meta
 key; `:merge {key :union}` unions a set-valued key across files instead of
-reporting a conflict.
+reporting a conflict. `:merge {key :each}` is for a key that says *where* an
+id is declared (which router a route is in): it holds a set of every
+source's value, one per declaration, so one name declared in two places is
+one entity declared twice, not a conflict. The keys that say *what* it is
+still conflict when the two declarations disagree.
 
 ## Your own rules
 

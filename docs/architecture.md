@@ -79,7 +79,9 @@ to a key a spec defines.
 4. **Sources merge per id.** Different keys combine. The same key with the
    same value is fine. The same key with different values is a conflict,
    naming every source that gave it: never last-write-wins. A pack can mark
-   keys whose values union, such as a set of tags. Each entity keeps its
+   keys whose values union, such as a set of tags, and keys that say where
+   an id is declared, such as a route's router, which keep one value per
+   declaration. Each entity keeps its
    provenance, meaning which source gave which key. Its primary definition
    is the place that declares it (the spec, the resolver, the component);
    facts in EDN are added to it.
