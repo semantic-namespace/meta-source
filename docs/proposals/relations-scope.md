@@ -152,6 +152,12 @@ entities to 113. What's left untyped: `:behavior-tree/children` 24,
 for A too), the app's own id key 21, and `:llm-prompt/verifies` 12,
 `:workflow-producer/output` 5, `:node/mitigates` 2 (B).
 
+Built in semantic-namespace/meta-source-packs#4, with the schema pack's keys
+too: a spec depends on the keys it's made of (`:spec/req` …), and its
+`:spec/refs` (every qualified keyword in the form, an enum's values among
+them) is a relation. On the same app: 218 findings, identical; reach pairs
+5,771; 64 untyped edges, all B's and C's.
+
 ## Open questions
 
 1. **`:pack/untyped` only, or `:dependency`/`:relation`?** Only `:relation`
