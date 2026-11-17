@@ -370,6 +370,91 @@
             (when (contains? c :or) (mapcat #(unsure view % id) (:or c))))]
     (when (seq rs) (set rs))))
 
+(defn- follows-dependencies?
+  "True when condition `c` follows dependencies (:deps, :used-by, :reaches,
+   :reached-by), itself or under :not or :or."
+  [c]
+  (and (map? c)
+       (boolean (or (some #(contains? c %) [:deps :used-by :reaches :reached-by])
+                    (follows-dependencies? (:not c))
+                    (and (sequential? (:or c)) (some follows-dependencies? (:or c)))))))
+
+(defn- declared-view
+  "`view` with only the dependencies some source declared (an untyped key's
+   left out), or nil when every key is typed."
+  [view]
+  (when-let [d (:declared view)]
+    (-> (merge view d)
+        (dissoc :declared)
+        (assoc :reverse-edges (:declared-reverse-edges view)))))
+
+(defn- untyped-keys
+  "The untyped keys on the edges by which `id` reaches, or is reached by,
+   what it does only when those keys count: the ones a rule's answer
+   hangs on."
+  [view dv id]
+  (let [edges (:untyped-edges view)
+        down (set (keys (reachable view depends-on id)))
+        down-only (apply disj down (keys (reachable dv depends-on id)))
+        up (set (keys (reachers view depends-on id)))
+        up-only (apply disj up (keys (reachers dv depends-on id)))]
+    (vec (sort (distinct (concat
+                          (for [x (cons id down) [y ks] (get edges x) :when (contains? down-only y) k ks] k)
+                          (for [x up-only [y ks] (get edges x) :when (or (= y id) (contains? up y)) k ks] k)))))))
+
+(defn- untyped-only
+  "The untyped keys condition `c`'s answer on `id` hangs on, in the quiet
+   direction: a :require clause (`must` true) that holds only through them,
+   or a :when (`must` false) that leaves `id` out only because of them; nil
+   otherwise. An untyped key counts as a dependency, so nothing goes
+   missing; an answer that is a pass only because of one is said (one that
+   fails because of one is loud already)."
+  [view c id must]
+  (when (follows-dependencies? c)
+    (when-let [dv (declared-view view)]
+      (let [full (boolean (holds? view c id))]
+        (when (and (= full must) (not= full (boolean (holds? dv c id))))
+          (let [ks (untyped-keys view dv id)]
+            (if (seq ks) ks (vec (sort (distinct (mapcat val (get (:untyped-edges view) id))))))))))))
+
+(declare failures)
+
+(defn- prepared
+  "`view` with what rules look up many times built once: :referrers
+   ({:k {id [ids whose :k names it]}}, for a key when a rule asks) and
+   :reached-by's reversed graph, per :via, over all dependencies and over
+   the declared ones."
+  [view]
+  (let [by-key (memoize (fn [k] (reduce (fn [m [from e]] (reduce #(update %1 %2 (fnil conj []) from) m (names (:entry e) k)))
+                                        {} (sort-by key (:entities view)))))
+        view (assoc view
+                    :referrers (fn [k id] (get (by-key k) id))
+                    :reverse-edges (memoize (fn [via] (reverse-edges view via))))]
+    (if-let [dv (declared-view view)]
+      (assoc view :declared-reverse-edges (memoize (fn [via] (reverse-edges dv via))))
+      view)))
+
+(defn untyped-decided
+  "[{:rule :dev-id :keys [key ...] :applies bool}]: each rule answer that is
+   a pass only because keys no source types count as dependencies: a rule
+   that holds on an entity only through them (:applies true), or that
+   leaves it out only because of them (:applies false)."
+  [view rules]
+  (when (declared-view view)
+    (let [view (prepared view)]
+      (for [{:keys [id rule]} rules
+            :when (and (map? rule) (empty? (rule-problems rule)))
+            e-id (sort (keys (:entities view)))
+            :when (not (unsure view (:when rule) e-id))
+            :let [applies (holds? view (:when rule) e-id)
+                  ks (if applies
+                       (when (and (not-any? #(unsure view % e-id) (:require rule))
+                                  (empty? (failures view rule e-id)))
+                         (seq (distinct (mapcat #(untyped-only view % e-id true) (:require rule)))))
+                       (untyped-only view (:when rule) e-id false))]
+            :when (seq ks)]
+        {:rule id :dev-id e-id :keys (vec ks) :applies (boolean applies)}))))
+
 (defn- failures
   "The :require clauses of `rule` that fail on `id`: [{:clause c :offenders [...]}]."
   [view rule id]
@@ -420,12 +505,7 @@
    `rules` is [{:id :rule :file :line}]."
   [view rules]
   (let [ids (sort (keys (:entities view)))
-        ;; {:k {id [ids whose :k names it]}}, built for a key when a rule asks
-        by-key (memoize (fn [k] (reduce (fn [m [from e]] (reduce #(update %1 %2 (fnil conj []) from) m (names (:entry e) k)))
-                                        {} (sort-by key (:entities view)))))
-        view (assoc view :referrers (fn [k id] (get (by-key k) id)))
-        ;; :reached-by's reversed graph, built once per :via
-        view (assoc view :reverse-edges (memoize (fn [via] (reverse-edges view via))))]
+        view (prepared view)]
     (for [{:keys [id rule file line]} rules
           p (if-let [ps (seq (concat (rule-problems rule) (undeclared-verbs view rule)))]
               [{:severity :error :problem :rule-not-understood :rule id :reasons (vec ps) :file file :line line}]

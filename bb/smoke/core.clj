@@ -759,6 +759,42 @@
                   (= [:r/mitigates-risks] (map :rule (problems differ :rule-unverifiable))))))
     (fs/delete-tree dir))
 
+  ;; ---- relations: a rule's pass that hangs on an untyped key is said
+  (let [dir (str (fs/create-temp-dir))]
+    (fs/create-dirs (str dir "/registry"))
+    (fs/create-dirs (str dir "/rules"))
+    (spit (str dir "/registry/r.edn")
+          (str "{:page/health {:doc/see-also [:svc/mailer] :page/public true}\n"
+               " :svc/mailer {:k/x 1}\n"
+               " :fn/save {:fn/deps [:db/orders]}\n :db/orders {:k/x 1}}"))
+    (spit (str dir "/rules/r.edn")
+          (str "{:r/health-reaches-mailer {:when {:has :page/public} :require [{:reaches {:some {:id :svc/mailer}}}]}\n"
+               " :r/off-mailer-pages-documented {:when {:has :page/public :reaches {:none {:id :svc/mailer}}} :require [{:has :doc/summary}]}}"))
+    (let [build (fn [& {:as more}] (index/build (merge {:root dir :src [] :registry ["registry"] :rules ["rules"] :cache nil} more)))
+          plain (build)
+          [p] (problems plain :untyped-decides-rules)
+          typed (build :relations {:doc/see-also {:verb :doc/see-also} :fn/deps {:verb :depends}})
+          as-dep (build :relations {:doc/see-also {:verb :depends} :fn/deps {:verb :depends}})]
+      (check "relations: a rule passing only through an untyped key is an info naming the key, the rule and the entity; the rule's answer is unchanged"
+             (and (= :doc/see-also (:property p))
+                  (= [{:rule :r/health-reaches-mailer :dev-id :page/health :applies true}
+                      {:rule :r/off-mailer-pages-documented :dev-id :page/health :applies false}]
+                     (:decides p))
+                  (= :page/health (:dev-id p))
+                  (= "registry/r.edn" (get-in p [:definition :file]))
+                  (empty? (problems plain :rule-violated))
+                  (str/includes? (hover/message plain p nil)
+                                 ":doc/see-also is untyped, so it counts as a dependency, and :r/health-reaches-mailer holds on :page/health")
+                  ;; :fn/deps decides nothing: no info for it
+                  (= 1 (count (problems plain :untyped-decides-rules)))))
+      (check "relations: once the key is typed, the answer is the declared one and the info goes"
+             (and (empty? (problems typed :untyped-decides-rules))
+                  (= #{[:r/health-reaches-mailer :page/health] [:r/off-mailer-pages-documented :page/health]}
+                     (set (map (juxt :rule :dev-id) (problems typed :rule-violated))))
+                  (empty? (problems as-dep :untyped-decides-rules))
+                  (empty? (problems as-dep :rule-violated)))))
+    (fs/delete-tree dir))
+
   ;; ---- relations: a pack's own keys are relations when no source says otherwise
   (let [dir (str (fs/create-temp-dir))]
     (fs/create-dirs (str dir "/registry"))

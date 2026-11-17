@@ -52,6 +52,7 @@ problem):
 | a form a pack couldn't read, and why | info |
 | one of your own rules, broken (`:rule-violated`), at the rule's severity; a rule not understood | yours; error |
 | one of your own rules that can't be checked on an entity, because what it follows through code is off the pattern there (`:rule-unverifiable`) | warning |
+| a key no source types that a rule's pass hangs on: the rule holds on an entity, or leaves it out, only because that key counts as a dependency (`:untyped-decides-rules`, one per key) | info |
 
 Findings are reported, never guessed around: an option written as code is
 reported as not read, rather than read wrongly. Your own invariants are
@@ -132,6 +133,16 @@ they agree. Meanwhile a rule following that key (`:deps`, `:used-by`,
 `:reaches`, `:reached-by`, `:related` with one of its verbs, `:consumers` or
 `:producers`) is `:rule-unverifiable` where the key would decide its answer,
 naming the conflict: it doesn't answer on a guess.
+
+An undeclared key counts as a dependency, so a rule never misses one. But a
+pass can then hang on it: `{:reaches {:some {:id :svc/mailer}}}` holds
+through a `:doc/see-also` link, or a `:when {:reaches {:none ...}}` leaves an
+entity out because of one. The answer stands, and `check` says so, once per
+key (`:untyped-decides-rules`, info): `:doc/see-also is untyped, so it counts
+as a dependency, and :r/health-reaches-mailer holds on :page/health only
+through it: say what it is in :relations`. Typing the key gives the declared
+answer and the info goes. A rule that *fails* because of an untyped key is
+already loud, and isn't listed.
 
 `:related` with `:consumes` or `:produces` follows the entry's contract, data
 keys included, as `:consumers`, `:producers` and `data` do: enabling a schema
