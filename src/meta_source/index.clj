@@ -321,6 +321,28 @@
 
 (def ^:private packs-resource "meta-source/packs.edn")
 
+(def pack-keys
+  "Every key a pack may give, and how settled it is (docs/packs.md, The
+   contract). A :stable key, which two packs or more give, changes only by
+   addition: no key is removed or changes meaning. A :provisional one, which
+   one pack gives, may still change, said in the release that changes it. A
+   :pack/ key not here is refused, never ignored."
+  {:pack/id :stable, :pack/kinds :stable, :pack/config-keys :stable, :pack/vocabulary :stable
+   :pack/find :stable, :pack/read :stable, :pack/data-files :stable, :pack/read-data :stable
+   :pack/data-keys? :stable, :pack/describes? :stable, :pack/merge :stable
+   :pack/dataflow :stable, :pack/relations :stable, :pack/not-references :stable
+   :pack/checks :stable, :pack/messages :stable, :pack/inexact :stable
+   :pack/describe :stable, :pack/shape :stable
+   :pack/kondo-config :stable, :pack/runtime-fill :stable, :pack/runtime-diff :stable
+   ;; one pack each: atlas's
+   :pack/id-key :provisional, :pack/dataflow-of :provisional, :pack/relations-of :provisional
+   :pack/vocabulary-of :provisional, :pack/untyped :provisional, :pack/rules-of :provisional
+   :pack/derive :provisional, :pack/runtime-kinds :provisional
+   ;; one pack each: integrant's, the schema packs', Overarch's, grain's
+   :pack/hands :provisional, :pack/depends :provisional
+   :pack/schema-call? :provisional, :pack/members :provisional, :pack/inline-data-keys :provisional
+   :pack/var-meta :provisional, :pack/depicts? :provisional, :pack/covers :provisional})
+
 (defn available-packs
   "The packs on the classpath, in classpath order: each library of packs
    ships a meta-source/packs.edn resource, a vector of {:pack sym
@@ -337,6 +359,10 @@
     (when-not (and (map? p) (or (and (:pack/find p) (:pack/read p))
                                 (and (:pack/data-files p) (:pack/read-data p))))
       (throw (ex-info "A pack is a map with :pack/find and :pack/read, or :pack/data-files and :pack/read-data" {:pack sym})))
+    (when-let [unknown (seq (sort (filter #(and (= "pack" (namespace %)) (not (contains? pack-keys %))) (keys p))))]
+      (throw (ex-info (str sym " gives " (str/join ", " (map pr-str unknown))
+                           ", which meta-source doesn't know (docs/packs.md lists the keys; a newer meta-source may have it)")
+                      {:pack sym :unknown (vec unknown)})))
     p))
 
 (defn enabled-packs

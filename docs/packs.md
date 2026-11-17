@@ -87,6 +87,9 @@ The optional keys:
 | `:pack/dataflow-of` | `(fn [entries])` → the same, derived from what was read (`{id entry}`): atlas's pack takes a project's ontologies' context and response keys, so a project's own entity types need no `:dataflow` line |
 | `:pack/relations` | `{k {:verb v}}`: what an entry key's ids are to the entity: `:depends`, `:consumes`, `:produces`, or a qualified verb of the pack's own, with `:depends true` when its ids are dependencies too ([relations](reference.md#what-an-entry-key-means-relations)) |
 | `:pack/relations-of` | `(fn [entries])` → the same, derived from what was read: atlas's pack reads its type-refs. A key read from several places gives each, `[{:verb v :source s} ...]` (`:source` where it was read, a type-ref's id): two that disagree are a `:conflicting-relations` error naming each, as two packs disagreeing are, never one picked |
+| `:pack/not-references` | entry keys whose ids are only a lookup, not something the entity refers to: integrant's `:integrant/ref-keys` says which config key holds which ref |
+| `:pack/depends` | `(fn [entities])` → `{id #{id}}`: what its entities' names resolve to, as the library resolves them (an integrant ref to a key others derive is a dependency on each of them), added to what `:reaches` follows |
+| `:pack/hands` | `(fn [entry])` → what the entity's code hands each fn it calls (integrant's: the components its config refers to), `:unknown` when it isn't followed; how an edge through code is followed to what an entity builds |
 | `:pack/untyped` | `:relation`: a key in the pack's vocabulary that no source gives a verb is a relation by its own name, not a dependency. Atlas draws no edge from a key its ontologies don't declare, and says so this way. Other packs' keys and the project's own stay dependencies |
 | `:pack/vocabulary-of` | `(fn [entries])` → more key namespaces of the pack's, derived from what was read: atlas's pack takes the namespace each ontology owns (`llm-prompt` for `:atlas/llm-prompt`) |
 | `:pack/derive` | `(fn [entities opts])` → `{id {key value}}`: facts derived from what every pack read, `entities` being `{id {:entry merged-entry :kinds #{source-kind}}}`. atlas's pack gives a route described in EDN its `:atlas/type`. A derived fact fills a key the entry lacks, never one a source gave, so it can't conflict; `where` lists it with `:derived-by` |
@@ -114,6 +117,40 @@ file is reported the same way, for that file, and one whose `:pack/find`
 throws, at the first file. Two packs giving the same
 `:kind` are refused; a `:refer` in an `ns` form is never handed to a pack, and
 neither is a form inside a `(comment ...)` block, which is REPL scratch. `bb smoke core` runs packs like this one (`bb/smoke/packs.clj`) over `test/fixtures/core`.
+
+## The contract
+
+The keys on this page (the example pack's, the table's and `:pack/covers`) are
+the whole contract. A pack giving a `:pack/` key meta-source
+doesn't know is refused when it's enabled, naming the key: a misspelled
+`:pack/relation` is an error, not a pack that silently does less. Keys in
+any other namespace are the pack's own.
+
+Each key is **stable** or **provisional**
+([`pack-keys`](../src/meta_source/index.clj) says which):
+
+- **Stable**: two packs or more give it. It changes only by addition (a
+  new option, a new value): no stable key is removed or changes meaning.
+  These are `:pack/id`, `:pack/kinds`, `:pack/config-keys`,
+  `:pack/vocabulary`, `:pack/find`, `:pack/read`, `:pack/data-files`,
+  `:pack/read-data`, `:pack/data-keys?`, `:pack/describes?`, `:pack/merge`,
+  `:pack/dataflow`, `:pack/relations`, `:pack/not-references`,
+  `:pack/checks`, `:pack/messages`, `:pack/inexact`, `:pack/describe`,
+  `:pack/shape`, `:pack/kondo-config`, `:pack/runtime-fill` and
+  `:pack/runtime-diff`.
+- **Provisional**: one pack gives it, so its shape rests on one library.
+  It may still change, and the release that changes it says so. A second
+  pack giving it is what makes it stable.
+  - atlas's: `:pack/id-key`, `:pack/dataflow-of`, `:pack/relations-of`,
+    `:pack/vocabulary-of`, `:pack/untyped`, `:pack/rules-of`,
+    `:pack/derive` and `:pack/runtime-kinds`;
+  - integrant's: `:pack/hands` and `:pack/depends`;
+  - the schema packs': `:pack/schema-call?`, `:pack/members`,
+    `:pack/inline-data-keys` and `:pack/var-meta`;
+  - Overarch's: `:pack/depicts?`; grain's: `:pack/covers`.
+
+A new key starts provisional. The bar for one is a library whose packs
+can't say something with the keys there are.
 
 ## What the index doesn't cover: `:not-covered`
 
