@@ -178,6 +178,9 @@
 ;;   :pack/config-keys      the :packs keys that enable a built-in pack
 ;;   :pack/kinds            the :kind of the sources it gives (one pack per kind)
 ;;   :pack/vocabulary       the key namespaces its entries use
+;;   :pack/vocabulary-of    (fn [entries]) → more of them, derived from what
+;;                          was read ({id entry}): atlas's, the namespaces its
+;;                          ontologies own
 ;;   :pack/data-keys?       true when its entities are data keys (schemas)
 ;;   :pack/describes?       true when it describes what other packs declare
 ;;                          (atlas's registry, under an integrant component's
@@ -201,6 +204,11 @@
 ;;                          what it names is a dependency
 ;;   :pack/relations-of     (fn [entries]) → the same, derived from what was
 ;;                          read: atlas's type-refs
+;;   :pack/untyped          :relation: a key of the pack's vocabulary that no
+;;                          source gives a verb is a relation by its own name,
+;;                          not a dependency (atlas draws no edge from a key
+;;                          its ontologies don't declare). Other packs' keys
+;;                          and the project's own stay dependencies
 ;;   :pack/find             (fn [analysis opts]) → sites, each {:filename :row
 ;;                          :name-row :name-col ...} found in clj-kondo's
 ;;                          analysis (a site inside a (comment ...) block
@@ -444,16 +452,22 @@
               claim))))
 
 (defn- relations
-  "{:verbs {prop verb} :depending #{prop} :problems [...]}: each entry key's
-   verb, where its sources agree, and the keys of a verb of their own whose
-   ids are dependencies too ({:verb v :depends true}: reach follows them,
+  "{:verbs {prop verb} :depending #{prop} :untyped {prop pack-id}
+    :vocabulary #{ns} :problems [...]}: each entry key's verb, where its
+   sources agree, and the keys of a verb of their own whose ids are
+   dependencies too ({:verb v :depends true}: reach follows them,
    :related follows v). A key given two verbs, or :depends by one source and
    not another, is a :conflicting-relations error, naming who gave which, and
    stays untyped: never last-write-wins. A claim with no keyword key, no verb
    meta-source knows (reserved or qualified), a :depends that isn't true or
-   false, or :depends true on dataflow, is a :relation-not-understood error."
+   false, or :depends true on dataflow, is a :relation-not-understood error.
+   :untyped, {key pack-id}: the keys no source says anything of whose
+   namespace is in the vocabulary of a pack with :pack/untyped :relation,
+   each a relation by its own name; :vocabulary, every pack's namespaces."
   [config packs entities]
   (let [claims (relation-claims config packs entities)
+        vocabulary-of (fn [p] (into (set (:pack/vocabulary p))
+                                    (when-let [f (:pack/vocabulary-of p)] (f entities))))
         problem (fn [[prop verb _ _ depends]]
                   (cond (not (keyword? prop)) (if (nil? prop) ":relations is a map of entry key to {:verb v}" "an entry key is a keyword")
                         (not (or (contains? reserved-verbs verb) (qualified-keyword? verb)))
@@ -463,16 +477,37 @@
                         "dataflow is no dependency: :depends true goes with :depends or a verb of the project's own"))
         ;; what reach makes of a claim: :depends, or a verb of its own marked :depends true
         depends? (fn [[_ verb _ _ depends]] (or (= :depends verb) (true? depends)))
-        by-prop (group-by first (remove problem claims))]
-    {:verbs (into {} (for [[prop cs] by-prop
-                           :let [vs (distinct (map second cs))]
-                           :when (and (= 1 (count vs)) (apply = (map depends? cs)))]
-                       [prop (first vs)]))
+        by-prop (group-by first (remove problem claims))
+        ;; a key no source says anything of, in a vocabulary whose pack has
+        ;; :pack/untyped :relation: a relation by its own name
+        said (set (keep first claims))
+        untyped-ns (into {} (for [p packs :when (= :relation (:pack/untyped p))
+                                  n (sort (vocabulary-of p))]
+                              [n (:pack/id p)]))
+        untyped (into (sorted-map-by #(compare (str %1) (str %2)))
+                      (for [entry (vals entities) :when (map? entry)
+                            k (keys entry)
+                            :when (and (qualified-keyword? k) (not (said k)))
+                            :let [pid (untyped-ns (namespace k))]
+                            :when pid]
+                        [k pid]))]
+    {:verbs (into (into {} (for [[k _] untyped] [k k]))
+                  (for [[prop cs] by-prop
+                        :let [vs (distinct (map second cs))]
+                        :when (and (= 1 (count vs)) (apply = (map depends? cs)))]
+                    [prop (first vs)]))
+     :untyped untyped
+     :vocabulary (into #{} (mapcat vocabulary-of) packs)
      :depending (set (for [[prop cs] by-prop
                            :let [vs (distinct (map second cs))]
                            :when (and (= 1 (count vs)) (not= :depends (first vs)) (every? depends? cs))]
                        prop))
      :problems (vec (concat
+                     (for [p packs
+                           :let [u (:pack/untyped p)]
+                           :when (and (some? u) (not= :relation u))]
+                       {:severity :error :problem :relation-not-understood :source (or (:pack/id p) :pack)
+                        :given u :reason ":pack/untyped is :relation (a key no source gives a verb is a dependency already)"})
                      (for [[prop verb source given :as c] claims
                            :let [reason (problem c)]
                            :when reason]
@@ -902,6 +937,12 @@
      :packs packs
      :relations (:verbs rels)
      :depending (:depending rels)
+     ;; {key pack-id}: the keys a relation by their own name because no source
+     ;; gives them a verb and they are in that pack's :pack/untyped :relation
+     ;; vocabulary
+     :untyped-relations (:untyped rels)
+     ;; every pack's key namespaces, :pack/vocabulary-of's among them
+     :vocabulary (:vocabulary rels)
      :relations-problems (:problems rels)
      :dataflow (dataflow-of (:verbs rels))
      :stamps stamps
@@ -1236,7 +1277,8 @@
                                :when (= x id)]
                            (cond-> {:dev-id other :via prop :definition (loc idx e)}
                              verb (assoc :verb verb)
-                             (and dep? (not (dependency? verb))) (assoc :depends true))))
+                             (and dep? (not (dependency? verb))) (assoc :depends true)
+                             (get-in idx [:untyped-relations prop]) (assoc :untyped (get-in idx [:untyped-relations prop])))))
      :called-from (vec (concat
                         (when (and impl (not (:inline impl)))
                           (for [c (mapcat :calls (vals (:code idx)))
@@ -1257,14 +1299,19 @@
   "The entities `id`'s entry names, with where each is defined, and :verb,
    what the key naming it means, when a source said (meta-source.edn's or a
    pack's :relations): one that isn't :depends is a relation, not a
-   dependency, unless the row says :depends true too."
+   dependency, unless the row says :depends true too. :untyped, the pack
+   whose :pack/untyped :relation made the key a relation, when no source
+   gave it a verb."
   [idx id]
   (when-let [e (get-in idx [:entities id])]
     {:dev-id id
      :depends-on (vec (for [[prop x verb dep?] (references idx (:entry e))]
                         (cond-> {:dev-id x :via prop :definition (loc idx (get-in idx [:entities x]))}
                           verb (assoc :verb verb)
-                          (and dep? (not (dependency? verb))) (assoc :depends true))))}))
+                          (and dep? (not (dependency? verb))) (assoc :depends true)
+                          ;; a relation because no source types it and it is in
+                          ;; that pack's :pack/untyped :relation vocabulary
+                          (get-in idx [:untyped-relations prop]) (assoc :untyped (get-in idx [:untyped-relations prop])))))}))
 
 (defn data-key
   "The entities producing (response) and consuming (context) data key `k`.
@@ -1278,7 +1325,7 @@
                 :definition (loc idx e)})
         e (get-in idx [:entities k])
         own (when (and e (data-key? idx e)) (:entry e))
-        vocabulary (into #{} (mapcat :pack/vocabulary) (:packs idx))
+        vocabulary (or (:vocabulary idx) (into #{} (mapcat :pack/vocabulary) (:packs idx)))
         member-of (vec (for [[id s] (sort-by key (data-key-entities idx))
                              :when (some (fn [p] (when-let [m (:pack/members p)] (some #{k} (m (:entry s)))))
                                          (:packs idx))]

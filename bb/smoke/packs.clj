@@ -151,6 +151,23 @@
    :pack/relations-of (fn [entries] (into {} (for [[_ e] entries :when (:ref/property e)]
                                                [(:ref/property e) {:verb (:ref/verb e)}])))})
 
+(def untyped-pack
+  "A pack whose undeclared keys are relations: its own namespace, and those
+   an entry with :vocab/ns names (as atlas derives its ontologies'), with
+   one key of it declared a dependency."
+  {:pack/id :untyped :pack/kinds #{:untyped}
+   :pack/find (fn [_ _] []) :pack/read (fn [_ _ _] [])
+   :pack/vocabulary #{"adr"}
+   :pack/vocabulary-of (fn [entries] (set (keep :vocab/ns (vals entries))))
+   :pack/relations {:adr/needs {:verb :depends}}
+   :pack/untyped :relation})
+
+(def untyped-dependency-pack
+  "A pack asking for an untyped default meta-source doesn't have."
+  {:pack/id :untyped-dependency :pack/kinds #{:untyped-dependency}
+   :pack/find (fn [_ _] []) :pack/read (fn [_ _ _] [])
+   :pack/untyped :dependency})
+
 (def dispatch-pack
   "A pack reading only what the analysis gives: each (defmethod handle :x)
    is an entity, from its dispatch value, with no form read, so its sites
