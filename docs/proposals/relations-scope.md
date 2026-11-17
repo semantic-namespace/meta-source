@@ -102,6 +102,18 @@ every ontology key as a relation unnecessary.
 pack's entries. A pack whose vocabulary is computed needs `:pack/vocabulary-of
 (fn [entries])`, as `:pack/relations-of` is to `:pack/relations`.
 
+Built in #60 (core), semantic-namespace/meta-source-js#3 and
+semantic-namespace/atlas#79, with one change: atlas's vocabulary is the
+namespace each ontology *owns*, the name of its type (`llm-prompt` for
+`:atlas/llm-prompt`), not every namespace in `:ontology/keys`. Those include
+`:grain/*` and `:shapeup/*`, a namespace another pack writes; an ontology's
+keys outside its own namespace are declared one by one already. Rows and the
+describe buffer say when a relation comes from the default ("untyped, in
+atlas's vocabulary"). On the private app, 17 edges become relations as
+estimated: untyped edges 64 → 47, reach pairs 5,771 → 5,569, findings
+identical, no entity reaching anything new; atlas's own sources are
+unchanged.
+
 **C. The project's own keys stay the project's.** Nothing changes:
 the app's own id key is a dependency until its `meta-source.edn` (or an
 ontology of its own) says it's a relation. What helps is seeing them:
@@ -167,6 +179,7 @@ them) is a relation. On the same app: 218 findings, identical; reach pairs
 3. **Atlas's computed vocabulary vs `:pack/vocabulary` uses today.**
    Vocabulary already decides what describe shows as a pack's own props.
    Widening it to every ontology namespace changes that display too; check
-   it on the private app before merging B.
+   it on the private app before merging B. *Checked:* the 34 namespaces it
+   adds hide no data key's props there.
 4. **Order:** A first (packs repo, no core change, biggest gain), then B
    (core + atlas), with C optional. D only on evidence.
