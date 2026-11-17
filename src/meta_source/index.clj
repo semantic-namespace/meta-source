@@ -1286,8 +1286,11 @@
      :entry (:entry e)}))
 
 (defn- coverage-note [idx]
-  (let [linked (count (filter :dev-id (all-vars idx)))
-        fns (count (filter #(and (not (:private %)) (= 'clojure.core/defn (:defined-by %))) (all-vars idx)))]
+  ;; a var once, though a .cljc file defines it for each language
+  (let [distinct-vars #(count (distinct (map (juxt :ns :name) %)))
+        linked (distinct-vars (filter :dev-id (all-vars idx)))
+        fns (distinct-vars (filter #(and (not (:private %)) ('#{clojure.core/defn cljs.core/defn} (:defined-by %)))
+                                   (all-vars idx)))]
     {:linked-vars linked :public-fns fns
      :note (when (< 0 linked fns) "only linked vars are seen as entities; calls from unlinked code are listed but not their entities")}))
 

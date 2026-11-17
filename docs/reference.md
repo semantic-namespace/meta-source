@@ -38,8 +38,9 @@ meta-source: coverage: 32 of 32 library forms read; 4 of 12 public fns linked to
 
 - **Library forms read**: what the packs read, out of what they found. A
   form not read is a `pack-form-not-read` finding.
-- **Public fns linked**: code not linked to an entity is seen as calls, not
-  as entities. A rule's path goes through linked code and declarations only,
+- **Public fns linked**: of the `defn`s in Clojure and ClojureScript, each
+  counted once (a `.cljc` one too). Code not linked to an entity is seen as
+  calls, not as entities. A rule's path goes through linked code and declarations only,
   so few linked fns means a `:reaches {:none …}` pass says less.
 - **Rule applications**: each rule and entity it applies to. Exact ones were
   checked over the graph; unverifiable ones went through code off a pattern
