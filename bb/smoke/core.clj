@@ -314,6 +314,34 @@
              (and (pos? (:analysed after)) (nil? (show after)))))
     (fs/delete-tree dir))
 
+  ;; ---- a (comment ...) a clj-kondo hook makes is not REPL scratch: Penpot's
+  ;; sv/defmethod hook wraps the docstring in one, spanning the whole call
+  (let [dir (str (fs/create-temp-dir))
+        hook-cfg (fn [on?] (spit (str dir "/.clj-kondo/config.edn")
+                                 (if on? "{:hooks {:analyze-call {app.svc/defthing hooks.svc/defthing}}}" "{}")))
+        build #(index/build {:root dir :src ["src"] :registry [] :cache (str dir "/.meta-source/index.transit")
+                             :packs {'smoke.packs/defthing-pack {}}})
+        ids #(set (filter #{:app.core/documented :app.core/plain :app.core/scratch} (keys (:entities %))))]
+    (fs/create-dirs (str dir "/src/app")) (fs/create-dirs (str dir "/.clj-kondo/hooks"))
+    (spit (str dir "/src/app/svc.clj") "(ns app.svc)\n(defmacro defthing [k & _] `(def ~(symbol (name k)) 1))\n")
+    (spit (str dir "/src/app/core.clj")
+          (str "(ns app.core (:require [app.svc :as sv]))\n"
+               "(sv/defthing ::documented\n  \"Its doc, which the hook puts in a comment.\"\n  {:v 1})\n"
+               "(sv/defthing ::plain\n  {:v 2})\n"
+               "(comment\n  (sv/defthing ::scratch {:v 3}))\n"))
+    (spit (str dir "/.clj-kondo/hooks/svc.clj")
+          (str "(ns hooks.svc (:require [clj-kondo.hooks-api :as api]))\n"
+               "(defn defthing [{:keys [node]}]\n"
+               "  (let [[_ k & more] (:children node)\n"
+               "        [doc more] (if (api/string-node? (first more)) [(first more) (rest more)] [nil more])]\n"
+               "    {:node (api/list-node (cond-> [(api/token-node 'do)]\n"
+               "                            doc (conj (api/list-node [(api/token-node 'comment) doc]))\n"
+               "                            true (into more)))}))\n"))
+    (hook-cfg true)
+    (check "a (comment ...) a clj-kondo hook makes around a docstring hides no form; a written one still does"
+           (= #{:app.core/documented :app.core/plain} (ids (build))))
+    (fs/delete-tree dir))
+
   ;; ---- a project's own pack edited: the cached reads aren't reused
   (let [dir (str (fs/create-temp-dir))
         pack-file (str dir "/packs/src/cachepack/core.clj")
