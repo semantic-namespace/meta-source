@@ -25,7 +25,7 @@
 
 (def ^:private bb? (some? (System/getProperty "babashka.version")))
 
-(def cache-version 8)
+(def cache-version 9)
 
 (def default-id-key
   "The meta key a plain var carries to say which id it implements. A
@@ -724,8 +724,12 @@
           ;; the failure is reported at the first file, as a form not read
           ;; (comment ...) blocks are REPL scratch, not declarations: a pack's
           ;; site inside one isn't read. {file [[start end] ...]}, positions [row col]
+          ;; Only a block written in the source: a (comment ...) a clj-kondo hook
+          ;; makes (Penpot's sv/defmethod hook wraps the docstring in one) has
+          ;; :derived-location, the position of the whole call it rewrites.
           comments (update-vals (group-by :filename (for [u (:var-usages analysis)
-                                                          :when (and (= 'clojure.core (:to u)) (= 'comment (:name u)) (:end-row u))]
+                                                          :when (and (= 'clojure.core (:to u)) (= 'comment (:name u)) (:end-row u)
+                                                                     (not (:derived-location u)))]
                                                       u))
                                 #(vec (for [u %] [[(:row u) (:col u)] [(:end-row u) (:end-col u)]])))
           in-comment? (fn [{:keys [filename row name-row name-col]}]

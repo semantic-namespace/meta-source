@@ -189,3 +189,16 @@
    :pack/read (fn [sites _ _]
                 (vec (for [{:keys [row dispatch-val-str]} sites]
                        {:row row :kind :dispatch :dev-id (keyword "op" (name (read-string dispatch-val-str))) :entry {:op/handled true}})))})
+
+(def defthing-pack
+  "(app.svc/defthing ::name doc? {meta}): each an entity under its keyword,
+   whatever a project's clj-kondo hook makes of the call."
+  {:pack/id :defthing :pack/kinds #{:thing}
+   :pack/find (fn [a _] (for [u (:var-usages a) :when (and (= 'app.svc (:to u)) (= 'defthing (:name u)))]
+                          (select-keys u [:filename :row :name-row :name-col])))
+   :pack/read (fn [sites {:keys [form-at]} _]
+                (vec (for [{:keys [row name-row name-col]} sites
+                           :let [form (form-at name-row name-col)]]
+                       (if (seq? form)
+                         {:row row :kind :thing :dev-id (second form) :entry {:thing/meta (last form)}}
+                         {:row row :kind :thing :skipped "not data"}))))})
